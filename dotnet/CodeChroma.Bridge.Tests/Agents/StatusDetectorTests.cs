@@ -1,115 +1,236 @@
+using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Agents;
 
 namespace CodeChroma.Bridge.Tests.Agents;
 
+/// <summary>The herdr-style status rule engine, over tests/fixtures/agent_screens shared with tests/unit/test_agent_status.py.</summary>
 public class StatusDetectorTests
 {
-    private static StatusRules Claude() => StatusRules.ForKind("claude");
+    private static readonly string Screens = FindScreens();
 
-    [Fact]
-    public void The_shipped_claude_manifest_loads_with_all_four_sections()
+    private static string FindScreens()
     {
-        var rules = Claude();
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, "tests", "fixtures", "agent_screens");
+            if (Directory.Exists(candidate)) return candidate;
+        }
+        throw new DirectoryNotFoundException("tests/fixtures/agent_screens not found above " + AppContext.BaseDirectory);
+    }
 
-        Assert.Equal("claude", rules.Name);
-        Assert.Equal(["claude", "claude-code", "node"], rules.Process);
-        Assert.Equal(8, rules.TailLines);
-        Assert.NotEmpty(rules.Section("blocked").ScreenRegex);
-        Assert.NotEmpty(rules.Section("working").TitleRegex);
-        Assert.NotEmpty(rules.Section("idle").ScreenRegex);
-        Assert.NotEmpty(rules.Transient.ScreenRegex);
+    private static string[] Screen(string name) =>
+        File.ReadAllText(Path.Combine(Screens, name)).Replace("\r\n", "\n").TrimEnd('\n').Split('\n');
+
+    private static JsonArray Table(string file) => JsonNode.Parse(File.ReadAllText(Path.Combine(Screens, file)))!.AsArray();
+
+    public static TheoryData<int> CaseIndexes() => Indexes("cases.json");
+
+    public static TheoryData<int> RegionIndexes() => Indexes("regions.json");
+
+    private static TheoryData<int> Indexes(string file)
+    {
+        var data = new TheoryData<int>();
+        for (var i = 0; i < Table(file).Count; i++) data.Add(i);
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(CaseIndexes))]
+    public void Shared_screens_classify_as_expected(int index)
+    {
+        var entry = Table("cases.json")[index]!;
+        var lines = entry["screen"] is { } file ? Screen((string)file!) : entry["lines"]?.AsArray().Select(l => (string)l!).ToArray() ?? [];
+        var detector = new StatusDetector(StatusRules.ForKind((string)entry["kind"]!));
+
+        var state = detector.Classify(lines, (string?)entry["title"] ?? "", (string?)entry["progress"] ?? "", null);
+
+        Assert.Equal((string?)entry["expected"], state);
+        Assert.Equal((string?)entry["rule"], detector.LastClassification.RuleId);
+        Assert.Equal((bool)entry["visible_blocker"]!, detector.LastVisibleBlocker);
+    }
+
+    [Theory]
+    [MemberData(nameof(RegionIndexes))]
+    public void Shared_regions_slice_the_screen_like_herdr(int index)
+    {
+        var entry = Table("regions.json")[index]!;
+        var screen = new DetectScreen(entry["lines"]!.AsArray().Select(l => (string)l!).ToArray());
+
+        var region = screen.Region((string)entry["region"]!, "the title", "running");
+
+        Assert.Equal((string)entry["expected"]!, region);
+    }
+
+    [Theory]
+    [InlineData("claude")]
+    [InlineData("codex")]
+    [InlineData("kimi")]
+    [InlineData("gemini")]
+    public void Every_shipped_manifest_parses_and_reads_the_whole_screen(string kind)
+    {
+        var rules = StatusRules.ForKind(kind);
+
+        Assert.True(rules.Classifies);
+        Assert.Equal(200, rules.TailLines);
     }
 
     [Fact]
-    public void An_unknown_kind_gets_rules_that_never_classify()
+    public void An_alias_resolves_to_its_manifest_and_an_unknown_kind_never_classifies()
     {
-        var detector = new StatusDetector(StatusRules.ForKind("shell"));
-
-        Assert.Null(detector.Classify(["Do you want to proceed?"], "", "", null));
-        Assert.False(detector.Rules.Classifies);
-    }
-
-    [Fact]
-    public void Only_a_shipped_manifest_reports_that_it_classifies()
-    {
-        Assert.True(Claude().Classifies);
+        Assert.Equal("kimi", StatusRules.ForKind("kimi-cli").Name);
         Assert.False(StatusRules.ForKind("agent").Classifies);
+        Assert.Null(new StatusDetector(StatusRules.ForKind("shell")).Classify(["Do you want to proceed?"], "", "", null));
+    }
+
+    [Fact]
+    public void A_foreign_foreground_process_holds_and_clears_the_visible_blocker()
+    {
+        var detector = new StatusDetector(StatusRules.ForKind("claude"));
+        var blocked = Screen("claude/blocked-bash-permission.txt");
+        detector.Classify(blocked, "", "", "claude");
+
+        var held = detector.Classify(blocked, "", "", "vim");
+
+        Assert.Null(held);
+        Assert.False(detector.LastVisibleBlocker);
+    }
+
+    [Fact]
+    public void The_highest_priority_wins_and_file_order_breaks_ties()
+    {
+        var rules = StatusRules.Parse("""
+            [[rules]]
+            id = "low"
+            state = "blocked"
+            priority = 1
+            contains = ["x"]
+            [[rules]]
+            id = "first"
+            state = "working"
+            priority = 5
+            contains = ["x"]
+            [[rules]]
+            id = "second"
+            state = "idle"
+            priority = 5
+            contains = ["x"]
+            """);
+
+        var verdict = rules.Evaluate(["x"]);
+
+        Assert.Equal(("working", "first"), (verdict.State, verdict.RuleId));
+    }
+
+    [Fact]
+    public void A_skip_rule_holds_even_over_a_lower_working_rule()
+    {
+        var rules = StatusRules.Parse("""
+            [[rules]]
+            id = "activity"
+            state = "working"
+            priority = 10
+            contains = ["activity"]
+            [[rules]]
+            id = "overlay"
+            state = "unknown"
+            priority = 20
+            skip_state_update = true
+            contains = ["overlay"]
+            """);
+
+        Assert.Null(rules.Evaluate(["activity overlay"]).State);
+    }
+
+    [Fact]
+    public void Nested_gates_need_all_any_and_no_not()
+    {
+        var rules = StatusRules.Parse("""
+            [[rules]]
+            id = "gate"
+            state = "blocked"
+            contains = ["dialog"]
+            all = [{ line_regex = ['^\s*1\. yes'] }]
+            any = [{ contains = ["enter"] }, { contains = ["esc"] }]
+            not = [{ contains = ["scrollback"] }]
+            """);
+
+        Assert.Equal("blocked", rules.Evaluate(["Dialog", " 1. yes", "Esc"]).State);
+        Assert.Null(rules.Evaluate(["Dialog", " 1. yes", "tab"]).State);
+        Assert.Null(rules.Evaluate(["Dialog", " 1. yes", "Esc", "scrollback"]).State);
     }
 
     [Theory]
-    [InlineData("Do you want to proceed?", "blocked")]
-    [InlineData("  ❯ 1. Yes", "blocked")]
-    [InlineData("✳ thinking (esc to interrupt)", "working")]
-    [InlineData("❯", "idle")]
-    [InlineData("nothing recognizable", null)]
-    public void Screen_rules_classify_the_bottom_lines(string line, string? expected)
+    [InlineData("this is [not toml")]
+    [InlineData("[[rules]]\nid = \"r\"\nstate = \"idle\"\nregion = \"nowhere\"\ncontains = [\"x\"]")]
+    [InlineData("[[rules]]\nid = \"r\"\nstate = \"sleepy\"\ncontains = [\"x\"]")]
+    [InlineData("[[rules]]\nid = \"r\"\nstate = \"idle\"\nregex = [\"[unclosed\"]")]
+    [InlineData("[[rules]]\nid = \"r\"\nstate = \"idle\"\ncontain = [\"typo\"]")]
+    [InlineData("no_match = \"working\"\n[[rules]]\nid = \"r\"\nstate = \"idle\"\ncontains = [\"x\"]")]
+    [InlineData("id = \"empty\"")]
+    public void A_malformed_manifest_degrades_to_always_hold(string toml)
     {
-        var detector = new StatusDetector(Claude());
+        var rules = StatusRules.Parse(toml);
 
-        Assert.Equal(expected, detector.Classify([line], "", "", null));
+        Assert.False(rules.Classifies);
+        Assert.Null(new StatusDetector(rules).Classify(["x"], "", "", null));
     }
 
     [Fact]
-    public void The_braille_spinner_in_the_title_means_working_and_beats_the_screen()
+    public void Working_to_plain_idle_waits_for_three_more_sightings()
     {
-        var detector = new StatusDetector(Claude());
+        var detector = new StatusDetector(StatusRules.ForKind("codex"), hysteresisSeconds: 0, minEmitIntervalSeconds: 0);
+        detector.Force("working");
+        var idle = Screen("codex/idle.txt");
 
-        Assert.Equal("working", detector.Classify(["❯"], "⠇ doing it", "", null));
-    }
+        var emitted = new[] { 10.0, 10.1, 10.2, 10.3 }.Select(at => detector.Observe(idle, now: at)).ToArray();
 
-    [Theory]
-    [InlineData("running", "working")]
-    [InlineData("none", "idle")]
-    public void Osc_progress_is_a_status_signal(string progress, string expected)
-    {
-        var detector = new StatusDetector(Claude());
-
-        Assert.Equal(expected, detector.Classify([], "", progress, null));
+        Assert.Equal([null, null, null, "idle"], emitted);
     }
 
     [Fact]
-    public void A_foreign_foreground_process_holds_the_status()
+    public void Working_to_plain_idle_is_released_by_the_700_ms_cap()
     {
-        var detector = new StatusDetector(Claude());
+        var detector = new StatusDetector(StatusRules.ForKind("codex"), hysteresisSeconds: 0, minEmitIntervalSeconds: 0);
+        detector.Force("working");
+        var idle = Screen("codex/idle.txt");
 
-        Assert.Null(detector.Classify(["Do you want to proceed?"], "", "", "vim"));
-        Assert.Equal("blocked", detector.Classify(["Do you want to proceed?"], "", "", "claude"));
+        var emitted = new[] { 10.0, 10.75 }.Select(at => detector.Observe(idle, now: at)).ToArray();
+
+        Assert.Equal([null, "idle"], emitted);
     }
 
     [Fact]
-    public void A_transient_full_screen_mode_holds_the_status()
+    public void Visible_idle_chrome_skips_the_idle_confirmation()
     {
-        var detector = new StatusDetector(Claude());
+        var detector = new StatusDetector(StatusRules.ForKind("claude"), hysteresisSeconds: 0, minEmitIntervalSeconds: 0);
+        detector.Force("working");
+        var idle = Screen("claude/idle-prompt.txt");
 
-        Assert.Null(detector.Classify(["Select a model", "❯"], "", "", null));
+        var emitted = new[] { 10.0, 10.1 }.Select(at => detector.Observe(idle, now: at)).ToArray();
+
+        Assert.Equal([null, "idle"], emitted);
     }
 
     [Fact]
     public void A_new_status_only_emits_after_it_held_for_the_hysteresis_window()
     {
-        var detector = new StatusDetector(Claude(), hysteresisSeconds: 0.25, minEmitIntervalSeconds: 0);
-        string[] blocked = ["Do you want to proceed?"];
+        var detector = new StatusDetector(StatusRules.ForKind("claude"), hysteresisSeconds: 0.25, minEmitIntervalSeconds: 0);
+        var blocked = Screen("claude/blocked-bash-permission.txt");
 
-        var first = detector.Observe(blocked, now: 10.0);
-        var early = detector.Observe(blocked, now: 10.1);
-        var settled = detector.Observe(blocked, now: 10.3);
-        var repeat = detector.Observe(blocked, now: 10.6);
+        var emitted = new[] { 10.0, 10.1, 10.3, 10.6 }.Select(at => detector.Observe(blocked, now: at)).ToArray();
 
-        Assert.Null(first);
-        Assert.Null(early);
-        Assert.Equal("blocked", settled);
-        Assert.Null(repeat);
-        Assert.Equal("blocked", detector.Status);
+        Assert.Equal([null, null, "blocked", null], emitted);
+        Assert.True(detector.LastVisibleBlocker);
     }
 
     [Fact]
     public void A_flicker_back_to_the_current_status_resets_the_pending_change()
     {
-        var detector = new StatusDetector(Claude(), hysteresisSeconds: 0.25, minEmitIntervalSeconds: 0);
+        var detector = new StatusDetector(StatusRules.ForKind("claude"), hysteresisSeconds: 0.25, minEmitIntervalSeconds: 0);
 
-        detector.Observe(["Do you want to proceed?"], now: 1.0);
-        detector.Observe(["❯"], now: 1.1);
-        var result = detector.Observe(["Do you want to proceed?"], now: 1.2);
+        detector.Observe(Screen("claude/blocked-bash-permission.txt"), now: 1.0);
+        detector.Observe(Screen("claude/idle-prompt.txt"), now: 1.1);
+        var result = detector.Observe(Screen("claude/blocked-bash-permission.txt"), now: 1.3);
 
         Assert.Null(result);
     }
@@ -117,13 +238,15 @@ public class StatusDetectorTests
     [Fact]
     public void Emissions_are_rate_limited()
     {
-        var detector = new StatusDetector(Claude(), hysteresisSeconds: 0, minEmitIntervalSeconds: 1.0);
+        var detector = new StatusDetector(StatusRules.ForKind("claude"), hysteresisSeconds: 0, minEmitIntervalSeconds: 1.0);
+        var blocked = Screen("claude/blocked-bash-permission.txt");
+        var working = Screen("claude/working-spinner.txt");
+        detector.Observe(blocked, now: 1.0);
+        var firstEmit = detector.Observe(blocked, now: 1.0);
+        detector.Observe(working, now: 1.2);
 
-        detector.Observe(["Do you want to proceed?"], now: 1.0);
-        var firstEmit = detector.Observe(["Do you want to proceed?"], now: 1.0);
-        detector.Observe(["esc to interrupt"], now: 1.2);
-        var tooSoon = detector.Observe(["esc to interrupt"], now: 1.4);
-        var later = detector.Observe(["esc to interrupt"], now: 2.5);
+        var tooSoon = detector.Observe(working, now: 1.4);
+        var later = detector.Observe(working, now: 2.5);
 
         Assert.Equal("blocked", firstEmit);
         Assert.Null(tooSoon);
@@ -131,43 +254,14 @@ public class StatusDetectorTests
     }
 
     [Fact]
-    public void Force_sets_the_status_and_clears_the_pending_change()
+    public void Force_sets_the_status_and_drops_a_pending_change()
     {
-        var detector = new StatusDetector(Claude());
+        var detector = new StatusDetector(StatusRules.ForKind("claude"), hysteresisSeconds: 0, minEmitIntervalSeconds: 0);
+        detector.Observe(Screen("claude/blocked-bash-permission.txt"), now: 1.0);
 
         detector.Force("exited");
 
         Assert.Equal("exited", detector.Status);
-    }
-
-    [Fact]
-    public void A_malformed_manifest_degrades_to_rules_that_never_classify()
-    {
-        var rules = StatusRules.Parse("this is [not toml");
-
-        Assert.Empty(rules.Process);
-        Assert.Null(new StatusDetector(rules).Classify(["anything"], "", "", null));
-    }
-
-    [Fact]
-    public void The_toml_reader_handles_comments_escapes_and_multiline_arrays()
-    {
-        var rules = StatusRules.Parse("""
-            name = "x"  # trailing comment
-            process = ["a", "b#c"]
-            tail_lines = 3
-
-            [blocked]
-            screen_regex = [
-              "one\\bTwo",   # comment between items
-              "q\"uote",
-            ]
-            """);
-
-        Assert.Equal(["a", "b#c"], rules.Process);
-        Assert.Equal(3, rules.TailLines);
-        Assert.Equal(2, rules.Section("blocked").ScreenRegex.Count);
-        Assert.Equal(@"one\bTwo", rules.Section("blocked").ScreenRegex[0].ToString());
-        Assert.Equal("q\"uote", rules.Section("blocked").ScreenRegex[1].ToString());
+        Assert.Null(detector.Observe(Screen("claude/blocked-bash-permission.txt"), now: 1.1));
     }
 }

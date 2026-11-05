@@ -1,0 +1,7 @@
+✨ explain the refund flow
+
+• The refund handler validates the amount, then reverses the charge through
+  the payment gateway and records a ledger entry.
+
+✨
+  context: 4.1%  ·  ctrl+j newline  ·  ctrl+x shell mode

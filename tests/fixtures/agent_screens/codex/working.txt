@@ -1,0 +1,11 @@
+› fix the failing refund test
+
+• Ran pytest tests/test_refund.py
+  └ 1 failed, 11 passed
+
+• Working (12s • esc to interrupt)
+
+
+› Implement {feature}
+
+  ? for shortcuts                                              92% context left

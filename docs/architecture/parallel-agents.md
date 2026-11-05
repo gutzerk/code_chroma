@@ -324,13 +324,30 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   words) and the result is whitespace-collapsed to one line, leaving an empty string as `None`.
   `"task"` text no longer passes through a PTY at all — it's an OS argv entry, not keystrokes — but
   stays just as clean since the same `_clean_context` runs on every `context` regardless of kind.
-- `status.py` + `detect/claude.toml` — the LED. Three sources, first rule wins: the foreground
-  process (not the agent → `foreign`, hold the last value), OSC title/`9;4` progress, then the bottom
-  N lines of the **rendered** screen (`terminal/screen_tap.py`, a `pyte` screen the PTY feeds).
-  Rules live in TOML so a Claude TUI change is a data fix. 250 ms hysteresis, ≤4 pushes/second.
-  🔴 Unknown means *hold*, never `idle`; a malformed manifest degrades to "always hold".
-  ⚠ The manifest is a runtime data file, so it is read through `resources.py`'s `resource_path`
-  (kind `"detect"`) and (for any bundled bridge) must be shipped next to it — otherwise it 404s there.
+- `status.py` + `detect/<kind>.toml` (C# `Agents/StatusDetector.cs`, same manifests embedded) — the
+  LED. A port of herdr's rule engine (`src/detect/manifest.rs`, Apache-2.0): each manifest
+  (`claude`, `codex`, `kimi` with alias `kimi-cli`, `gemini`) is a list of `[[rules]]` with a
+  `state` (`idle`/`working`/`blocked`/`unknown`), a `priority`, a `region` of the input
+  (`osc_title`, `osc_progress`, `whole_recent`, `bottom_non_empty_lines(N)`, `prompt_box_body`,
+  `after_last_horizontal_rule`, `last_non_empty_above_prompt_box`, the Codex `›` prompt-marker
+  regions, ...) and nested `contains`/`regex`/`line_regex`/`all`/`any`/`not` gates. The
+  highest-priority matching rule wins, file order breaks ties. The screen is the whole **rendered**
+  screen (`tail_lines = 200`, `terminal/screen_tap.py` / `ScreenTap.cs`), so a dialog is read by
+  its structure (prompt box between two `─` rules, footer after the last rule) rather than by a
+  phrase anywhere in the tail: "Esc to cancel" quoted in scrollback no longer reads as blocked.
+  Regexes use `\uXXXX` so .NET and Python read them alike; shared screens and expected verdicts live
+  in `tests/fixtures/agent_screens/` (`cases.json`, `regions.json`), run by `test_agent_status.py`
+  and `StatusDetectorTests.cs`. A working→idle change without visible idle chrome (`visible_idle`)
+  waits for 3 more sightings or 700 ms (herdr's `PendingIdleConfirmation`), then the 250 ms
+  hysteresis and ≤4 pushes/second apply. The last verdict's `visible_blocker` is exposed as
+  `last_visible_blocker` / `LastVisibleBlocker` so hook-reported status can still yield to a dialog
+  on screen. A foreground process outside the manifest's `process` list holds.
+  🔴 Unknown means *hold*, never `idle`: an `unknown`/`skip_state_update` rule (transcript viewer,
+  model picker), a foreign process and a malformed manifest (bad TOML, unknown key/region/state,
+  bad regex) all hold. No match holds too, except where a manifest sets `no_match = "idle"`
+  (codex, kimi, gemini: herdr's known-agent idle fallback, since they have no idle chrome rule).
+  ⚠ The manifests are runtime data files, so they are read through `resources.py`'s `resource_path`
+  (kind `"detect"`) and (for any bundled bridge) must be shipped next to it — otherwise they 404 there.
 - Session ownership — fresh Claude sessions receive a UUID from CodeChroma through `--session-id`
   and save it with their agent record. Restarts use that exact ID with `--resume`; transcript `cwd`
   and modification order are never used to infer ownership, since external terminals can use the

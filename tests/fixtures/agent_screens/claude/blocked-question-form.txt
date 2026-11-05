@@ -1,0 +1,14 @@
+● I need one decision before I wire the cache.
+
+────────────────────────────────────────────────────────────────────────────────
+ ☐ Storage
+
+Which storage backend should the cache use?
+
+❯ 1. Redis
+     Shared across workers
+  2. SQLite
+     A local file per worker
+  3. Type something.
+
+Enter to select · ↑/↓ to navigate · Esc to cancel

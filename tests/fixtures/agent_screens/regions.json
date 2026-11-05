@@ -1,0 +1,19 @@
+[
+  {"lines": ["before", "› input", "after"], "region": "after_last_prompt_marker", "expected": "after"},
+  {"lines": ["before", "› input", "after"], "region": "before_current_prompt_marker", "expected": "before\n"},
+  {"lines": ["before", "› input", "after"], "region": "whole_recent_without_current_prompt_marker", "expected": ""},
+  {"lines": ["no marker"], "region": "whole_recent_without_current_prompt_marker", "expected": "no marker"},
+  {"lines": ["• old", "■ latest", "› input"], "region": "current_prompt_block_marker", "expected": "■ latest"},
+  {"lines": ["• old", "■ latest", "› input"], "region": "after_current_prompt_block_marker", "expected": "■ latest\n› input"},
+  {"lines": ["› old", "• new"], "region": "current_prompt_block_marker", "expected": ""},
+  {"lines": ["above", "", "───", "body", "───", "footer"], "region": "above_prompt_box", "expected": "above\n\n"},
+  {"lines": ["above", "", "───", "body", "───", "footer"], "region": "last_non_empty_above_prompt_box", "expected": "above"},
+  {"lines": ["above", "───", "body", "───", "footer"], "region": "prompt_box_body", "expected": "body\n"},
+  {"lines": ["above", "───", "body", "───", "footer"], "region": "after_last_horizontal_rule", "expected": "footer"},
+  {"lines": ["a", "", "b", "c", "", ""], "region": "bottom_non_empty_lines(2)", "expected": "b\nc"},
+  {"lines": ["a", "", "b", "c"], "region": "top_non_empty_lines(2)", "expected": "a\n\nb\n"},
+  {"lines": ["a", "", "b", "c"], "region": "bottom_lines(2)", "expected": "b\nc"},
+  {"lines": ["a", "b"], "region": "whole_recent", "expected": "a\nb"},
+  {"lines": ["a"], "region": "osc_title", "expected": "the title"},
+  {"lines": ["a"], "region": "osc_progress", "expected": "running"}
+]

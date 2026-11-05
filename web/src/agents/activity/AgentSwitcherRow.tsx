@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { AgentRecord } from "../../state/types";
 import { useAgentClient } from "../AgentClientContext";
 import { AgentLed } from "../AgentLed";
@@ -48,6 +48,7 @@ export function AgentSwitcherRow({
   const client = useAgentClient();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const menuId = useId();
   const active = agents.find((a) => a.id === activeId);
   const activeIndex = agents.findIndex((a) => a.id === activeId);
   useEffect(() => {
@@ -67,8 +68,8 @@ export function AgentSwitcherRow({
       <button
         type="button"
         className="activity-switcher-trigger"
-        aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
         aria-label="Select agent"
         title="Switch agents: Ctrl/Cmd+Alt+Up/Down · next waiting agent: Ctrl/Cmd+Shift+J"
         disabled={agents.length === 0}
@@ -98,13 +99,13 @@ export function AgentSwitcherRow({
       </button>
       {active && <AgentStatusActions agent={active} />}
       {open && (
-        <ul className="activity-switcher-menu" role="listbox" aria-label="Agents">
+        <ul id={menuId} className="activity-switcher-menu" aria-label="Agents">
           {agents.map((agent) => (
-            <li key={agent.id} role="presentation" className="activity-switcher-option">
+            <li key={agent.id} className="activity-switcher-option">
               <button
                 type="button"
-                role="option"
-                aria-selected={agent.id === activeId}
+                className="activity-switcher-option-button"
+                aria-current={agent.id === activeId || undefined}
                 data-diagram={agent.context_kind === "task" || undefined}
                 onClick={() => select(agent)}
               >
@@ -115,7 +116,7 @@ export function AgentSwitcherRow({
                 </span>
                 {agent.context_kind === "task" && <span className="activity-agent-badge">Diagram</span>}
               </button>
-              <AgentStatusActions agent={agent} />
+              {agent.id !== activeId && <AgentStatusActions agent={agent} />}
             </li>
           ))}
         </ul>

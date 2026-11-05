@@ -59,7 +59,7 @@
   --st-working: #7ea3ff; /* spinner arc */
   --st-working-track: #26365a;
   --st-idle: #6b7280; /* empty ring; never shown on tabs */
-  --st-stopped: #3f4659; /* empty ring */
+  --st-stopped: #727a90; /* empty ring; >=3:1 on --bg-panel, --bg-raised and --bg-raised-2 */
   --st-blocked-surface: #1c1810; /* toast/card tints per status */
   --st-blocked-border: #4a3a1a;
   --st-error-surface: #171012;

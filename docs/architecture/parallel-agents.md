@@ -121,15 +121,15 @@ Roll-up priority is blocked > error > done > working > idle; stopped never count
 | Piece | File | Role |
 |---|---|---|
 | Types | `state/types.ts` | `AgentStatus` (the six); `AgentStatusFields` (`status_since`, `activity`, `pending_permission`, `error`) on `AgentRecord` and the `agent-status` event |
-| Store | `agentStore.ts` | The one status guard (`normalizeAgentStatus`, on `setList`/`upsert`/`applyStatus`): an older bridge's `exited` becomes `error` (non-zero exit) or `stopped`, any other unknown value `idle`; `applyStatus` keeps the event's extra fields |
+| Store | `agentStore.ts` | The one status guard (`normalizeAgentStatus`, on `setList`/`upsert`/`applyStatus`): an older bridge's `exited` becomes `error` (non-zero exit) or `stopped`, any other unknown value `idle` (an `exited` event's own `exit_code` wins); `applyStatus` keeps the event's extra fields; `upsertIfCurrent` lands an HTTP reply (`/seen`, `/permission`, `/dismiss-error`) only when its `status_since` is not older than the stored one |
 | Roll-up | `statusRollup.ts` | `effectiveStatus` (an open ask_user question makes a live agent `blocked`), `rollup` -> `{top, count, counts}`, `count` = blocked + error + done, `counts` per status (the panel's header chips) |
 | Question counts | `canvas/doc/question/useOpenAgentQuestions.ts` | `openQuestionCounts` cached per `elements` object (WeakMap); `useOpenQuestionCount(id)` re-renders only when that agent's number changes |
 | Shapes | `StatusIndicator.tsx`, `AgentLed.tsx` | `dot` 8px (tabs, strips), `icon` 16px (agent lists); pulse circle "?", square "!", check circle, spinner, ring; animations stop under `prefers-reduced-motion` |
 | Worktree tabs | `WorktreeStrip.tsx`, `agentAttention.tabRollups` | Dot + badge per tab from its agents (`workspace`/`shares_workspace_with`); the selected tab hides `done`; idle shows nothing |
 | Rows | `activity/AgentStatusLine.tsx` | `working`: "Edit · src/x.ts" + live m:ss turn timer; `blocked`: "Asking permission: Bash(...)" + Allow (`POST /agents/{id}/permission`); `error`: message + Dismiss (`POST /agents/{id}/dismiss-error`); every timer shares one 1 s clock that runs only while a timer is shown |
-| Toasts | `toasts/` | blocked until answered, error until closed, done `DONE_AUTO_CLOSE_MS` (6 s); one per agent, dropped when the agent leaves that status; buttons share the rows' `.agent-status-action` class (`--toast` modifier) |
+| Toasts | `toasts/` | blocked until answered, error until closed, done `DONE_AUTO_CLOSE_MS` (6 s, paused while hovered or focused); one per agent, dropped when the agent leaves that status; text read from the live agent record; screen readers hear them through two always-mounted live regions (assertive for blocked/error, polite for done), cards carry no live role; a closing focused toast hands focus back to where it came from; buttons share the rows' `.agent-status-action` class (`--toast` modifier) |
 | OS + sound | `agentNotifications.ts`, `notificationSound.ts` | OS notification for blocked and error, for done only when the page is in the background; sound only for blocked; `attentionTitle`/`attentionBody`/`BLOCKED_TEXT` are the one wording source for toasts, notifications and rows |
-| Sync | `agentStatusSync.ts` | Marks the viewed `done` agent seen (`POST /agents/{id}/seen`), reconciles toasts, sends the desktop `agent-summary` (150 ms debounce, skipped when identical to the last one sent), runs shell commands; store emits that change none of its inputs are ignored |
+| Sync | `agentStatusSync.ts` | Announces (toast, OS notification, sound) effective status changes, so an open ask_user question plus a finished turn reads "needs you", not "finished"; a question closing on its own announces nothing (`statusAnnouncements`); marks the viewed `done` agent seen (`POST /agents/{id}/seen`), reconciles toasts, sends the desktop `agent-summary` (150 ms debounce, skipped when identical to the last one sent), runs shell commands; store emits that change none of its inputs (agents, open question counts by content, tab, panel) are ignored, so a canvas drag costs nothing |
 
 - "Looking at an agent" (`agentAttention.isLookingAtAgent`): it is the agent the panel shows on the
   active worktree tab, the panel is not collapsed, and the page has focus. No toast or OS notification
@@ -140,7 +140,8 @@ Roll-up priority is blocked > error > done > working > idle; stopped never count
   script parses the JSON, so listeners get an object. Both are optional, so the browser build works
   without the shell.
 - ⌘⇧J / Ctrl+Shift+J opens the next blocked agent, oldest `status_since` first. ⚠ The page handles it
-  only in a plain browser; inside the shell its own script owns the key across all projects.
+  only in a plain browser, and never while focus is in a terminal (`.xterm`); inside the shell its own
+  script owns the key across all projects.
 
 Wikis do not follow a tab: wiki-general and the plain wiki live in the main checkout and are tracked against the main branch tip (see `wiki-general.md`, "One wiki per project").
 

@@ -67,3 +67,28 @@ describe("MockAgentClient.create", () => {
     await expect(client.create("b", "claude", "main")).rejects.toThrow("not allowed");
   });
 });
+
+describe("MockAgentClient status routes", () => {
+  it("turns a seen done agent idle", async () => {
+    const client = new MockAgentClient();
+    const agent = await client.create("a");
+    agent.status = "done";
+
+    expect((await client.seen(agent.id)).status).toBe("idle");
+  });
+
+  it("dismisses an error to stopped", async () => {
+    const client = new MockAgentClient();
+    const agent = await client.create("a");
+    agent.status = "error";
+
+    expect((await client.dismissError(agent.id)).status).toBe("stopped");
+  });
+
+  it("rejects a permission answer for a request that is not pending", async () => {
+    const client = new MockAgentClient();
+    const agent = await client.create("a");
+
+    await expect(client.permission(agent.id, "p_missing", "allow")).rejects.toThrow("no such pending");
+  });
+});

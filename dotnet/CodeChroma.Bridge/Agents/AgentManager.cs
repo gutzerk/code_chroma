@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using CodeChroma.Bridge.Prs;
@@ -222,7 +221,7 @@ public sealed partial class AgentManager
         {
             if (_agents.Count >= MaxAgents) throw new AgentLimitException($"the limit of {MaxAgents} concurrent agents is reached");
             var agentId = UniqueId(title);
-            record = build(agentId, title.Trim().Length > 0 ? title.Trim() : agentId, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
+            record = build(agentId, title.Trim().Length > 0 ? title.Trim() : agentId, Json.Iso(DateTimeOffset.UtcNow));
             record.Window["z"] = _agents.Count + 1;
             _agents.Add(record);
         }
@@ -315,7 +314,6 @@ public sealed partial class AgentManager
     {
         var record = Get(agentId);
         record.Pid = pid;
-        record.Status = AgentRecord.StatusRunning;
         record.ExitCode = null;
         if (resolvedCli.Length > 0) record.ResolvedCli = resolvedCli;
         Save();
@@ -326,7 +324,7 @@ public sealed partial class AgentManager
     {
         var record = Get(agentId);
         record.Pid = null;
-        record.Status = exitCode is not null ? AgentRecord.StatusExited : AgentRecord.StatusStopped;
+        record.Status = AgentStatus.Stopped;
         record.ExitCode = exitCode;
         Save();
         return record;
@@ -468,7 +466,7 @@ public sealed partial class AgentManager
         {
             // a surviving pid is an orphan and pids get recycled: clear it, never kill it
             record.Pid = null;
-            record.Status = AgentRecord.StatusStopped;
+            record.Status = AgentStatus.Stopped;
             record.ExitCode = null;
             record.WorktreeLost = !Directory.Exists(record.Worktree);
             if (record.WorktreeLost) continue;

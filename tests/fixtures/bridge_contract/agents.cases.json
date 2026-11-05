@@ -1,8 +1,9 @@
 {
   "group": "agents",
   "sources": [
-    "src/codechroma/bridge/routes/agents.py",
-    "src/codechroma/bridge/agents/manager.py"
+    "src/codechroma/bridge/agents/live_status.py",
+    "src/codechroma/bridge/agents/manager.py",
+    "src/codechroma/bridge/routes/agents.py"
   ],
   "repo": {
     "base": "sample_repo"
@@ -912,6 +913,622 @@
               {
                 "path": "$.pid",
                 "equals": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "agent_hook_reports_need_that_agents_own_token",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active",
+            "wt": "$.branches[0].worktree"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Hooked",
+              "kind": "shell",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/hooked/hook",
+            "json": {
+              "hook_event_name": "Stop"
+            }
+          },
+          "expect": {
+            "status": 401,
+            "json": {
+              "detail": "invalid or missing workspace token"
+            }
+          }
+        },
+        {
+          "token": "other",
+          "as": "foreign"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/hooked/hook",
+            "json": {
+              "hook_event_name": "Stop"
+            },
+            "headers": {
+              "Authorization": "Bearer {{foreign}}"
+            }
+          },
+          "expect": {
+            "status": 401,
+            "json": {
+              "detail": "invalid or missing workspace token"
+            }
+          }
+        },
+        {
+          "token": "hooked",
+          "as": "tok"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/hooked/hook",
+            "json": {
+              "hook_event_name": "Stop"
+            },
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "token": "nope",
+          "as": "ghost"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/nope/hook",
+            "json": {
+              "hook_event_name": "Stop"
+            },
+            "headers": {
+              "Authorization": "Bearer {{ghost}}"
+            }
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "seen_dismiss_error_and_permission_on_a_stopped_agent",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active",
+            "wt": "$.branches[0].worktree"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Quiet",
+              "kind": "shell",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/quiet/seen"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.status",
+                "equals": "stopped"
+              },
+              {
+                "path": "$.status_since",
+                "type": "string"
+              },
+              {
+                "path": "$.activity",
+                "equals": null
+              },
+              {
+                "path": "$.pending_permission",
+                "equals": null
+              },
+              {
+                "path": "$.error",
+                "equals": null
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/quiet/dismiss-error"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.status",
+                "equals": "stopped"
+              },
+              {
+                "path": "$.error",
+                "equals": null
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/quiet/permission",
+            "json": {
+              "request_id": "p_x",
+              "decision": "allow"
+            }
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "no pending permission request: p_x"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/quiet/permission",
+            "json": {
+              "request_id": "p_x",
+              "decision": "maybe"
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "decision must be 'allow' or 'deny'"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/nope/seen"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/nope/dismiss-error"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/nope/permission",
+            "json": {
+              "request_id": "p_x",
+              "decision": "deny"
+            }
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook_reports_drive_a_live_agents_status",
+      "requires": [
+        "pty"
+      ],
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active",
+            "wt": "$.branches[0].worktree"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Busy",
+              "kind": "shell",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/busy/start",
+            "json": {}
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.status",
+                "equals": "idle"
+              },
+              {
+                "path": "$.status_since",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        {
+          "token": "busy",
+          "as": "tok"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/busy/hook",
+            "json": {
+              "hook_event_name": "UserPromptSubmit",
+              "prompt": "go"
+            },
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[0].status",
+                "equals": "working"
+              },
+              {
+                "path": "$.agents[0].activity.tool",
+                "equals": null
+              },
+              {
+                "path": "$.agents[0].activity.turn_started_at",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/busy/hook",
+            "json": {
+              "hook_event_name": "PreToolUse",
+              "tool_name": "Edit",
+              "tool_input": {
+                "file_path": "src/guard/policy.ts",
+                "old_string": "a"
+              }
+            },
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[0].status",
+                "equals": "working"
+              },
+              {
+                "path": "$.agents[0].activity.tool",
+                "equals": "Edit"
+              },
+              {
+                "path": "$.agents[0].activity.target",
+                "equals": "src/guard/policy.ts"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/busy/hook",
+            "json": {
+              "hook_event_name": "PermissionRequest",
+              "tool_name": "Bash",
+              "tool_input": {
+                "command": "npm run e2e"
+              }
+            },
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "decision": null
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[0].status",
+                "equals": "blocked"
+              },
+              {
+                "path": "$.agents[0].pending_permission",
+                "equals": null
+              },
+              {
+                "path": "$.agents[0].activity",
+                "equals": null
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/busy/hook",
+            "json": {
+              "hook_event_name": "PostToolUse",
+              "tool_name": "Bash",
+              "tool_input": {
+                "command": "npm run e2e"
+              }
+            },
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/busy/hook",
+            "json": {
+              "hook_event_name": "Notification",
+              "notification_type": "idle_prompt"
+            },
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[0].status",
+                "equals": "working"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/busy/hook",
+            "json": {
+              "hook_event_name": "Notification",
+              "notification_type": "permission_prompt"
+            },
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[0].status",
+                "equals": "blocked"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/busy/hook",
+            "json": {
+              "hook_event_name": "Stop"
+            },
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[0].status",
+                "equals": "done"
+              },
+              {
+                "path": "$.agents[0].activity",
+                "equals": null
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/busy/seen"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.status",
+                "equals": "idle"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/busy/stop"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.status",
+                "equals": "stopped"
               }
             ]
           }

@@ -13,6 +13,7 @@ Case file: {"group", "sources", "repo": {"base", "files"}, "cases": [{"id", "req
   {"ws": "receive", "name", "timeout_ms", "skip_until_match", "tag", "raw", "expect": {...}}
   {"ws": "send", "name", "json"}
   {"ws": "expect_close", "name", "code"}
+  {"token": "<workspace id>", "as": "var"} -- stores that workspace's agent bearer token as {{var}}
 An http step may carry "capture": {"var": "$.json.path"}; later steps substitute "{{var}}" in any
 string (path, json, expect) with the first selected value. Machine-local stores (assistant, runtime
 and LLM settings) start empty for every case on both backends.

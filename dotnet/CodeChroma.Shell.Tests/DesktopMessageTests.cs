@@ -43,3 +43,70 @@ public class DesktopMessageTests
         Assert.Equal(new DesktopMessage("save-file", "map.png", "s1", "image/png", "AQID"), message);
     }
 }
+
+public class AgentSummaryMessageTests
+{
+    private const string Summary = """
+        {"type":"agent-summary","top":"blocked","count":1,"agents":[
+          {"id":"a1","title":"agent1","status":"working","worktree":"br_wt-1","worktree_title":"wt-1",
+           "activity":{"tool":"Edit","target":"src/guard/policy.ts","turn_started_at":"2026-11-05T09:58:48Z"},
+           "pending_permission":null,"status_since":"2026-11-05T09:58:48Z"},
+          {"id":"a2","title":"agent2","status":"blocked","worktree":"br_wt-2","worktree_title":"wt-2","activity":null,
+           "pending_permission":{"request_id":"p_ab12cd","tool":"Bash","summary":"Bash(npm run e2e)","at":"2026-11-05T10:00:00Z"},
+           "status_since":"2026-11-05T10:00:00Z"},
+          {"title":"no id","status":"idle"}
+        ]}
+        """;
+
+    [Fact]
+    public void An_agent_summary_is_parsed_into_typed_agents_skipping_rows_without_an_id()
+    {
+        var message = DesktopMessage.Parse(Summary);
+
+        var summary = Assert.IsType<AgentSummary>(message?.Agents);
+        Assert.Equal(2, summary.Agents.Count);
+        Assert.Equal(new AgentEntry("a1", "agent1", "working", "br_wt-1", "wt-1",
+            new AgentActivity("Edit", "src/guard/policy.ts", DateTimeOffset.Parse("2026-11-05T09:58:48Z")), null,
+            DateTimeOffset.Parse("2026-11-05T09:58:48Z")), summary.Agents[0]);
+        Assert.Equal(new AgentPermission("p_ab12cd", "Bash", "Bash(npm run e2e)", DateTimeOffset.Parse("2026-11-05T10:00:00Z")), summary.Agents[1].PendingPermission);
+    }
+
+    [Fact]
+    public void Legacy_top_and_count_fields_are_ignored_and_no_agents_parses_to_an_empty_summary()
+    {
+        var message = DesktopMessage.Parse("""{"type":"agent-summary","top":"blocked","count":3}""");
+
+        Assert.Equal(new AgentSummary([]), message?.Agents);
+    }
+
+    [Fact]
+    public void A_summary_keeps_at_most_fifty_agents()
+    {
+        var agents = string.Join(",", Enumerable.Range(0, 80).Select(i => $$$"""{"id":"a{{{i}}}","status":"idle"}"""));
+
+        var message = DesktopMessage.Parse($$"""{"type":"agent-summary","agents":[{{agents}}]}""");
+
+        Assert.Equal(AgentSummary.MaxAgents, message?.Agents?.Agents.Count);
+    }
+
+    [Fact]
+    public void Long_display_text_is_clipped_and_an_overlong_id_drops_the_row()
+    {
+        var longText = new string('x', 500);
+        var json = $$$"""{"type":"agent-summary","agents":[{"id":"a1","title":"{{{longText}}}","status":"blocked","pending_permission":{"request_id":"{{{longText}}}","summary":"s"}},{"id":"{{{longText}}}","status":"idle"}]}""";
+
+        var agents = DesktopMessage.Parse(json)?.Agents?.Agents;
+
+        var agent = Assert.Single(agents!);
+        Assert.Equal(AgentSummary.MaxText, agent.Title.Length);
+        Assert.Null(agent.PendingPermission);
+    }
+
+    [Fact]
+    public void Other_messages_carry_no_agent_summary()
+    {
+        var message = DesktopMessage.Parse("""{"type":"focus-tab","agents":[]}""");
+
+        Assert.Null(message?.Agents);
+    }
+}

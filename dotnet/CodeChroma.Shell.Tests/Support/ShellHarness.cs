@@ -9,16 +9,20 @@ internal sealed class FakeShellUi : IShellUi
     public List<string> Surfaced { get; } = [];
     public List<object> ClosedViews { get; } = [];
     public List<(string Title, string Message)> Errors { get; } = [];
+    public List<(Tab Tab, string Json)> AgentCommands { get; } = [];
+    public List<(string TabId, AgentSummary Summary)> AgentUpdates { get; } = [];
 
     public TabsSnapshot Last => Snapshots[^1];
 
     public void TabsChanged(TabsSnapshot snapshot) => Snapshots.Add(snapshot);
+    public void AgentsChanged(string tabId, AgentSummary summary) => AgentUpdates.Add((tabId, summary));
     public void Navigate(Tab tab, string url) => Navigations.Add((tab, url));
     public void ShowProgress(Tab tab, string line) => Progress.Add((tab, line));
     public void ShowTabError(Tab tab, string message) => TabErrors.Add((tab, message));
     public void Surface(Tab tab) => Surfaced.Add(tab.Id);
     public void CloseView(object view) => ClosedViews.Add(view);
     public void ShowError(string title, string message) => Errors.Add((title, message));
+    public void SendAgentCommand(Tab tab, string json) => AgentCommands.Add((tab, json));
 }
 
 internal sealed class ShellHarness : IDisposable

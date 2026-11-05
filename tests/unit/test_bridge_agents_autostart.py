@@ -70,7 +70,7 @@ def test_a_lost_worktree_is_skipped_without_crashing_boot(
     assert not running
 
 
-def test_a_missing_claude_binary_does_not_crash_boot(
+def test_a_missing_claude_binary_is_the_agents_error_without_crashing_boot(
     repo, make_bridge, monkeypatch, use_test_runtime
 ):
     TestClient(make_bridge(repo).app).post("/agents", json={"title": "runner"})
@@ -81,7 +81,8 @@ def test_a_missing_claude_binary_does_not_crash_boot(
     with TestClient(restarted.app) as live:
         body = live.get("/agents").json()
 
-    assert body["agents"][0]["status"] == "stopped"
+    assert body["agents"][0]["status"] == "error"
+    assert body["agents"][0]["error"]["message"]
     assert body["agents"][0]["pid"] is None
 
 

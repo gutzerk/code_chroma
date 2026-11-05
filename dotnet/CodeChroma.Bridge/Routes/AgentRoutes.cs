@@ -1,9 +1,11 @@
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Http.Features;
 using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Context;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Prs;
+using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
@@ -14,6 +16,15 @@ namespace CodeChroma.Bridge.Routes;
 /// <summary>Parallel agents: the cards, their worktrees, their PTYs, and publishing one as a PR (routes/agents.py).</summary>
 public static class AgentRoutes
 {
+    /// <summary>How long a PermissionRequest hook call waits for a canvas decision before the terminal dialog takes over.</summary>
+    public const int PermissionWaitMs = AgentHook.PermissionWaitMs;
+
+    /// <summary>The largest hook report the bridge reads; the hook already slims its payload far below this.</summary>
+    public const int HookBodyLimit = 256 * 1024;
+
+    // one status read-and-send at a time, so a stale snapshot is never broadcast after a newer one
+    private static readonly object StatusGate = new();
+
     public static void Map(WebApplication app, string repoRoot)
     {
         app.MapGet("/agents/git-preflight", () => Reply.GuardBlocking(() => Reply.Json(AgentBootstrap.Preflight(repoRoot))));
@@ -100,7 +111,15 @@ public static class AgentRoutes
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
-            var session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths, banner));
+            AgentSession session;
+            try { session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths, banner)); }
+            catch (AgentStartException error)
+            {
+                record.StartError = new AgentError(error.Message, DateTimeOffset.UtcNow);
+                await BroadcastStatus(connections, sessions, record);
+                throw;
+            }
+            record.StartError = null;
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
             if (pending is { Kind: not "task" } view)
                 _ = session.InjectWhenIdle(
@@ -108,8 +127,56 @@ public static class AgentRoutes
                     + "Please acknowledge you understand this context. Do not act on it or start any work — just confirm you've read it and say you're ready.");
             agents.RecordSessionLaunch(agentId, session);
             var payload = Payload(sessions, updated);
-            await BroadcastStatus(connections, agentId, (string)payload["status"]!);
+            await BroadcastStatus(connections, sessions, updated);
             return Reply.Json(payload);
+        }));
+
+        app.MapPost("/agents/{agentId}/hook", (string agentId, HttpRequest request, QuestionMcp mcp, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        {
+            if (!mcp.Authorizes(request.Headers.Authorization.ToString(), agentId)) return Reply.Error(401, "invalid or missing workspace token");
+            if (request.ContentLength > HookBodyLimit) return Reply.Error(413, "hook report too large");
+            if (request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } cap) cap.MaxRequestBodySize = HookBodyLimit;
+            var record = OrNotFound(agents, agentId);
+            var body = await Reply.LenientBody(request);
+            var session = sessions.Get(agentId);
+            if (session is null) return Reply.Json(new JsonObject { ["ok"] = true });
+            var outcome = session.ApplyHook(body);
+            if (outcome.Changed) await BroadcastStatus(connections, sessions, record);
+            if (outcome.Decision is not { } waiting) return Reply.Json(new JsonObject { ["ok"] = true });
+            var decision = await WaitForDecision(waiting, request.HttpContext.RequestAborted);
+            if (decision is null)
+            {
+                if (session.ExpirePermission(outcome.RequestId!)) await BroadcastStatus(connections, sessions, record);
+                // a decision that landed between the timeout and the expiry still reaches the hook
+                else if (waiting.IsCompletedSuccessfully) decision = waiting.Result;
+            }
+            return Reply.Json(new JsonObject { ["decision"] = decision });
+        }));
+
+        app.MapPost("/agents/{agentId}/seen", (string agentId, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        {
+            var record = OrNotFound(agents, agentId);
+            if (sessions.Get(agentId)?.MarkSeen() == true) await BroadcastStatus(connections, sessions, record);
+            return Reply.Json(Payload(sessions, record));
+        }));
+
+        app.MapPost("/agents/{agentId}/dismiss-error", (string agentId, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        {
+            var record = OrNotFound(agents, agentId);
+            if (DismissError(sessions, record)) await BroadcastStatus(connections, sessions, record);
+            return Reply.Json(Payload(sessions, record));
+        }));
+
+        app.MapPost("/agents/{agentId}/permission", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        {
+            var record = OrNotFound(agents, agentId);
+            var body = await Reply.LenientBody(request);
+            var decision = Json.Str(body["decision"]);
+            if (decision is not ("allow" or "deny")) return Reply.Error(400, "decision must be 'allow' or 'deny'");
+            var requestId = Json.Str(body["request_id"]) ?? "";
+            if (sessions.Get(agentId)?.Decide(requestId, decision!) != true) return Reply.Error(404, $"no pending permission request: {requestId}");
+            await BroadcastStatus(connections, sessions, record);
+            return Reply.Json(Payload(sessions, record));
         }));
 
         app.MapPost("/agents/{agentId}/recreate-worktree", (string agentId, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry) => Reply.GuardAsync(async () =>
@@ -127,8 +194,9 @@ public static class AgentRoutes
         {
             OrNotFound(agents, agentId);
             sessions.Stop(agentId);
-            var payload = Payload(sessions, agents.MarkStopped(agentId));
-            await BroadcastStatus(connections, agentId, (string)payload["status"]!);
+            var stopped = agents.MarkStopped(agentId);
+            var payload = Payload(sessions, stopped);
+            await BroadcastStatus(connections, sessions, stopped);
             return Reply.Json(payload);
         }));
 
@@ -188,24 +256,67 @@ public static class AgentRoutes
     public static JsonObject Payload(AgentSessionRegistry sessions, AgentRecord record)
     {
         var session = sessions.Get(record.Id);
-        if (session is null)
-        {
-            record.Pid = null;
-            record.Status = AgentRecord.StatusStopped;
-            record.ExitCode = null;
-        }
-        else
-        {
-            record.Pid = session.Pid;
-            record.Status = session.Status;
-            record.ExitCode = session.ExitCode;
-        }
-        return record.ToPayload();
+        record.Pid = session?.Pid;
+        record.ExitCode = session?.ExitCode;
+        var status = StatusJson(session, record);
+        var payload = record.ToPayload();
+        foreach (var (field, value) in status) payload[field] = value?.DeepClone();
+        return payload;
     }
 
-    /// <summary>The LED's only input: one agent-status ping per real change, over the existing socket.</summary>
-    public static Task BroadcastStatus(ConnectionManager connections, string agentId, string status) =>
-        connections.Broadcast(new JsonObject { ["type"] = "agent-status", ["id"] = agentId, ["status"] = status });
+    /// <summary>The five status fields: a failed start wins, else the live session, else stopped since it was last seen running.</summary>
+    public static JsonObject StatusJson(AgentSession? session, AgentRecord record)
+    {
+        lock (StatusGate) return StatusJsonLocked(session, record);
+    }
+
+    private static JsonObject StatusJsonLocked(AgentSession? session, AgentRecord record)
+    {
+        var live = record.StartError is { } failed
+            ? new AgentStatusSnapshot(AgentStatus.Error, failed.At, null, null, failed)
+            : session?.Snapshot();
+        if (live is null)
+        {
+            if (record.Status != AgentStatus.Stopped || record.StatusSince is null) record.StatusSince = DateTimeOffset.UtcNow;
+            live = new AgentStatusSnapshot(AgentStatus.Stopped, record.StatusSince.Value, null, null);
+        }
+        record.Status = live.Status;
+        record.StatusSince = live.Since;
+        return new JsonObject
+        {
+            ["status"] = live.Status,
+            ["status_since"] = Json.Iso(live.Since),
+            ["activity"] = live.Status == AgentStatus.Working ? live.Activity?.ToJson() : null,
+            ["pending_permission"] = live.Pending?.ToJson(),
+            ["error"] = live.Error?.ToJson(),
+        };
+    }
+
+    /// <summary>The LED's only input: one agent-status event per real change, over the existing socket.</summary>
+    public static Task BroadcastStatus(ConnectionManager connections, AgentSessionRegistry sessions, AgentRecord record)
+    {
+        lock (StatusGate)
+        {
+            var message = new JsonObject { ["type"] = "agent-status", ["id"] = record.Id };
+            foreach (var (field, value) in StatusJsonLocked(sessions.Get(record.Id), record)) message[field] = value?.DeepClone();
+            return connections.Broadcast(message);
+        }
+    }
+
+    /// <summary>Clears a failed start and a session's exit error, so the agent reads as stopped; true when either was set.</summary>
+    private static bool DismissError(AgentSessionRegistry sessions, AgentRecord record)
+    {
+        var hadStartError = record.StartError is not null;
+        record.StartError = null;
+        return (sessions.Get(record.Id)?.DismissError() ?? false) | hadStartError;
+    }
+
+    /// <summary>The canvas's decision, or null once the wait times out or the hook hangs up.</summary>
+    private static async Task<string?> WaitForDecision(Task<string?> waiting, CancellationToken aborted)
+    {
+        try { return await waiting.WaitAsync(TimeSpan.FromMilliseconds(PermissionWaitMs), aborted); }
+        catch (Exception error) when (error is TimeoutException or OperationCanceledException) { return null; }
+    }
 
     private static string? Validate(JsonObject body, out string title, out string kind, out string? attachTo, out string? context, out string contextKind, out string? workspace)
     {

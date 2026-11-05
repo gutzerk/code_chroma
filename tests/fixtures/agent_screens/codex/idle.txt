@@ -1,0 +1,7 @@
+› fix the failing refund test
+
+• Fixed the rounding in payments/refund.py; all 12 tests pass.
+
+› Ask Codex to do anything
+
+  ? for shortcuts                                              90% context left

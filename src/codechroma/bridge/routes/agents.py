@@ -10,6 +10,13 @@ from fastapi import APIRouter, HTTPException, Request
 
 from codechroma.bridge.agents import bootstrap, publish
 from codechroma.bridge.agents import worktree as worktree_ops
+from codechroma.bridge.agents.agent_hook import PERMISSION_WAIT_SECONDS
+from codechroma.bridge.agents.live_status import (
+    STATUS_ERROR,
+    STATUS_STOPPED,
+    AgentError,
+    StatusSnapshot,
+)
 from codechroma.bridge.agents.manager import (
     CONTEXT_KINDS,
     AgentRecord,
@@ -18,13 +25,14 @@ from codechroma.bridge.agents.manager import (
     max_agents,
 )
 from codechroma.bridge.agents.session_ownership import file_for
-from codechroma.bridge.agents.sessions import agent_run_env
+from codechroma.bridge.agents.sessions import AgentSession, AgentStartError, agent_run_env
 from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.deps import Services
 from codechroma.bridge.routes._body import as_list, json_body
 from codechroma.bridge.services import BridgeServices
 from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID
 from codechroma.diagrams import kinds
+from codechroma.io import iso, utc_now
 from codechroma.terminal.agents import ALLOWED_AGENTS, agent_launch, resolved_cli_for
 
 router = APIRouter()
@@ -163,9 +171,15 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     # Provider env (base-url/token/model) merged under the workspace id: the id wins any collision.
     run_env = agent_run_env(agent_id, extra=launch.env)
     # An AgentStartError becomes a 409 via the table in bridge/errors.py.
-    session = services.agent_sessions.start(
-        agent_id, argv, Path(record.worktree), kind=launch.detector_kind, env=run_env
-    )
+    try:
+        session = services.agent_sessions.start(
+            agent_id, argv, Path(record.worktree), kind=launch.detector_kind, env=run_env
+        )
+    except AgentStartError as exc:
+        record.start_error = AgentError(str(exc), utc_now())
+        await broadcast_agent_status(services, record)
+        raise
+    record.start_error = None
     # Only an `agent`-kind window reports what it launched; `claude` leaves `resolved_cli` empty.
     updated = services.agent_manager.mark_started(
         agent_id, session.pid, resolved_cli=resolved_cli_for(record.kind, argv)
@@ -180,7 +194,7 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
             f"start any work — just confirm you've read it and say you're ready.",
         )
     payload = agent_payload(services, updated)
-    await broadcast_agent_status(services, agent_id, payload["status"])
+    await broadcast_agent_status(services, updated)
     return payload
 
 
@@ -202,8 +216,9 @@ async def post_agent_stop(agent_id: str, services: Services) -> dict:
     """Kills the PTY and keeps the worktree and the branch — the work is not the process."""
     _agent_or_404(services, agent_id)
     services.agent_sessions.stop(agent_id)
-    payload = agent_payload(services, services.agent_manager.mark_stopped(agent_id))
-    await broadcast_agent_status(services, agent_id, payload["status"])
+    stopped = services.agent_manager.mark_stopped(agent_id)
+    payload = agent_payload(services, stopped)
+    await broadcast_agent_status(services, stopped)
     return payload
 
 
@@ -288,16 +303,120 @@ def _agent_or_404(services: BridgeServices, agent_id: str) -> AgentRecord:
 def agent_payload(services: BridgeServices, record: AgentRecord) -> dict:
     """One card with its status read from the live session registry, not from a stored field."""
     session = services.agent_sessions.get(record.id)
-    if session is None:
-        record.pid, record.status, record.exit_code = None, "stopped", None
+    record.pid = session.pid if session is not None else None
+    record.exit_code = session.exit_code if session is not None else None
+    return {**record.to_payload(), **status_json(session, record)}
+
+
+def status_json(session: AgentSession | None, record: AgentRecord) -> dict:
+    """The five status fields: a failed start wins, else the live session, else stopped."""
+    failed = record.start_error
+    if failed is not None:
+        live = StatusSnapshot(STATUS_ERROR, failed.at, None, None, failed)
+    elif session is not None:
+        live = session.snapshot()
     else:
-        record.pid, record.status = session.pid, session.status
-        record.exit_code = session.exit_code
-    return record.to_payload()
+        if record.status != STATUS_STOPPED or record.status_since is None:
+            record.status_since = iso(utc_now())
+        record.status = STATUS_STOPPED
+        return {
+            "status": STATUS_STOPPED, "status_since": record.status_since,
+            "activity": None, "pending_permission": None, "error": None,
+        }
+    record.status, record.status_since = live.status, iso(live.since)
+    return live.to_json()
 
 
-async def broadcast_agent_status(services: BridgeServices, agent_id: str, status: str) -> None:
-    """The LED's only input: one `agent-status` ping per real change, over the existing socket."""
-    await services.connections.broadcast(
-        {"type": "agent-status", "id": agent_id, "status": status}
-    )
+async def broadcast_agent_status(services: BridgeServices, record: AgentRecord) -> None:
+    """The LED's only input: one `agent-status` event per real change, over the existing socket."""
+    status = status_json(services.agent_sessions.get(record.id), record)
+    await services.connections.broadcast({"type": "agent-status", "id": record.id, **status})
+
+
+async def broadcast_agent(services: BridgeServices, agent_id: str) -> None:
+    """Pushes one agent's status fields; an agent deleted meanwhile is skipped."""
+    try:
+        record = services.agent_manager.get(agent_id)
+    except UnknownAgentError:
+        return
+    await broadcast_agent_status(services, record)
+
+
+# The largest hook report the bridge reads; the hook already slims its payload far below this.
+HOOK_BODY_LIMIT = 256 * 1024
+
+
+@router.post("/agents/{agent_id}/hook")
+async def post_agent_hook(agent_id: str, request: Request, services: Services) -> dict:
+    """One Claude Code hook report; a PermissionRequest waits briefly for the canvas's decision."""
+    if not request.app.state.question_mcp.authorizes(request.headers, agent_id):
+        raise HTTPException(status_code=401, detail="invalid or missing workspace token")
+    length = request.headers.get("content-length", "")
+    if length.isdigit() and int(length) > HOOK_BODY_LIMIT:
+        raise HTTPException(status_code=413, detail="hook report too large")
+    record = _agent_or_404(services, agent_id)
+    body = await json_body(request)
+    session = services.agent_sessions.get(agent_id)
+    if session is None:
+        return {"ok": True}
+    outcome = session.apply_hook(body)
+    if outcome.changed:
+        await broadcast_agent_status(services, record)
+    if outcome.decision is None:
+        return {"ok": True}
+    try:
+        decision = await asyncio.wait_for(
+            asyncio.shield(asyncio.wrap_future(outcome.decision)), PERMISSION_WAIT_SECONDS
+        )
+    except TimeoutError:
+        decision = None
+    if decision is None:
+        if session.expire_permission(outcome.request_id or ""):
+            await broadcast_agent_status(services, record)
+        elif outcome.decision.done():
+            # A decision that landed between the timeout and the expiry still reaches the hook.
+            decision = outcome.decision.result()
+    return {"decision": decision}
+
+
+@router.post("/agents/{agent_id}/seen")
+async def post_agent_seen(agent_id: str, services: Services) -> dict:
+    """The user looked at the agent: done becomes idle."""
+    record = _agent_or_404(services, agent_id)
+    session = services.agent_sessions.get(agent_id)
+    if session is not None and session.mark_seen():
+        await broadcast_agent_status(services, record)
+    return agent_payload(services, record)
+
+
+@router.post("/agents/{agent_id}/dismiss-error")
+async def post_agent_dismiss_error(agent_id: str, services: Services) -> dict:
+    """The user closed the error: the agent reads as stopped."""
+    record = _agent_or_404(services, agent_id)
+    if _dismiss_error(services, record):
+        await broadcast_agent_status(services, record)
+    return agent_payload(services, record)
+
+
+def _dismiss_error(services: BridgeServices, record: AgentRecord) -> bool:
+    """Clears a failed start and a session's exit error; True when either was set."""
+    had_start_error = record.start_error is not None
+    record.start_error = None
+    session = services.agent_sessions.get(record.id)
+    return (session is not None and session.dismiss_error()) or had_start_error
+
+
+@router.post("/agents/{agent_id}/permission")
+async def post_agent_permission(agent_id: str, request: Request, services: Services) -> dict:
+    """Allows or denies the PermissionRequest the agent's hook is waiting on."""
+    record = _agent_or_404(services, agent_id)
+    body = await json_body(request)
+    decision = body.get("decision")
+    if decision not in ("allow", "deny"):
+        raise HTTPException(status_code=400, detail="decision must be 'allow' or 'deny'")
+    request_id = body.get("request_id") if isinstance(body.get("request_id"), str) else ""
+    session = services.agent_sessions.get(agent_id)
+    if session is None or not session.decide(request_id, decision):
+        raise HTTPException(status_code=404, detail=f"no pending permission request: {request_id}")
+    await broadcast_agent_status(services, record)
+    return agent_payload(services, record)

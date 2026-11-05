@@ -1,10 +1,18 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CodeChroma.Shell.App.MainWindow" Title="CodeChroma" Icon="/Assets/icon.png" Width="1400" Height="900" MinWidth="900" MinHeight="600">
   <DockPanel>
-    <Border DockPanel.Dock="Top" Background="#1b1d23" BorderBrush="#2a3040" BorderThickness="0,0,0,1">
-      <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{StaticResource TabBarBrush}" BorderBrush="{StaticResource TabBarLineBrush}" BorderThickness="0,0,0,1">
+      <DockPanel Height="40">
         <Button x:Name="MoreButton" DockPanel.Dock="Right" Content="…" Classes="tiny" Margin="4,0" Padding="10,2" FontSize="16" VerticalAlignment="Center" />
+        <Button x:Name="WaitingPill" DockPanel.Dock="Right" Classes="pill" IsVisible="False">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Ellipse Width="6" Height="6" Fill="{StaticResource StatusBlockedBrush}" VerticalAlignment="Center" />
+            <TextBlock x:Name="WaitingText" VerticalAlignment="Center" />
+            <TextBlock x:Name="WaitingKey" FontFamily="{StaticResource MonoFont}" FontSize="11" FontWeight="Normal" Foreground="{StaticResource PillKeyBrush}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Popup x:Name="TabPopover" DockPanel.Dock="Right" Placement="BottomEdgeAlignedLeft" VerticalOffset="4" IsLightDismissEnabled="False" />
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-          <StackPanel x:Name="TabStrip" Orientation="Horizontal" Height="38" />
+          <StackPanel x:Name="TabStrip" Orientation="Horizontal" Spacing="2" Margin="12,0,0,0" />
         </ScrollViewer>
       </DockPanel>
     </Border>

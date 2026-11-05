@@ -6,6 +6,12 @@ public static class DesktopScript
     public const string Source = """
         (function () {
           if (window.codechromaDesktop) return;
+          var agentListeners = [];
+          window.__ccAgentCommand = function (json) {
+            var command = typeof json === "string" ? JSON.parse(json) : json;
+            agentListeners.slice().forEach(function (fn) { try { fn(command); } catch (e) { console.error(e); } });
+            return "ok";
+          };
           function post(message) {
             var text = JSON.stringify(message);
             if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(text);
@@ -18,6 +24,8 @@ public static class DesktopScript
             closeWorkspaceWindow: function (id) { return post({ type: "close-workspace", id: id }); },
             focusThisTab: function () { return post({ type: "focus-tab" }); },
             closeThisProject: function () { return post({ type: "close-project" }); },
+            reportAgents: function (summary) { var m = Object.assign({}, summary); m.type = "agent-summary"; return post(m); },
+            onAgentCommand: function (fn) { agentListeners.push(fn); return function () { agentListeners = agentListeners.filter(function (x) { return x !== fn; }); }; },
             writeClipboard: function (text) { return rpc({ type: "clipboard", method: "write", arg: text }); },
             saveFile: function (name, mime, base64) { return rpc({ type: "save-file", id: name, method: mime, arg: base64 }); }
           };
@@ -30,6 +38,12 @@ public static class DesktopScript
           document.addEventListener("keydown", function (e) {
             if (!e.isTrusted || !(e.ctrlKey || e.metaKey) || e.altKey || e.isComposing) return;
             var key = e.key.toLowerCase();
+            if (key === "j" && e.shiftKey) {
+              var focused = document.activeElement;
+              if (focused && focused.closest && focused.closest(".xterm, .xterm-helper-textarea")) return;
+              if (/Mac/.test(navigator.platform) ? !e.metaKey : !e.ctrlKey) return;
+              e.preventDefault(); post({ type: "next-waiting-agent" }); return;
+            }
             if (key !== "c" && key !== "x" && key !== "v" && key !== "a") return;
             var target = document.activeElement;
             if (!target) return;

@@ -23,26 +23,32 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from codechroma.bridge.agents.live_status import (
+    STATUS_ERROR,
+    STATUS_IDLE,
+    STATUS_STOPPED,
+    AgentError,
+    AgentStatusState,
+    HookOutcome,
+    StatusSnapshot,
+)
 from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV
-from codechroma.bridge.agents.status import StatusDetector, load_manifest_for
+from codechroma.bridge.agents.status import Classification, StatusDetector, load_manifest_for
 from codechroma.config import settings
 from codechroma.errors import codechromaError
+from codechroma.io import utc_now
 from codechroma.llm.runtime_env import CliLookupError, launch_failed, resolve_runtime_cli
 from codechroma.questions.launch import identity_env
 from codechroma.terminal.pty_session import PtySession, default_cols, default_rows
 from codechroma.terminal.screen_tap import ScreenTap
 
 logger = logging.getLogger("uvicorn.error")
-
-STATUS_RUNNING = "running"
-STATUS_STOPPED = "stopped"
-STATUS_EXITED = "exited"
-
 
 def context_inject_attempts() -> int:
     return settings.agents_routes.context_inject_attempts
@@ -106,12 +112,21 @@ class AgentSession(AgentSessionPort):
         cwd: str,
         kind: str = "claude",
         env: dict[str, str] | None = None,
+        on_exit: Callable[[AgentSession], None] | None = None,
     ) -> None:
         self.agent_id = agent_id
         self.argv = list(argv)
         self.session_tracking_file = (env or {}).get(FILE_ENV)
         self.initial_session_id = (env or {}).get(INITIAL_ID_ENV)
         self.exit_code: int | None = None
+        self._exit_error: AgentError | None = None
+        self._screen_key: tuple | None = None
+        self._screen_verdict = Classification()
+        self._closing = False
+        self._exited = on_exit
+        self._state = AgentStatusState()
+        # The poll thread and hook requests both drive the detector, which is not thread-safe.
+        self._detector_lock = threading.Lock()
         self._consumers: set[asyncio.Queue] = set()
         self._inject_lock = asyncio.Lock()
         # Seeded with the PTY's own geometry, so the tap renders the screen the agent actually drew.
@@ -136,21 +151,71 @@ class AgentSession(AgentSessionPort):
 
     @property
     def status(self) -> str:
-        """`exited` once the process is gone; while it runs, what the detector last settled on."""
-        if self.exit_code is not None:
-            return STATUS_EXITED
-        return self._detector.status
+        """Live: idle, working, blocked or done; gone: error after a non-zero exit, else stopped."""
+        return self.snapshot().status
 
-    def poll_status(self) -> str | None:
-        """The detector's verdict, or None when nothing changed — the LED's one source of truth."""
+    def snapshot(self) -> StatusSnapshot:
+        """The live status fields; an exited session reports stopped, or error with its cause."""
+        live = self._state.snapshot()
+        if self.exit_code is None:
+            return live
+        if self._exit_error is None:
+            return StatusSnapshot(STATUS_STOPPED, live.since, None, None)
+        return StatusSnapshot(STATUS_ERROR, live.since, None, None, self._exit_error)
+
+    def poll_status(self) -> bool:
+        """Samples the screen once; True when the status payload changed."""
         if self.exit_code is not None:
-            return None
-        return self._detector.observe(
-            self._tap.tail(self._detector.rules.tail_lines),
-            title=self._tap.title,
-            progress=self._tap.progress,
-            process=self._tap.foreground_process(self._pty.master_fd, time.monotonic()),
-        )
+            return False
+        tap = self._tap
+        process = tap.foreground_process(self._pty.master_fd, time.monotonic())
+        key = (tap.generation, tap.title, tap.progress, process)
+        with self._detector_lock:
+            # The rules only run when the screen, title, progress or process changed.
+            if key != self._screen_key:
+                tail = tap.tail(self._detector.rules.tail_lines)
+                self._screen_verdict = self._detector.evaluate(tail, key[1], key[2], process)
+                self._screen_key = key
+            verdict = self._detector.settle(self._screen_verdict)
+            last = self._detector.last_classification
+            changed = self._state.apply_screen(verdict, last.visible_blocker, last.visible_idle)
+            self._sync()
+            return changed
+
+    def apply_hook(self, body: dict) -> HookOutcome:
+        """Applies one Claude Code hook report and keeps the detector in step with it."""
+        if self.exit_code is not None:
+            return HookOutcome(False)
+        with self._detector_lock:
+            outcome = self._state.apply_hook(body)
+            self._sync()
+            return outcome
+
+    def _sync(self) -> None:
+        """Once hooks report, the detector holds whatever status they set."""
+        if self._state.hooked:
+            self._detector.force(self._state.live)
+
+    def mark_seen(self) -> bool:
+        """Done becomes idle; True when that changed the status."""
+        return self._state.mark_seen()
+
+    def decide(self, request_id: str, decision: str) -> bool:
+        """Answers a pending PermissionRequest; False when no such request waits."""
+        with self._detector_lock:
+            decided = self._state.decide(request_id, decision)
+            self._sync()
+            return decided
+
+    def expire_permission(self, request_id: str) -> bool:
+        """Drops an unanswered PermissionRequest; True when it was still pending."""
+        return self._state.expire(request_id)
+
+    def dismiss_error(self) -> bool:
+        """Clears the exit error so the agent reads as stopped; True when there was one."""
+        had = self._exit_error is not None
+        self._exit_error = None
+        return had
 
     def attach(self) -> asyncio.Queue:
         """A queue seeded with a screen redraw, so a reattach can never start mid-sequence."""
@@ -208,7 +273,7 @@ class AgentSession(AgentSessionPort):
                 return False  # type: ignore[unreachable]
             tail = self._tap.tail(self._detector.rules.tail_lines)
             verdict = self._detector.classify(tail, self._tap.title, self._tap.progress, None)
-            if verdict == "idle":
+            if verdict == STATUS_IDLE:
                 body = await self._inject_body(text)
                 if body is None:
                     return False
@@ -237,7 +302,8 @@ class AgentSession(AgentSessionPort):
         self._tap.resize(rows, cols)
 
     def close(self) -> None:
-        """Kills the process; needs the running loop, so call it from the bridge's event loop."""
+        """Kills the process from the event loop; a deliberate kill is no error."""
+        self._closing = True
         self._pty.close()
 
     def terminate_process(self) -> None:
@@ -253,8 +319,17 @@ class AgentSession(AgentSessionPort):
 
     def _on_exit(self) -> None:
         self.exit_code = self._pty.returncode if self._pty.returncode is not None else 0
+        if self.exit_code != 0 and not self._closing:
+            name = Path(self.argv[0]).stem if self.argv else "agent"
+            self._exit_error = AgentError(f"{name} exited with code {self.exit_code}", utc_now())
+        self._state.exit()
         for queue in list(self._consumers):
             queue.put_nowait(None)
+        if self._exited is not None:
+            try:
+                self._exited(self)
+            except Exception:
+                logger.exception("agents: exit callback failed for %s", self.agent_id)
 
 
 class AgentSessionRegistry:
@@ -262,6 +337,8 @@ class AgentSessionRegistry:
 
     def __init__(self) -> None:
         self._sessions: dict[str, AgentSession] = {}
+        # Called with the agent id when a registered session exits on its own (not after stop()).
+        self.on_exit: Callable[[str], None] | None = None
 
     def get(self, agent_id: str) -> AgentSession | None:
         return self._sessions.get(agent_id)
@@ -271,14 +348,10 @@ class AgentSessionRegistry:
         session = self._sessions.get(agent_id)
         return session is not None and session.is_alive
 
-    def poll_statuses(self) -> list[tuple[str, str]]:
-        """Every agent whose status just changed, as (id, status) — the poller's whole output."""
-        changed = []
-        for agent_id, session in list(self._sessions.items()):
-            status = session.poll_status()
-            if status is not None:
-                changed.append((agent_id, status))
-        return changed
+    def poll_statuses(self) -> list[str]:
+        """Every agent whose status payload just changed — the poller's whole output."""
+        sessions = list(self._sessions.items())
+        return [agent_id for agent_id, session in sessions if session.poll_status()]
 
     def start(
         self,
@@ -303,12 +376,18 @@ class AgentSessionRegistry:
         if not cwd.is_dir():
             raise AgentStartError(f"the agent's worktree is missing: {cwd}")
         try:
-            session = AgentSession(agent_id, argv, str(cwd), kind=kind, env=env)
+            session = AgentSession(
+                agent_id, argv, str(cwd), kind=kind, env=env, on_exit=self._session_exited
+            )
         except Exception as exc:
             launch_failed(exc)
             raise AgentStartError(runtime.launch_error(exc)) from exc
         self._sessions[agent_id] = session
         return session
+
+    def _session_exited(self, session: AgentSession) -> None:
+        if self.on_exit is not None and self._sessions.get(session.agent_id) is session:
+            self.on_exit(session.agent_id)
 
     def stop(self, agent_id: str) -> bool:
         """Kills one agent's PTY, keeping its worktree and branch; False if it wasn't running."""

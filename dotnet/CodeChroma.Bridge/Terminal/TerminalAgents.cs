@@ -67,7 +67,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             var standIn = resolution.AdapterKey == "claude" && !isClaude;
             var mcp = McpFor(standIn ? null : CliAdapters.All.GetValueOrDefault(resolution.AdapterKey), agentId, bridgeUrl, bare, workdir);
             var argv = Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, ModelArgs(resolution));
-            return OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null) with { DetectorKind = standIn ? null : resolution.AdapterKey };
+            return OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, isClaude ? HookEndpointFor(agentId, bridgeUrl) : null) with { DetectorKind = standIn ? null : resolution.AdapterKey };
         }
         if (!Allowed.TryGetValue(agent, out var entry)) return null;
         if (agent == "claude")
@@ -75,7 +75,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             var binary = AssistantRoutes.EffectiveCli(paths);
             var mcp = McpFor(binary == DefaultCli ? CliAdapters.All["claude"] : null, agentId, bridgeUrl, bare, workdir);
             var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args);
-            return OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null);
+            return OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, binary == DefaultCli ? HookEndpointFor(agentId, bridgeUrl) : null);
         }
         return new AgentLaunch(string.IsNullOrEmpty(resumeSessionId) ? entry : [.. entry, ResumeFlag, resumeSessionId], new Dictionary<string, string>());
     }
@@ -101,6 +101,10 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         return launch with { Env = env };
     }
 
+    /// <summary>The endpoint whose token the status hooks post with, or null without the question server, an agent id or the bridge URL.</summary>
+    private McpEndpoint? HookEndpointFor(string? agentId, string? bridgeUrl) =>
+        questions is null || string.IsNullOrEmpty(agentId) || string.IsNullOrEmpty(bridgeUrl) ? null : questions.EndpointFor(agentId, bridgeUrl);
+
     /// <summary>Forces claude's classic renderer over a user's `"tui": "fullscreen"` setting.</summary>
     public const string ClassicRendererEnv = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN";
 
@@ -112,7 +116,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         return merged;
     }
 
-    private static AgentLaunch OwnedLaunch(string[] argv, IReadOnlyDictionary<string, string> env, bool isClaude, string? resumeSessionId, bool fork, string? newSessionId, string? trackingFile, bool hasMcp)
+    private static AgentLaunch OwnedLaunch(string[] argv, IReadOnlyDictionary<string, string> env, bool isClaude, string? resumeSessionId, bool fork, string? newSessionId, string? trackingFile, bool hasMcp, McpEndpoint? hooks = null)
     {
         if (!isClaude) return new AgentLaunch(argv, env);
         var options = new List<string>();
@@ -120,7 +124,9 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         var fresh = string.IsNullOrEmpty(resumeSessionId) || fork;
         if (fresh && !string.IsNullOrEmpty(newSessionId)) options.AddRange(["--session-id", newSessionId]);
         var ownedEnv = new Dictionary<string, string>(env);
-        if ((trackingFile is not null || hasMcp) && AgentSessionOwnership.TryHookSettings(trackingFile is not null, hasMcp) is { } settings) options.AddRange(["--settings", settings]);
+        if ((trackingFile is not null || hasMcp || hooks is not null) && AgentSessionOwnership.TryHookSettings(trackingFile is not null, hasMcp, hooks is not null) is { } settings) options.AddRange(["--settings", settings]);
+        // The status hooks authenticate with the agent's workspace token, which a bare window gets without the MCP server.
+        foreach (var (key, value) in hooks?.Env() ?? new Dictionary<string, string>()) ownedEnv.TryAdd(key, value);
         // A fullscreen (alternate-screen) TUI leaves xterm no scrollback, so the window's scrollbar has nothing to scroll.
         ownedEnv[ClassicRendererEnv] = "1";
         if (trackingFile is not null)

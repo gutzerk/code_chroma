@@ -53,9 +53,13 @@ def default_repo_root() -> Path:
     return PROJECT_ROOT / os.environ.get("codechroma_BRIDGE_REPO_PATH", ".")
 
 
+# Strong references, so a pending exit broadcast is never garbage-collected mid-flight.
+_EXIT_BROADCASTS: set[asyncio.Task] = set()
+
+
 async def _poll_agent_statuses(services: BridgeServices) -> None:
     """Samples every live agent's screen and pushes only the changes the detector settled on."""
-    from codechroma.bridge.routes.agents import broadcast_agent_status
+    from codechroma.bridge.routes.agents import broadcast_agent
 
     while True:
         await asyncio.sleep(_status_poll_seconds())
@@ -65,8 +69,21 @@ async def _poll_agent_statuses(services: BridgeServices) -> None:
         except Exception:
             logger.exception("agents: status poll failed")
             continue
-        for agent_id, status in changes:
-            await broadcast_agent_status(services, agent_id, status)
+        for agent_id in changes:
+            await broadcast_agent(services, agent_id)
+
+
+def _broadcast_exit(services: BridgeServices, agent_id: str) -> None:
+    """Pushes an agent's exit at once; the PTY reaper calls this on the bridge's event loop."""
+    from codechroma.bridge.routes.agents import broadcast_agent
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    task = loop.create_task(broadcast_agent(services, agent_id))
+    _EXIT_BROADCASTS.add(task)
+    task.add_done_callback(_EXIT_BROADCASTS.discard)
 
 
 async def _unload_idle_workspaces(services: BridgeServices) -> None:
@@ -125,6 +142,7 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     app.state.services = BridgeServices.create(root)
     services = app.state.services
     app.state.question_mcp = QuestionMcp(services.registry.get)
+    services.agent_sessions.on_exit = lambda agent_id: _broadcast_exit(services, agent_id)
 
     allowed_origins = os.environ.get(
         "codechroma_BRIDGE_CORS_ORIGINS",

@@ -1,0 +1,11 @@
+> run the end-to-end suite
+
+╭──────────────────────────────────────────────────────────╮
+│ ?  Shell npm run e2e                                     │
+│                                                          │
+│ Allow execution of: 'npm'?                               │
+│                                                          │
+│ ● 1. Allow once                                          │
+│   2. Allow always                                        │
+│   3. No, suggest changes (esc)                           │
+╰──────────────────────────────────────────────────────────╯

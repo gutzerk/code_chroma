@@ -31,12 +31,11 @@ public static class AskUserQuestionHook
     /// <summary>Denies only when the launcher wired the codechroma MCP server (token env) and /mcp is up; any error exits 0 silently.</summary>
     public static int Run(TextReader input, TextWriter output, Func<string, bool>? bridgeAnswers = null)
     {
-        var baseUrl = Env(BridgeAddress.BridgeUrlEnv).TrimEnd('/');
-        if (baseUrl.Length == 0 || Env(McpEndpoint.TokenEnv).Length == 0 || Env(BridgeAddress.WorkspaceIdEnv).Length == 0) return 0;
+        if (HookEnv.Wired() is not { } wiring) return 0;
         try
         {
             var payload = JsonNode.Parse(input.ReadToEnd());
-            if (payload?["tool_input"]?["questions"] is { } questions && Json.Truthy(questions) && (bridgeAnswers ?? ProbeBridge)(baseUrl))
+            if (payload?["tool_input"]?["questions"] is { } questions && Json.Truthy(questions) && (bridgeAnswers ?? ProbeBridge)(wiring.BaseUrl))
                 output.Write(DenyDecision());
         }
         catch (Exception) { }
@@ -57,9 +56,4 @@ public static class AskUserQuestionHook
             return false;
         }
     }
-
-    /// <summary>The CODECHROMA_* variable, falling back to the lower-cased spelling older builds used.</summary>
-    private static string Env(string name) =>
-        Environment.GetEnvironmentVariable(name) is { Length: > 0 } value ? value
-        : Environment.GetEnvironmentVariable(string.Concat("codechroma_", name.AsSpan("CODECHROMA_".Length))) ?? "";
 }

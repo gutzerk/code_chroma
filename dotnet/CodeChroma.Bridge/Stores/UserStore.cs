@@ -106,6 +106,9 @@ public static class Json
 {
     public static string? Str(JsonNode? node) => node is JsonValue v && v.TryGetValue(out string? s) ? s : null;
 
+    /// <summary>Second-precision ISO-8601 UTC with a trailing Z, the format of every stored or reported timestamp.</summary>
+    public static string Iso(DateTimeOffset moment) => moment.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
+
     /// <summary>The string value, or null when it is absent, not a string or empty.</summary>
     public static string? NonEmptyStr(JsonNode? node) => Str(node) is { Length: > 0 } s ? s : null;
 

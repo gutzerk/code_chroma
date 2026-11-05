@@ -1,17 +1,31 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
+import { useOpenQuestionCounts } from "../canvas/doc/question/useOpenAgentQuestions";
 import type { WorktreeRecord } from "../state/types";
 import { messageOf } from "../util/reportError";
+import { tabRollups } from "./agentAttention";
 import type { AgentClient } from "./agentClient";
 import { useAgentClient } from "./AgentClientContext";
-import { useActiveWorkspace } from "./agentStore";
+import { useActiveWorkspace, useAgents } from "./agentStore";
+import { rollup, STATUS_LABELS, type RollupTop, type StatusRollup } from "./statusRollup";
+import { StatusBadge, StatusIndicator } from "./StatusIndicator";
 import { CloseWorktreeDialog } from "./CloseWorktreeDialog";
 import { getRememberedCloseChoice, type CloseChoice } from "./closeChoice";
 import { closeWorktree, createWorktree, refreshWorktrees, renameWorktree, selectWorktree } from "./worktreeActions";
 import { useActiveWorktreeId, useWorktreeCreating, useWorktrees, useWorktreeWarning } from "./worktreeStore";
 
+const QUIET: StatusRollup = rollup([]);
+
+/** The tab's title suffix naming its roll-up, since the dot and badge are decorative. */
+function tabStatusTitle(top: RollupTop, count: number): string {
+  if (top === null) return "";
+  return count > 0 ? ` · ${STATUS_LABELS[top]} (${count})` : ` · ${STATUS_LABELS[top]}`;
+}
+
 interface TabProps {
   client: AgentClient;
   tab: WorktreeRecord;
+  top: RollupTop;
+  count: number;
   selected: boolean;
   editing: boolean;
   renameError: string | null;
@@ -24,6 +38,8 @@ interface TabProps {
 const WorktreeTab = memo(function WorktreeTab({
   client,
   tab,
+  top,
+  count,
   selected,
   editing,
   renameError,
@@ -53,11 +69,15 @@ const WorktreeTab = memo(function WorktreeTab({
           role="tab"
           aria-selected={selected}
           className="worktree-tab-label"
-          title={tab.worktree_lost ? `${tab.name} (worktree missing)` : tab.name}
+          title={`${tab.worktree_lost ? `${tab.name} (worktree missing)` : tab.name}${tabStatusTitle(top, count)}`}
           onClick={() => selectWorktree(client, tab.id)}
           onDoubleClick={() => onStartRename(tab.id)}
         >
+          {top !== null && <StatusIndicator status={top} testId={`worktree-status-${tab.id}`} />}
           {tab.name}
+          {top !== null && top !== "working" && count > 0 && (
+            <StatusBadge status={top} count={count} testId={`worktree-badge-${tab.id}`} />
+          )}
         </button>
       )}
       <button
@@ -91,6 +111,13 @@ export function WorktreeStrip() {
   const [renameError, setRenameError] = useState<string | null>(null);
   const [closing, setClosing] = useState<string | null>(null);
   const closingTab = tabs.find((tab) => tab.id === closing);
+  const agents = useAgents();
+  const questionCounts = useOpenQuestionCounts();
+  const selectedTab = activeTab ?? workspace;
+  const rollups = useMemo(
+    () => tabRollups(tabs, agents, questionCounts, selectedTab),
+    [tabs, agents, questionCounts, selectedTab],
+  );
 
   const startRename = useCallback((id: string) => {
     setEditing(id);
@@ -144,7 +171,9 @@ export function WorktreeStrip() {
           key={tab.id}
           client={client}
           tab={tab}
-          selected={tab.id === (activeTab ?? workspace)}
+          top={(rollups.get(tab.id) ?? QUIET).top}
+          count={(rollups.get(tab.id) ?? QUIET).count}
+          selected={tab.id === selectedTab}
           editing={editing === tab.id}
           renameError={editing === tab.id ? renameError : null}
           onStartRename={startRename}

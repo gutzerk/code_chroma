@@ -378,7 +378,7 @@ describe("CanvasDocView", () => {
   });
 
   it("never draws a question or its option diagram on the canvas", async () => {
-    agentStore.upsert(agentRecord("agent-1", "running"));
+    agentStore.upsert(agentRecord("agent-1", "idle"));
     const doc = docWith([
       elementOf({ id: "box", render: "custom", label: "Plain box", layer: "custom/flow" }),
       elementOf({ id: "d1", render: "custom", label: "Decision box", layer: "decisions/q1" }),

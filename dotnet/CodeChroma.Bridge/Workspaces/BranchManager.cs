@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -314,7 +313,7 @@ public sealed partial class BranchManager
                 UndoProvision(branch, path);
                 throw;
             }
-            var record = new BranchRecord(id, branch, path, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
+            var record = new BranchRecord(id, branch, path, Json.Iso(DateTimeOffset.UtcNow));
             _records.Add(record);
             Save();
             return record;

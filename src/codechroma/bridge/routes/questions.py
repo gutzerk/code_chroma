@@ -11,8 +11,6 @@ from starlette.concurrency import run_in_threadpool
 from codechroma.bridge.deps import Services, Ws
 from codechroma.canvas.document import Element
 from codechroma.questions import delivery, store
-from codechroma.questions.launch import bearer_token
-from codechroma.questions.mcp_server import QuestionAuthError
 from codechroma.questions.models import AskRequest, QuestionResult
 from codechroma.questions.validation import QuestionRejected
 
@@ -64,11 +62,7 @@ def list_open_questions(ws: Ws, services: Services) -> dict:
 async def ask_question(repo_id: str, request: Request, body: AskRequest) -> dict:
     """Non-blocking ask for non-MCP callers (the AskUserQuestion hook); same bearer as /mcp."""
     mcp = request.app.state.question_mcp
-    try:
-        authorized = mcp.workspace_id_for(bearer_token(request.headers)) == repo_id
-    except QuestionAuthError:
-        authorized = False
-    if not authorized:
+    if not mcp.authorizes(request.headers, repo_id):
         raise HTTPException(status_code=401, detail="invalid or missing workspace token")
     try:
         return await mcp.ask(repo_id, body)

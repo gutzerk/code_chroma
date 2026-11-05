@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { useOpenQuestionCount } from "../canvas/doc/question/useOpenAgentQuestions";
-import { QUESTION_STRINGS as S } from "../canvas/doc/question/questionStrings";
+import { useOpenQuestionCounts } from "../canvas/doc/question/useOpenAgentQuestions";
 import { useResizableSize } from "../canvas/useResizableSize";
 import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
 import { agentsWideWidth } from "../canvas/layout/layoutMetrics";
@@ -12,8 +11,12 @@ import { AgentsHeaderActions } from "./activity/AgentsHeaderActions";
 import { WorkflowsHeaderActions } from "../workflows/WorkflowsHeaderActions";
 import { useRuns, useRunsLoaded, workflowStore } from "../workflows/workflowStore";
 import { isFinished } from "../workflows/runControls";
-import { AgentList, AgentSwitcherRow, selectAgent } from "./activity/AgentSwitcherRow";
+import { AgentList, AgentSwitcherRow } from "./activity/AgentSwitcherRow";
+import { selectAgent } from "./agentFocus";
 import { useAgentClient } from "./AgentClientContext";
+import { panelAgents } from "./agentAttention";
+import { effectiveStatus, rollup, type AttentionStatus } from "./statusRollup";
+import { StatusChip } from "./StatusIndicator";
 import { PromptOutline } from "./prompts/PromptOutline";
 import { promptNavStore } from "./prompts/promptNavStore";
 import { CollapsedStrip, type ActivityTab } from "./activity/CollapsedStrip";
@@ -26,6 +29,9 @@ import "./ActivityPanel.css";
 /** Px short of the full-screen width where a left-edge drag snaps to full (the drag's own slack is added on top). */
 const FULL_SNAP_MARGIN = 120;
 
+/** The header chips, most urgent first. */
+const ATTENTION_ORDER: AttentionStatus[] = ["blocked", "error", "done"];
+
 /** Floating panel. Terminals stay mounted when tabs or visibility change. */
 export function ActivityPanel({
   onRunAgent,
@@ -37,13 +43,13 @@ export function ActivityPanel({
   const allAgents = useAgents();
   const worktreeTab = useActiveWorktreeId();
   // Every agent's terminal stays mounted (below) so a tab switch never drops a session; only the active tab's are listed.
-  const agents = useMemo(
-    () => allAgents.filter((agent) => !agent.workspace || !worktreeTab || agent.workspace === worktreeTab),
-    [allAgents, worktreeTab],
-  );
+  const agents = useMemo(() => panelAgents(allAgents, worktreeTab), [allAgents, worktreeTab]);
   const agentClient = useAgentClient();
-  const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
-  const openQuestions = useOpenQuestionCount(agentIds);
+  const questionCounts = useOpenQuestionCounts();
+  const attention = useMemo(
+    () => rollup(agents.map((agent) => effectiveStatus(agent, questionCounts.get(agent.id) ?? 0))).counts,
+    [agents, questionCounts],
+  );
   const { agentsMode, leftOpen, selectedAgentId } = useLayoutState();
   const [tab, setTab] = useState<ActivityTab>("agents");
   const runs = useRuns();
@@ -211,8 +217,8 @@ export function ActivityPanel({
               onClick={() => setTab("agents")}
             >
               Agents <span className="activity-count">{`· ${agents.length}`}</span>
-              {openQuestions > 0 && (
-                <span className="activity-question-pill">{S.questionCount(openQuestions)}</span>
+              {ATTENTION_ORDER.map((status) =>
+                attention[status] > 0 ? <StatusChip key={status} status={status} count={attention[status]} /> : null,
               )}
             </button>
             <button

@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from "react";
 import { clamp } from "../util/clamp";
-import type { AgentRecord, AgentStatus, AgentWindowGeometry, GitPreflight } from "../state/types";
+import type { AgentRecord, AgentStatus, AgentStatusFields, AgentWindowGeometry, GitPreflight } from "../state/types";
 import { Store } from "../state/createStore";
+import { normalizeAgentStatus } from "./statusRollup";
 import { worktreeStore } from "./worktreeStore";
 
 const EMPTY: AgentRecord[] = [];
@@ -80,7 +81,7 @@ class AgentStore extends Store {
     active_workspace: string;
     max_agents: number;
   }): void => {
-    this.agents = list.agents.map((agent) => clampToViewport(agent));
+    this.agents = list.agents.map((agent) => clampToViewport(normalized(agent)));
     if (!this.workspaceChosen && list.active_workspace !== "main") {
       this.activeWorkspace = list.active_workspace;
       this.workspaceChosen = true;
@@ -91,13 +92,20 @@ class AgentStore extends Store {
 
   /** Inserts or replaces one card — the `agent-added` event and every mutating call land here. */
   upsert = (agent: AgentRecord): void => {
-    const clamped = clampToViewport(agent);
+    const clamped = clampToViewport(normalized(agent));
     const index = this.agents.findIndex((candidate) => candidate.id === agent.id);
     this.agents =
       index === -1
         ? [...this.agents, clamped]
         : this.agents.map((candidate, at) => (at === index ? clamped : candidate));
     this.emit();
+  };
+
+  /** `upsert` for an HTTP reply: dropped when a newer `agent-status` event already landed. */
+  upsertIfCurrent = (agent: AgentRecord): void => {
+    const stored = this.getAgent(agent.id);
+    if (stored && isOlder(agent.status_since, stored.status_since)) return;
+    this.upsert(agent);
   };
 
   remove = (id: string): void => {
@@ -130,9 +138,24 @@ class AgentStore extends Store {
     this.agents.reduce((total, agent) => total + (agent.workspace === workspace ? 1 : 0), 0);
 
   setStatus = (id: string, status: AgentStatus): void => {
-    this.agents = this.agents.map((agent) =>
-      agent.id === id ? { ...agent, status } : agent,
-    );
+    this.applyStatus(id, status, {});
+  };
+
+  /** Lands an `agent-status` event: the status plus its activity, pending permission and error. */
+  applyStatus = (id: string, status: AgentStatus, fields: AgentStatusFields & { exit_code?: number | null }): void => {
+    this.agents = this.agents.map((agent) => {
+      if (agent.id !== id) return agent;
+      const exitCode = fields.exit_code !== undefined ? fields.exit_code : agent.exit_code;
+      return {
+        ...agent,
+        exit_code: exitCode,
+        status: normalizeAgentStatus(status, exitCode),
+        status_since: fields.status_since ?? agent.status_since ?? null,
+        activity: fields.activity ?? null,
+        pending_permission: fields.pending_permission ?? null,
+        error: fields.error ?? null,
+      };
+    });
     this.emit();
   };
 
@@ -233,6 +256,19 @@ class AgentStore extends Store {
   };
 }
 
+/** The one status guard: whatever an older bridge sends lands as one of the six (`normalizeAgentStatus`). */
+/** True when timestamp `a` is strictly before `b`; a missing or unparsable one is never older. */
+function isOlder(a: string | null | undefined, b: string | null | undefined): boolean {
+  const at = a ? Date.parse(a) : NaN;
+  const bt = b ? Date.parse(b) : NaN;
+  return !Number.isNaN(at) && !Number.isNaN(bt) && at < bt;
+}
+
+function normalized(agent: AgentRecord): AgentRecord {
+  const status = normalizeAgentStatus(agent.status, agent.exit_code);
+  return status === agent.status ? agent : { ...agent, status };
+}
+
 /** Pulls a saved position back on-screen: a window restored without the monitor it was dragged to
  * would otherwise come back unreachable, with no way to grab its title bar. */
 export function clampToViewport(
@@ -267,9 +303,14 @@ export function useAgents(): AgentRecord[] {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getAgents);
 }
 
-/** Whether the agent's terminal (and so its question host) is mounted: not stopped or exited. */
+/** One agent's record; re-renders only when that record changes. */
+export function useAgent(id: string): AgentRecord | undefined {
+  return useSyncExternalStore(agentStore.subscribe, () => agentStore.getAgent(id));
+}
+
+/** Whether the agent's terminal (and so its question host) is mounted: not stopped or failed. */
 export function isAgentRunning(agent: AgentRecord): boolean {
-  return agent.status !== "stopped" && agent.status !== "exited";
+  return agent.status !== "stopped" && agent.status !== "error";
 }
 
 export function useAgentCountInWorkspace(workspace: string): number {

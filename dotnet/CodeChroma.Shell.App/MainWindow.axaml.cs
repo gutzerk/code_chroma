@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -18,6 +19,9 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
     private readonly TabModel tabs;
     private readonly string version;
     private readonly UpdateHost updates;
+    private readonly AgentPopover popover;
+    private readonly Dictionary<string, TabChip> chips = [];
+    private DateTime lastCycle;
     private bool shutDown;
 
     public MainWindow() : this([])
@@ -44,6 +48,10 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
             MoreButton.IsVisible = false;
         }
         else MoreButton.Flyout = BuildMoreMenu();
+        popover = new AgentPopover(TabPopover, controller);
+        WaitingKey.Text = OperatingSystem.IsMacOS() ? "⌘⇧J" : "Ctrl+Shift+J";
+        WaitingPill.Click += (_, _) => CycleWaiting();
+        Deactivated += (_, _) => popover.Close();
         KeyDown += OnKeyDown;
         Closing += OnClosing;
 
@@ -58,6 +66,7 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         ("Open Repo…", "O", () => { controller.EnsureLauncherTabActive(); return Task.CompletedTask; }),
         ("New Tab", "T", () => { controller.NewTab(); return Task.CompletedTask; }),
         ("Close Tab", "W", async () => { if (tabs.ActiveTab is { } active) await controller.CloseTabAsync(active.Id); }),
+        ("Next Waiting Agent", "Shift+J", () => { CycleWaiting(); return Task.CompletedTask; }),
         ("-", null, null),
         ("Check for Updates…", null, () => updates.CheckManuallyAsync()),
         ("About CodeChroma", null, () => Dialogs.ShowAboutAsync(this, version)),
@@ -119,7 +128,12 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         };
         view.Web.NavigationStarting += (_, e) =>
         {
-            if (e.Url is not { } target || IsBridgeOrigin(view, target) || target.Scheme == "about") return;
+            if (e.Url is not { } target) return;
+            if (IsBridgeOrigin(view, target) || target.Scheme == "about")
+            {
+                if (!SameDocument(view.Web.Url, target) && tabs.Tabs.FirstOrDefault(t => ReferenceEquals(t.View, view)) is { } tab) controller.PageReset(tab.Id);
+                return;
+            }
             e.Cancel = true;
             if (target.Scheme is "http" or "https") Process.Start(new ProcessStartInfo(target.AbsoluteUri) { UseShellExecute = true });
         };
@@ -131,6 +145,11 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         Content.Children.Add(view);
         return view;
     }
+
+    /// <summary>A fragment-only jump keeps the page (and its agent summary); anything else loads a new document.</summary>
+    private static bool SameDocument(Uri? current, Uri target) =>
+        current is not null && target.Fragment.Length > 0
+        && Uri.Compare(current, target, UriComponents.HttpRequestUrl, UriFormat.Unescaped, StringComparison.Ordinal) == 0;
 
     private bool IsBridgeOrigin(TabView view, Uri? current)
     {
@@ -154,6 +173,8 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
             case "clipboard": _ = ClipboardAsync(view, message); break;
             case "focus-tab": controller.FocusTab(tab.Id); break;
             case "close-project": _ = controller.CloseProjectAsync(tab.Id); break;
+            case "agent-summary" when message.Agents is not null: controller.ReportAgents(tab.Id, message.Agents); break;
+            case "next-waiting-agent": CycleWaiting(); break;
         }
     }
 
@@ -198,10 +219,12 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Meta)) return;
+        var command = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
         switch (e.Key)
         {
             case Key.O: controller.EnsureLauncherTabActive(); break;
             case Key.T: controller.NewTab(); break;
+            case Key.J when e.KeyModifiers.HasFlag(KeyModifiers.Shift) && e.KeyModifiers.HasFlag(command): CycleWaiting(); break;
             case Key.W when tabs.ActiveTab is { } active: _ = controller.CloseTabAsync(active.Id); break;
             default: return;
         }
@@ -217,37 +240,64 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         Close();
     }
 
+    /// <summary>The pill, ⌘⇧J, the native menu item and the page's key listener all land here; a repeat within 150 ms is one press.</summary>
+    private void CycleWaiting()
+    {
+        var now = DateTime.UtcNow;
+        if (now - lastCycle < TimeSpan.FromMilliseconds(150)) return;
+        lastCycle = now;
+        popover.Close();
+        controller.FocusNextBlocked();
+    }
+
     public void TabsChanged(TabsSnapshot snapshot)
     {
         Title = snapshot.WindowTitle;
         foreach (var tab in tabs.Tabs) ((TabView)tab.View).IsVisible = tab.Id == snapshot.ActiveId;
-        TabStrip.Children.Clear();
+        foreach (var gone in chips.Keys.Except(snapshot.Tabs.Select(t => t.Id)).ToList()) chips.Remove(gone);
+        var ordered = new List<Control>();
         foreach (var info in snapshot.Tabs)
         {
-            var id = info.Id;
-            var active = id == snapshot.ActiveId;
-            var title = new TextBlock { Text = info.Title, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(Color.Parse(active ? "#e6e9f0" : "#8b93a7")) };
-            var close = new Button { Content = "×", Classes = { "tiny" }, Padding = new Thickness(4, 0), FontSize = 13, VerticalAlignment = VerticalAlignment.Center };
-            close.Click += async (_, _) => await controller.CloseTabAsync(id);
-            var body = new DockPanel { MinWidth = 110, MaxWidth = 220, Margin = new Thickness(16, 0, 8, 0) };
-            DockPanel.SetDock(close, Dock.Right);
-            body.Children.Add(close);
-            body.Children.Add(title);
-            var tab = new Border
+            if (!chips.TryGetValue(info.Id, out var chip))
             {
-                Child = body,
-                Background = new SolidColorBrush(Color.Parse(active ? "#11131a" : "#242833")),
-                BorderThickness = new Thickness(0),
-                CornerRadius = new CornerRadius(12, 12, 0, 0),
-                Margin = new Thickness(4, 6, 0, 0),
-                Cursor = new Cursor(StandardCursorType.Hand),
-            };
-            tab.PointerPressed += (_, _) => controller.SwitchTab(id);
-            TabStrip.Children.Add(tab);
+                chip = new TabChip(info.Id, controller.SwitchTab, controller.CloseTabAsync);
+                var hovered = chip;
+                chip.PointerEntered += (_, _) => popover.Enter(hovered);
+                chip.PointerExited += (_, _) => popover.Leave();
+                chip.GotFocus += (_, e) => { if (e.NavigationMethod == NavigationMethod.Tab) popover.Enter(hovered); };
+                chip.LostFocus += (_, _) => popover.Leave();
+                chip.KeyDown += (_, e) => { if (e.Key == Key.Down) e.Handled = popover.OpenFromKeyboard(hovered); };
+                chips[info.Id] = chip;
+            }
+            chip.Update(info, info.Id == snapshot.ActiveId);
+            ordered.Add(chip);
         }
-        var add = new Button { Content = "+", Classes = { "tiny" }, Width = 32, FontSize = 16, VerticalAlignment = VerticalAlignment.Center, HorizontalContentAlignment = HorizontalAlignment.Center };
-        add.Click += (_, _) => controller.NewTab();
-        TabStrip.Children.Add(add);
+        if (TabStrip.Children.Count != ordered.Count + 1 || !TabStrip.Children.Take(ordered.Count).SequenceEqual(ordered))
+        {
+            TabStrip.Children.Clear();
+            TabStrip.Children.AddRange(ordered);
+            var add = new Button { Content = "+", Classes = { "tiny" }, Width = 32, Height = 32, FontSize = 16, VerticalAlignment = VerticalAlignment.Bottom, HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
+            add.Click += (_, _) => controller.NewTab();
+            TabStrip.Children.Add(add);
+        }
+        WaitingPill.IsVisible = snapshot.Waiting > 0;
+        WaitingText.Text = $"{snapshot.Waiting} waiting";
+        AutomationProperties.SetName(WaitingPill, $"{snapshot.Waiting} {AgentRollup.Plural(snapshot.Waiting, "agent", "agents")} waiting");
+        popover.Refresh(chips);
+    }
+
+    public void AgentsChanged(string tabId, AgentSummary summary)
+    {
+        if (!chips.TryGetValue(tabId, out var chip)) return;
+        chip.SetAgents(summary);
+        popover.Refresh(chips);
+    }
+
+    public void SendAgentCommand(Tab tab, string json)
+    {
+        var view = (TabView)tab.View;
+        if (!IsBridgeOrigin(view, view.Web.Url)) return;
+        _ = view.Web.ExecuteScriptAsync($"window.__ccAgentCommand && window.__ccAgentCommand({JsonSerializer.Serialize(json)});");
     }
 
     public void Navigate(Tab tab, string url) => ((TabView)tab.View).Navigate(url);

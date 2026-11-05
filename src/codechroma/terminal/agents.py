@@ -94,14 +94,14 @@ def agent_launch(
         return AgentLaunch([
             resolution.binary,
             *_model_args(resolution),
-            *_settings_args(is_claude, session_tracking_file, bool(mcp_args)),
+            *_settings_args(is_claude, session_tracking_file, bool(mcp_args), mcp is not None),
             *_instruction_args(is_claude),
             *mcp_args,
             *_codechroma_plugin_args(is_claude),
             *_new_session_args(is_claude, resume_session_id, new_session_id),
             *_resume_prompt(resume_session_id, initial_prompt),
         ], {
-            **resolution.env_overrides, **mcp_env,
+            **resolution.env_overrides, **_status_hook_env(is_claude, mcp), **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
             **_renderer_env(is_claude),
         }, agent if stand_in else resolution.adapter_key)
@@ -115,14 +115,14 @@ def agent_launch(
         mcp_args, mcp_env = _mcp_registration("claude" if is_claude else None, mcp, workdir)
         return AgentLaunch([
             binary,
-            *_settings_args(is_claude, session_tracking_file, bool(mcp_args)),
+            *_settings_args(is_claude, session_tracking_file, bool(mcp_args), mcp is not None),
             *_instruction_args(is_claude),
             *mcp_args,
             *_codechroma_plugin_args(is_claude),
             *_new_session_args(is_claude, resume_session_id, new_session_id),
             *_resume_prompt(resume_session_id, initial_prompt),
         ], {
-            **mcp_env,
+            **_status_hook_env(is_claude, mcp), **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
             **_renderer_env(is_claude),
         }, agent)
@@ -144,14 +144,22 @@ def _model_args(resolution) -> list[str]:
     return ["--model", resolution.model] if resolution.model else []
 
 
-def _settings_args(is_claude: bool, file: Path | None, has_mcp: bool) -> list[str]:
-    """`--settings`: the session hook when tracked, the MCP tools pre-approved when registered."""
-    if not is_claude or (file is None and not has_mcp):
+def _settings_args(
+    is_claude: bool, file: Path | None, has_mcp: bool, status_hooks: bool = False
+) -> list[str]:
+    """`--settings`: session/status hooks, plus the MCP tools pre-approved when registered."""
+    if not is_claude or (file is None and not has_mcp and not status_hooks):
         return []
-    document = hook_document() if file is not None else {}
+    hooked = file is not None or status_hooks
+    document = hook_document(file is not None, status_hooks) if hooked else {}
     if has_mcp:
         document["permissions"] = {"allow": [CLAUDE_PERMISSION]}
     return ["--settings", json.dumps(document)]
+
+
+def _status_hook_env(is_claude: bool, mcp: McpEndpoint | None) -> dict[str, str]:
+    """The bridge URL and token the status hooks post with, even without the MCP server."""
+    return mcp.env() if is_claude and mcp is not None else {}
 
 
 def _renderer_env(is_claude: bool) -> dict[str, str]:

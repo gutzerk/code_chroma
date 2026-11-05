@@ -224,6 +224,9 @@ def test_wire_contract(case, make_repo, make_bridge, shared_bridges, user_stores
             elif "fs" in step:
                 _run_fs(step, repo)
                 found = []
+            elif "token" in step:
+                variables[step["as"]] = client.app.state.question_mcp.token_for(step["token"])
+                found = []
             else:
                 found = _run_ws(client, step, sockets, stack, str(repo))
             failures.extend(f"step {number}: {message}" for message in found)

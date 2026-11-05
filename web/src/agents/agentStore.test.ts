@@ -181,11 +181,50 @@ describe("the LED's input", () => {
     expect(seen).toEqual(["idle", "working", "blocked", "working", "idle"]);
   });
 
-  it("keeps a crashed agent distinguishable from a deliberately stopped one", () => {
-    agentStore.upsert(agent("crashed", { status: "exited", exit_code: 1 }));
+  it("maps an older bridge's crashed `exited` agent to error at the store boundary", () => {
+    agentStore.upsert(agent("crashed", { status: "exited" as AgentRecord["status"], exit_code: 1 }));
 
-    expect(agentStore.getAgent("crashed")?.status).toBe("exited");
+    expect(agentStore.getAgent("crashed")?.status).toBe("error");
     expect(agentStore.getAgent("crashed")?.exit_code).toBe(1);
+  });
+
+  it("reads a legacy `exited` event's own exit code, not the record's old one", () => {
+    agentStore.upsert(agent("crashed", { status: "working", exit_code: null }));
+
+    agentStore.applyStatus("crashed", "exited" as AgentRecord["status"], { exit_code: 2 });
+
+    expect(agentStore.getAgent("crashed")).toMatchObject({ status: "error", exit_code: 2 });
+  });
+
+  it("drops an HTTP reply older than the status event that already landed", () => {
+    agentStore.upsert(agent("refund-flow", { status: "working", status_since: "2026-11-05T10:00:05Z" }));
+
+    agentStore.upsertIfCurrent(agent("refund-flow", { status: "idle", status_since: "2026-11-05T10:00:00Z" }));
+
+    expect(agentStore.getAgent("refund-flow")?.status).toBe("working");
+  });
+
+  it("applies an HTTP reply at least as new as the stored record", () => {
+    agentStore.upsert(agent("refund-flow", { status: "done", status_since: "2026-11-05T10:00:00Z" }));
+
+    agentStore.upsertIfCurrent(agent("refund-flow", { status: "idle", status_since: "2026-11-05T10:00:01Z" }));
+
+    expect(agentStore.getAgent("refund-flow")?.status).toBe("idle");
+  });
+
+  it("stores an agent-status event's activity, permission and error with its status", () => {
+    agentStore.upsert(agent("refund-flow"));
+    const activity = { tool: "Edit", target: "src/a.ts", turn_started_at: "2026-11-05T09:58:48Z" };
+
+    agentStore.applyStatus("refund-flow", "working", { status_since: "2026-11-05T10:00:00Z", activity });
+
+    expect(agentStore.getAgent("refund-flow")).toMatchObject({
+      status: "working",
+      status_since: "2026-11-05T10:00:00Z",
+      activity,
+      pending_permission: null,
+      error: null,
+    });
   });
 });
 

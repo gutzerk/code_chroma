@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using CodeChroma.Bridge.Terminal;
 
@@ -29,10 +30,9 @@ public interface IAgentSessionPort
 /// </summary>
 public sealed class AgentSession : IAgentSessionPort, IDisposable
 {
-    public const string StatusRunning = "running";
-    public const string StatusExited = "exited";
-
     private readonly object _gate = new();
+    // the poll thread and hook requests both drive the detector, which is not thread-safe
+    private readonly object _detectorGate = new();
     private readonly object _injectGate = new();
     private Task _injectChain = Task.CompletedTask;
     private readonly List<AgentConsumer> _consumers = [];
@@ -40,11 +40,18 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private readonly StatusDetector _detector;
     private readonly PtyHost _pty;
     private readonly ForegroundProcess _foreground;
+    private readonly AgentStatusState _state = new();
+    private readonly Action<AgentSession>? _exited;
     private int? _exitCode;
+    private bool _closing;
+    private AgentError? _error;
+    private (long Generation, string Title, string Progress, string? Process)? _screenKey;
+    private DetectClassification _screenVerdict = DetectClassification.Hold;
 
-    public AgentSession(string agentId, PtyLaunch launch, string kind = "claude", string? banner = null)
+    public AgentSession(string agentId, PtyLaunch launch, string kind = "claude", string? banner = null, Action<AgentSession>? onExit = null)
     {
         AgentId = agentId;
+        _exited = onExit;
         Argv = [.. launch.Argv];
         SessionTrackingFile = launch.Env?.GetValueOrDefault(AgentSessionOwnership.FileEnv);
         InitialSessionId = launch.Env?.GetValueOrDefault(AgentSessionOwnership.InitialIdEnv);
@@ -79,12 +86,88 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 
     public ScreenTap Screen => _tap;
 
-    /// <summary>"exited" once the process is gone; while it runs, what the detector last settled on.</summary>
-    public string Status => IsAlive ? _detector.Status : StatusExited;
+    /// <summary>While it runs: idle, working, blocked or done; once gone: error after a non-zero exit, else stopped.</summary>
+    public string Status => Snapshot().Status;
 
-    /// <summary>The detector's verdict, or null when nothing changed: the LED's one source of truth.</summary>
-    public string? PollStatus() =>
-        IsAlive ? _detector.Observe(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, process: _foreground.Current()) : null;
+    /// <summary>The live status fields; an exited session reports stopped, or error with its exit error, since its exit.</summary>
+    public AgentStatusSnapshot Snapshot()
+    {
+        var live = _state.Snapshot();
+        lock (_gate)
+        {
+            if (_exitCode is null) return live;
+            return _error is null
+                ? new AgentStatusSnapshot(AgentStatus.Stopped, live.Since, null, null)
+                : new AgentStatusSnapshot(AgentStatus.Error, live.Since, null, null, _error);
+        }
+    }
+
+    /// <summary>Samples the screen once; true when the status payload changed (hooks, once reporting, own working and idle).</summary>
+    public bool PollStatus()
+    {
+        if (!IsAlive) return false;
+        var key = (Generation: _tap.Generation, Title: _tap.Title, Progress: _tap.Progress, Process: _foreground.Current());
+        lock (_detectorGate)
+        {
+            // the rules only run when the screen, title, progress or process changed; the hysteresis still runs every poll
+            if (_screenKey != key)
+            {
+                _screenVerdict = _detector.Evaluate(_tap.Tail(_detector.Rules.TailLines), key.Title, key.Progress, key.Process);
+                _screenKey = key;
+            }
+            var verdict = _detector.Settle(_screenVerdict);
+            var last = _detector.LastClassification;
+            var changed = _state.ApplyScreen(verdict, last.VisibleBlocker, last.VisibleIdle);
+            Sync();
+            return changed;
+        }
+    }
+
+    /// <summary>Applies one Claude Code hook report and keeps the detector in step with it.</summary>
+    public HookOutcome ApplyHook(JsonObject body)
+    {
+        if (!IsAlive) return new HookOutcome(false);
+        lock (_detectorGate)
+        {
+            var outcome = _state.ApplyHook(body);
+            Sync();
+            return outcome;
+        }
+    }
+
+    /// <summary>Once hooks report, the detector holds whatever status they set.</summary>
+    private void Sync()
+    {
+        if (_state.Hooked) _detector.Force(_state.Live);
+    }
+
+    /// <summary>Done becomes idle; true when that changed the status.</summary>
+    public bool MarkSeen() => _state.MarkSeen();
+
+    /// <summary>Answers a pending PermissionRequest; false when no such request waits.</summary>
+    public bool Decide(string requestId, string decision)
+    {
+        lock (_detectorGate)
+        {
+            var decided = _state.Decide(requestId, decision);
+            Sync();
+            return decided;
+        }
+    }
+
+    /// <summary>Drops an unanswered PermissionRequest; true when it was still pending.</summary>
+    public bool ExpirePermission(string requestId) => _state.Expire(requestId);
+
+    /// <summary>Clears the exit error so the agent reads as stopped; true when there was one.</summary>
+    public bool DismissError()
+    {
+        lock (_gate)
+        {
+            if (_error is null) return false;
+            _error = null;
+            return true;
+        }
+    }
 
     /// <summary>A consumer seeded with a screen redraw, so a reattach can never start mid-sequence; the history waits for Resync unless the process has exited.</summary>
     public AgentConsumer Attach()
@@ -159,7 +242,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         {
             if (ExitCode is not null) return false;
             var verdict = _detector.Classify(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, null);
-            if (verdict == StatusDetector.Idle)
+            if (verdict == AgentStatus.Idle)
             {
                 if (BuildText(text) is not { } body) return false;
                 await TypeAndSubmit(Write, body, SubmitDelay);
@@ -182,8 +265,12 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         }
     }
 
-    /// <summary>Kills the process; the exit callback then completes every consumer.</summary>
-    public void Close() => _pty.Close();
+    /// <summary>Kills the process; the exit callback then completes every consumer, and the deliberate kill is no error.</summary>
+    public void Close()
+    {
+        lock (_gate) _closing = true;
+        _pty.Close();
+    }
 
     public void Dispose() => _pty.Dispose();
 
@@ -201,10 +288,15 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         lock (_gate)
         {
             _exitCode = _pty?.ExitCode ?? 0;
+            if (_exitCode != 0 && !_closing)
+                _error = new AgentError($"{Path.GetFileNameWithoutExtension(Argv.FirstOrDefault() ?? "agent")} exited with code {_exitCode}", DateTimeOffset.UtcNow);
             targets = [.. _consumers];
             _consumers.Clear();
         }
+        _state.Exit();
         foreach (var consumer in targets) consumer.Channel.Writer.TryComplete();
+        try { _exited?.Invoke(this); }
+        catch (Exception error) { Console.Error.WriteLine($"agents: exit callback failed for {AgentId}: {error.Message}"); }
     }
 }
 
@@ -219,12 +311,15 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
         lock (_lock) return _sessions.GetValueOrDefault(agentId);
     }
 
-    /// <summary>Every agent whose status just changed, as (id, status).</summary>
-    public List<(string Id, string Status)> PollStatuses()
+    /// <summary>Called with the agent id when a registered session's process exits on its own (not after Stop).</summary>
+    public Action<string>? Exited { get; set; }
+
+    /// <summary>Every agent whose status payload just changed.</summary>
+    public List<string> PollStatuses()
     {
         List<KeyValuePair<string, AgentSession>> snapshot;
         lock (_lock) snapshot = [.. _sessions];
-        return snapshot.Select(kv => (kv.Key, Status: kv.Value.PollStatus())).Where(x => x.Status is not null).Select(x => (x.Key, x.Status!)).ToList();
+        return snapshot.Where(kv => kv.Value.PollStatus()).Select(kv => kv.Key).ToList();
     }
 
     /// <summary>Spawns the agent, or returns the session already running for it.</summary>
@@ -241,7 +336,7 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
             if (!Directory.Exists(cwd)) throw new AgentStartException($"the agent's worktree is missing: {cwd}");
             try
             {
-                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, spawnEnv), kind, banner);
+                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, spawnEnv), kind, banner, OnSessionExit);
                 _sessions[agentId] = session;
                 return session;
             }
@@ -250,6 +345,13 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
                 throw new AgentStartException($"Resolved CLI '{executable}', but process launch failed: {error.Message}");
             }
         }
+    }
+
+    private void OnSessionExit(AgentSession session)
+    {
+        bool current;
+        lock (_lock) current = _sessions.GetValueOrDefault(session.AgentId) == session;
+        if (current) Exited?.Invoke(session.AgentId);
     }
 
     /// <summary>Kills one agent's PTY, keeping its worktree and branch; false if it was not running.</summary>

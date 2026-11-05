@@ -1,0 +1,9 @@
+> explain the refund flow
+
+✦ The refund handler validates the amount, then reverses the charge through the
+  payment gateway and records a ledger entry.
+
+╭──────────────────────────────────────────────────────────╮
+│ >   Type your message or @path/to/file                   │
+╰──────────────────────────────────────────────────────────╯
+~/repo (main*)            no sandbox            gemini-2.5-pro (97% context left)

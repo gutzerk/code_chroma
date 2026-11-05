@@ -40,6 +40,79 @@ A Python-only change does not fix the production desktop runtime.
   `Terminal/TerminalAgentsBareTests.cs`. Run
   `dotnet test dotnet/CodeChroma.Bridge.Tests/CodeChroma.Bridge.Tests.csproj`.
 
+## Status hooks, done and error (both bridges)
+
+Claude Code hooks are the main status source; the screen detector fills in until the first hook
+report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `working`, `blocked`,
+`done` and `error` (`running`/`exited` are no longer sent or stored). They live in one place: C#
+`AgentStatus` (`Agents/AgentStatusState.cs`), Python the `STATUS_*` constants of `live_status.py`.
+
+- Every Claude launch with a bridge URL and agent id passes `--settings` with the status hooks, bare
+  diagram windows included (`AgentSessionOwnership.TryHookSettings(..., statusHooks)`; Python
+  `session_ownership.hook_document(..., status_hooks=True)`). The launch also exports
+  `CODECHROMA_BRIDGE_URL`, `CODECHROMA_QUESTION_TOKEN` and `CODECHROMA_WORKSPACE_ID` (= agent id) even
+  without the MCP server. Events: `UserPromptSubmit`, `PreToolUse` (`*`, after the AskUserQuestion
+  entry), `PostToolUse` (`*`), `Stop`, `Notification`, `PermissionRequest` (`*`).
+- The hook command is the bridge binary's `agent-hook` subcommand (`Agents/AgentHook.cs`, dispatched
+  in `Program.cs`); Python runs the stdlib-only `bridge/agents/agent_hook.py`. It POSTs a slimmed
+  report (`AgentHook.Slim` / `slim`: `hook_event_name`, `tool_name`, `notification_type` and only
+  the `file_path`/`command`/`pattern`/`url` keys of `tool_input`, never `tool_response`) to
+  `POST /agents/{id}/hook` with the bearer token and exits 0 silently on any error. The env wiring is
+  read by `Http/HookEnv.cs`, shared with the AskUserQuestion hook; the route checks the token with
+  `QuestionMcp.Authorizes` (Python `QuestionMcp.authorizes`), as `/questions/ask` does, and refuses
+  a report over `HookBodyLimit` / `HOOK_BODY_LIMIT` (256 KB) with 413.
+- ⚠ Cost: every hook event starts the hook process once (the bridge binary in the desktop app,
+  `dotnet <dll>` in dev), and Claude waits for it, up to `PostTimeoutMs` (2 s) when the bridge is slow.
+- Mapping (`Agents/AgentStatusState.cs`, Python `bridge/agents/live_status.py`):
+
+  | Hook | Status | Also |
+  |---|---|---|
+  | `UserPromptSubmit` | working | `activity = {tool: null, target: null, turn_started_at: now}` |
+  | `PreToolUse` | working | `activity.tool`/`target` (`file_path`, `command`, `pattern` or `url`, one line, ≤120 chars); turn start kept |
+  | `PostToolUse` | working | — |
+  | `Notification` `permission_prompt` / `elicitation*` | blocked | other types (`idle_prompt`, ...) ignored |
+  | `PermissionRequest` | blocked | registers `pending_permission {request_id, tool, summary, at}` |
+  | `Stop` | done | `done` = idle not yet seen; `POST /agents/{id}/seen` makes it idle |
+
+  While a `pending_permission` waits, `PreToolUse`/`PostToolUse` (a parallel tool call) keep the
+  status `blocked` and leave the request alone.
+
+- Arbitration: before the first hook report the screen decides, and a screen working→idle also
+  yields `done`. After it, hooks own working/idle (the session calls `StatusDetector.Force`); the
+  screen can still raise `blocked` when `LastVisibleBlocker` / `last_visible_blocker` turns on, and
+  its turning off resumes `working` and clears a pending permission. A settled `idle` verdict with
+  `visible_idle` (Claude's `live_prompt_box`) also ends a working or blocked turn with no pending
+  request, because an Esc interrupt, a terminal "No" or an API error sends no `Stop`. `Force` with
+  the status the detector already holds is a no-op, so that verdict can settle while hooks report.
+  The session serializes detector access (`_detectorGate` / `_detector_lock`) between the poll thread
+  and hook requests.
+- ⚠ Permission button: the hook call long-polls for at most `AgentHook.PermissionWaitMs` (1 s;
+  Python `PERMISSION_WAIT_SECONDS`). Claude shows its terminal dialog only after the hook returns, so
+  the wait stays short. `POST /agents/{id}/permission {request_id, decision}` answers a waiting hook,
+  which prints `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":...}}}`,
+  and sets the status back to `working`. On timeout the bridge drops `pending_permission` (the status
+  stays `blocked`) and the hook prints nothing, so the terminal dialog takes over; a decision that
+  lands between the timeout and that drop still reaches the hook.
+- ⚠ `/permission`, `/seen` and `/dismiss-error` take no token, like the other agent routes: the
+  origin guard stops browsers, but any local process of the same user can answer a pending request
+  during its 1 s window. Accepted, since such a process can already type into the agent's terminal.
+- `error {message, at}` is runtime-only (`ToPayload`, never `ToJson`): a failed start or auto-start
+  (`AgentRecord.StartError` / `start_error`: CLI not found, missing worktree, unknown kind) wins,
+  else a session's non-zero exit not caused by Stop (carried on its `Snapshot().Error`). A successful
+  start clears the start error; `POST /agents/{id}/dismiss-error` clears both; exit code 0 reads as
+  `stopped`.
+- Exit is broadcast at once: `AgentSessionRegistry.Exited` (Python `on_exit`) fires from the PTY
+  exit callback for the still-registered session. The poller broadcasts only real payload changes.
+  C# reads and sends each status under one `StatusGate`, so a stale snapshot never goes out last.
+- Every payload and `agent-status` event carries `status`, `status_since` (ISO UTC, seconds),
+  `activity` (only while working), `pending_permission` and `error` (only while error), built by
+  `AgentRoutes.StatusJson(session, record)` (Python `routes/agents.status_json`); a payload is
+  `ToPayload()` overlaid with it. The record keeps only the last reported status and its
+  `StatusSince`, so a stopped agent keeps its stopped-since time.
+- Tests: `Agents/AgentStatusStateTests.cs`, `Agents/AgentHookTests.cs`,
+  `Agents/AgentLifecycleStatusTests.cs`, `tests/unit/test_agent_live_status.py`, contract cases in
+  `tests/fixtures/bridge_contract/agents.cases.json` (the `token` step mints an agent's bearer token).
+
 ## Python development/reference implementation
 
 The Python bridge uses the same `session_tracking_id` and per-launch file format. Both manual
@@ -55,6 +128,36 @@ PTY's tracking metadata, and late events from earlier launches cannot replace th
 at either end. It uses the same selection path as the dropdown, shows the Agents tab, expands a
 collapsed panel, preserves full screen, and focuses the selected terminal. Modal dialogs keep their
 keyboard input. The dropdown's tooltip documents these shortcuts.
+
+### Agent status on the web
+
+Six wire statuses: `stopped`, `idle`, `working`, `blocked`, `done` (finished, not yet seen), `error`.
+Roll-up priority is blocked > error > done > working > idle; stopped never counts.
+
+| Piece | File | Role |
+|---|---|---|
+| Types | `state/types.ts` | `AgentStatus` (the six); `AgentStatusFields` (`status_since`, `activity`, `pending_permission`, `error`) on `AgentRecord` and the `agent-status` event |
+| Store | `agentStore.ts` | The one status guard (`normalizeAgentStatus`, on `setList`/`upsert`/`applyStatus`): an older bridge's `exited` becomes `error` (non-zero exit) or `stopped`, any other unknown value `idle` (an `exited` event's own `exit_code` wins); `applyStatus` keeps the event's extra fields; `upsertIfCurrent` lands an HTTP reply (`/seen`, `/permission`, `/dismiss-error`) only when its `status_since` is not older than the stored one |
+| Roll-up | `statusRollup.ts` | `effectiveStatus` (an open ask_user question makes a live agent `blocked`), `rollup` -> `{top, count, counts}`, `count` = blocked + error + done, `counts` per status (the panel's header chips) |
+| Question counts | `canvas/doc/question/useOpenAgentQuestions.ts` | `openQuestionCounts` cached per `elements` object (WeakMap); `useOpenQuestionCount(id)` re-renders only when that agent's number changes |
+| Shapes | `StatusIndicator.tsx`, `AgentLed.tsx` | `dot` 8px (tabs, strips), `icon` 16px (agent lists); pulse circle "?", square "!", check circle, spinner, ring; animations stop under `prefers-reduced-motion` |
+| Worktree tabs | `WorktreeStrip.tsx`, `agentAttention.tabRollups` | Dot + badge per tab from its agents (`workspace`/`shares_workspace_with`); the selected tab hides `done`; idle shows nothing |
+| Rows | `activity/AgentStatusLine.tsx` | `working`: "Edit · src/x.ts" + live m:ss turn timer; `blocked`: "Asking permission: Bash(...)" + Allow (`POST /agents/{id}/permission`); `error`: message + Dismiss (`POST /agents/{id}/dismiss-error`); every timer shares one 1 s clock that runs only while a timer is shown |
+| Toasts | `toasts/` | blocked until answered, error until closed, done `DONE_AUTO_CLOSE_MS` (6 s, paused while hovered or focused); one per agent, dropped when the agent leaves that status; text read from the live agent record; screen readers hear them through two always-mounted live regions (assertive for blocked/error, polite for done), cards carry no live role; a closing focused toast hands focus back to where it came from; buttons share the rows' `.agent-status-action` class (`--toast` modifier) |
+| OS + sound | `agentNotifications.ts`, `notificationSound.ts` | OS notification for blocked and error, for done only when the page is in the background; sound only for blocked; `attentionTitle`/`attentionBody`/`BLOCKED_TEXT` are the one wording source for toasts, notifications and rows |
+| Sync | `agentStatusSync.ts` | Announces (toast, OS notification, sound) effective status changes, so an open ask_user question plus a finished turn reads "needs you", not "finished"; a question closing on its own announces nothing (`statusAnnouncements`); marks the viewed `done` agent seen (`POST /agents/{id}/seen`), reconciles toasts, sends the desktop `agent-summary` (150 ms debounce, skipped when identical to the last one sent), runs shell commands; store emits that change none of its inputs (agents, open question counts by content, tab, panel) are ignored, so a canvas drag costs nothing |
+
+- "Looking at an agent" (`agentAttention.isLookingAtAgent`): it is the agent the panel shows on the
+  active worktree tab, the panel is not collapsed, and the page has focus. No toast or OS notification
+  fires for that agent, and a `done` there is marked seen at once.
+- Desktop shell: the page calls `window.codechromaDesktop.reportAgents(summary)` with every agent's
+  effective status (no `top`/`count`: the shell rolls the list up itself) and registers
+  `onAgentCommand` for `select-agent` (switch tab, select, mark seen) and `permission`; the shell
+  script parses the JSON, so listeners get an object. Both are optional, so the browser build works
+  without the shell.
+- ⌘⇧J / Ctrl+Shift+J opens the next blocked agent, oldest `status_since` first. ⚠ The page handles it
+  only in a plain browser, and never while focus is in a terminal (`.xterm`); inside the shell its own
+  script owns the key across all projects.
 
 Wikis do not follow a tab: wiki-general and the plain wiki live in the main checkout and are tracked against the main branch tip (see `wiki-general.md`, "One wiki per project").
 
@@ -73,6 +176,11 @@ a tab and never hosts an agent. Artifacts are not shared between tabs.
   becomes `active`.
 - `PATCH /branches/{id} {name}` renames the display name and the git branch (`git branch -m`); `id` and
   worktree path stay; 409 on an invalid, duplicate or held branch name. Attached agents' `branch` follows.
+- Boot: `Program.cs` reconciles and registers every tab before main is analyzed and passes the active tab
+  (unless its worktree is lost) as `WorkspaceRegistry`'s `warmTab`, which analyzes it in the background
+  while main is. ⚠ The canvas always lands on that tab; without the warm-up its first request started a
+  second full analysis only after main's (the C# engine has no cache), adding seconds before graphs and
+  agent windows appeared (`The_active_tab_is_analyzed_at_boot_alongside_main_before_any_request`).
 - `PUT /branches/active {id}`; `GET /branches` returns `{branches, active}`, each record with `name`,
   `dirty` (count of `git status --porcelain` entries) and `worktree_lost`.
 - `DELETE /branches/{id}?worktree_too=` stops the attached agents' sessions first (so nothing holds the cwd),
@@ -279,7 +387,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   leaves `resolved_cli` empty, which the front end maps back to the `claude` label. The status
   detector for an `agent` window uses the manifest of the CLI adapter it resolves to
   (C# `AgentLaunch.DetectorKind`, set by `TerminalAgents.Resolve` from the same resolution; Python `terminal/agents.py` `agent_launch(...).detector_kind`, from the same single resolution, so Claude gets
-  `detect/claude.toml`; a stand-in binary behind the claude adapter keeps the `agent` kind); an adapter with no `detect/<adapter>.toml` (codex, gemini, kimi) still holds.
+  `detect/claude.toml`; a stand-in binary behind the claude adapter keeps the `agent` kind); codex, gemini and kimi use their own `detect/<adapter>.toml`, with an idle fallback when nothing matches.
   🔴 Before this, every `agent` window looked up the missing `detect/agent.toml`, never looked idle, and
   so never got its `ask_user` answers typed. Tests: `QuestionAgentWiringTests.cs`,
   `test_question_agent_wiring.py`.
@@ -324,13 +432,38 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   words) and the result is whitespace-collapsed to one line, leaving an empty string as `None`.
   `"task"` text no longer passes through a PTY at all — it's an OS argv entry, not keystrokes — but
   stays just as clean since the same `_clean_context` runs on every `context` regardless of kind.
-- `status.py` + `detect/claude.toml` — the LED. Three sources, first rule wins: the foreground
-  process (not the agent → `foreign`, hold the last value), OSC title/`9;4` progress, then the bottom
-  N lines of the **rendered** screen (`terminal/screen_tap.py`, a `pyte` screen the PTY feeds).
-  Rules live in TOML so a Claude TUI change is a data fix. 250 ms hysteresis, ≤4 pushes/second.
-  🔴 Unknown means *hold*, never `idle`; a malformed manifest degrades to "always hold".
-  ⚠ The manifest is a runtime data file, so it is read through `resources.py`'s `resource_path`
-  (kind `"detect"`) and (for any bundled bridge) must be shipped next to it — otherwise it 404s there.
+- `status.py` + `detect/<kind>.toml` (C# `Agents/StatusDetector.cs`, same manifests embedded) — the
+  LED. A port of herdr's rule engine (`src/detect/manifest.rs`, Apache-2.0): each manifest
+  (`claude`, `codex`, `kimi` with alias `kimi-cli`, `gemini`) is a list of `[[rules]]` with a
+  `state` (`idle`/`working`/`blocked`/`unknown`), a `priority`, a `region` of the input
+  (`osc_title`, `osc_progress`, `whole_recent`, `bottom_non_empty_lines(N)`, `prompt_box_body`,
+  `after_last_horizontal_rule`, `last_non_empty_above_prompt_box`, the Codex `›` prompt-marker
+  regions, ...) and nested `contains`/`regex`/`line_regex`/`all`/`any`/`not` gates. The
+  highest-priority matching rule wins, file order breaks ties (rules are sorted once at parse time
+  and evaluation stops at the first match; each region's text, lower-cased text and lines are sliced
+  once per screen). `visible_working` is accepted for herdr compatibility but unused. The poller
+  re-runs the rules only when `ScreenTap.Generation` (bumped by every feed/resize), the title, the
+  progress or the foreground process changed; the cached verdict still goes through
+  `StatusDetector.Settle` each poll, so the time-based gates keep running. The screen is the whole **rendered**
+  screen (`tail_lines = 200`, `terminal/screen_tap.py` / `ScreenTap.cs`), so a dialog is read by
+  its structure (prompt box between two `─` rules, footer after the last rule) rather than by a
+  phrase anywhere in the tail: "Esc to cancel" quoted in scrollback no longer reads as blocked.
+  Regexes use literal characters, which .NET and Python read alike; a counted region names at most
+  `MaxRegionLines` / `MAX_REGION_LINES` (10 000) ASCII-digit lines. The manifests are ported from
+  herdr under Apache-2.0: `detect/LICENSE-herdr.txt` ships beside them (embedded in the C# bridge).
+  Shared screens and expected verdicts live
+  in `tests/fixtures/agent_screens/` (`cases.json`, `regions.json`), run by `test_agent_status.py`
+  and `StatusDetectorTests.cs`. A working→idle change without visible idle chrome (`visible_idle`)
+  waits for 3 more sightings or 700 ms (herdr's `PendingIdleConfirmation`), then the 250 ms
+  hysteresis and ≤4 pushes/second apply. The last verdict's `visible_blocker` is exposed as
+  `last_visible_blocker` / `LastVisibleBlocker` so hook-reported status can still yield to a dialog
+  on screen. A foreground process outside the manifest's `process` list holds.
+  🔴 Unknown means *hold*, never `idle`: an `unknown`/`skip_state_update` rule (transcript viewer,
+  model picker), a foreign process and a malformed manifest (bad TOML, unknown key/region/state,
+  bad regex) all hold. No match holds too, except where a manifest sets `no_match = "idle"`
+  (codex, kimi, gemini: herdr's known-agent idle fallback, since they have no idle chrome rule).
+  ⚠ The manifests are runtime data files, so they are read through `resources.py`'s `resource_path`
+  (kind `"detect"`) and (for any bundled bridge) must be shipped next to it — otherwise they 404 there.
 - Session ownership — fresh Claude sessions receive a UUID from CodeChroma through `--session-id`
   and save it with their agent record. Restarts use that exact ID with `--resume`; transcript `cwd`
   and modification order are never used to infer ownership, since external terminals can use the
@@ -351,7 +484,8 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   is permanently dirty, its diff layer opens full of our own files, and `git worktree remove` always
   needs `--force`. It is untracked and local, never committed or shared.
 - Routes: `GET|POST /agents`, `DELETE /agents/{id}?worktree=&branch=&force=`,
-  `POST /agents/{id}/{start,stop,recreate-worktree,pr}`, `PATCH /agents/{id}/window`,
+  `POST /agents/{id}/{start,stop,recreate-worktree,pr,seen,dismiss-error,permission}`,
+  `POST /agents/{id}/hook` (bearer token of that agent), `PATCH /agents/{id}/window`,
   `GET /agents/{id}/pr-preflight`, `GET /agents/git-preflight`, `POST /agents/git-init`,
   `POST /workspaces/{id}/activate`, `GET /workspaces/{id}/status`. Lifecycle pings
   (`agent-added`/`agent-removed`/`agent-status`) travel over the existing
@@ -371,8 +505,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   uses `display: none` and the layer renders **every** agent, minimized or not — it used to filter
   them out before rendering, which unmounted the xterm and made each restore a full reattach; the
   CSS, the comment in `AgentWindow.tsx` and `AgentWindow.test.tsx` all assumed otherwise, and only
-  `AgentWindowLayer.test.tsx` + `e2e/agent-windows.spec.ts` now pin it. The LED colour map lives once
-  in `styles.css` under `.agent-led-*`, and `App.tsx` passes `useActiveWorkspace()` as the engine
+  `AgentWindowLayer.test.tsx` + `e2e/agent-windows.spec.ts` now pin it. The status shapes and colours
+  live once in `styles.css` (`.status-ind`/`.status-badge`/`.status-chip`, `--st-*` tokens; see "Agent
+  status on the web" above), and `App.tsx` passes `useActiveWorkspace()` as the engine
   client's `repoId`, so switching agents moves **every** canvas request at once. `HttpEngineClient`
   drops pings whose `workspace` isn't the one it is drawing (absent key = `main`). The layer also
   carries `data-active-workspace` for the e2e specs: once a workspace is `ready` nothing on screen says

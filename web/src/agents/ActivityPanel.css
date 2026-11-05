@@ -331,7 +331,14 @@
   border-radius: var(--radius-xl);
   background: var(--bg-raised-2);
 }
-.activity-switcher-menu button {
+.activity-switcher-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.activity-switcher-option-button {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -344,8 +351,8 @@
   cursor: pointer;
   text-align: left;
 }
-.activity-switcher-menu button:hover,
-.activity-switcher-menu button[aria-selected="true"] {
+.activity-switcher-option-button:hover,
+.activity-switcher-option-button[aria-current="true"] {
   background: var(--bg-raised);
 }
 .activity-strip {
@@ -426,19 +433,11 @@
   font-size: 12px;
   font-weight: 600;
 }
-.activity-strip .activity-avatar > .agent-led {
+.activity-strip .activity-avatar > .status-ind {
   position: absolute;
   right: -2px;
   bottom: -2px;
-  width: 8px;
-  height: 8px;
-  box-shadow: 0 0 0 2px var(--bg-panel);
-}
-.activity-strip .activity-avatar > .agent-led-badge {
-  position: absolute;
-  right: -4px;
-  top: -4px;
-  margin: 0;
+  outline: 2px solid var(--bg-panel);
 }
 .activity-switcher-menu button[data-diagram] {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
@@ -587,4 +586,40 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.activity-agent-list-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.activity-agent-list-row > .activity-agent-list-item {
+  flex: 1;
+}
+/* The live status subtitle: tool and target with a turn timer, a permission ask, or an error. */
+.agent-status-line {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+.agent-status-line-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-status-line-timer {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 11px;
+}
+.agent-status-line[data-status="blocked"] {
+  color: var(--st-blocked);
+}
+.agent-status-line[data-status="error"] {
+  color: var(--st-error);
+}
+.agent-status-line code {
+  font: inherit;
+}
+.activity-switcher > .agent-status-action {
+  align-self: center;
+  margin-left: 6px;
 }

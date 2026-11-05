@@ -44,6 +44,13 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, int maxRej
         return workspaceId;
     }
 
+    /// <summary>Whether an `Authorization` header carries exactly this workspace's token.</summary>
+    public bool Authorizes(string? authorizationHeader, string workspaceId)
+    {
+        try { return WorkspaceIdFor(BearerToken(authorizationHeader)) == workspaceId; }
+        catch (QuestionAuthException) { return false; }
+    }
+
     /// <summary>The token of an `Authorization: Bearer` header, or null when absent or empty.</summary>
     public static string? BearerToken(string? header)
     {

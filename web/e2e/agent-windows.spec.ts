@@ -32,7 +32,7 @@ test("launches agents directly into the right panel and switches their terminals
   await expect(page.getByTestId("agent-dock-panel-agent2")).toBeVisible();
   await expect(first).toBeHidden();
   await page.getByRole("button", { name: "Select agent" }).click();
-  await page.getByRole("option", { name: /agent1/ }).click();
+  await page.getByRole("list", { name: "Agents" }).getByRole("button", { name: /agent1/ }).click();
   await expect(first).toBeVisible();
   await expect(page.getByTestId("agent-terminal-agent1")).toHaveAttribute("data-e2e-mark", "original");
   await expect(page.getByRole("button", { name: /Detach/ })).toHaveCount(0);

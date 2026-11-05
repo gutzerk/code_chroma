@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using CodeChroma.Bridge.Tests.Support;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CodeChroma.Bridge.Tests.Contract;
 
@@ -29,6 +30,7 @@ public class WireContractTests
                 var step = Substitute(node!.AsObject(), variables);
                 var found = step.ContainsKey("http") ? await RunHttp(host, step, variables)
                     : step.ContainsKey("fs") ? RunFs(host, step)
+                    : step.ContainsKey("token") ? MintToken(host, step, variables)
                     : await RunWs(host, step, sockets);
                 failures.AddRange(found.Select(message => $"step {number}: {message}"));
                 if (found.Count > 0) break;
@@ -95,6 +97,14 @@ public class WireContractTests
             variables[name] = values.Count > 0 ? values[0]?.ToString() ?? "" : "";
         }
         return failures;
+    }
+
+    /// <summary>Stores the workspace bearer token an agent launch would get under the step's "as" name.</summary>
+    private static List<string> MintToken(BridgeHost host, JsonObject step, Dictionary<string, string> variables)
+    {
+        var mcp = host.Factory.Services.GetRequiredService<CodeChroma.Bridge.Questions.QuestionMcp>();
+        variables[step["as"]!.GetValue<string>()] = mcp.TokenFor(step["token"]!.GetValue<string>());
+        return [];
     }
 
     private static List<string> RunFs(BridgeHost host, JsonObject step)

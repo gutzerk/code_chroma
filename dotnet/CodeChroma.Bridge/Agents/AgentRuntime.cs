@@ -53,6 +53,7 @@ public sealed class AgentRuntime(
         agents.WorkspaceGuard = registry.IsRegistered;
         agents.BranchLookup = branches.Find;
         agents.RevalidateActiveWorkspace();
+        sessions.Exited = id => _ = BroadcastAgent(id);
 
         return Task.CompletedTask;
     }
@@ -79,7 +80,7 @@ public sealed class AgentRuntime(
         foreach (var record in agents.List())
         {
             record.Pid = null;
-            record.Status = AgentRecord.StatusStopped;
+            record.Status = AgentStatus.Stopped;
             record.ExitCode = null;
         }
         agents.Save();
@@ -92,7 +93,11 @@ public sealed class AgentRuntime(
         {
             if (record.WorktreeLost || sessions.Get(record.Id) is not null) continue;
             try { AutoStartOne(record); }
-            catch (Exception error) { log.LogError(error, "agents: auto-start failed for {Agent}", record.Id); }
+            catch (Exception error)
+            {
+                log.LogError(error, "agents: auto-start failed for {Agent}", record.Id);
+                Fail(record, error.Message);
+            }
         }
     }
 
@@ -107,6 +112,7 @@ public sealed class AgentRuntime(
         if (launch is null)
         {
             log.LogError("agents: unknown kind {Kind} for {Agent}, skipping auto-start", record.Kind, record.Id);
+            Fail(record, $"unknown agent kind: {record.Kind}");
             return;
         }
         var env = new Dictionary<string, string>(launch.Env);
@@ -116,10 +122,27 @@ public sealed class AgentRuntime(
         catch (AgentStartException error)
         {
             log.LogWarning("agents: could not auto-start {Agent}: {Reason}", record.Id, error.Message);
+            Fail(record, error.Message);
             return;
         }
+        record.StartError = null;
         agents.MarkStarted(record.Id, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
         agents.RecordSessionLaunch(record.Id, session);
+    }
+
+    /// <summary>Marks a failed auto-start as the agent's error and tells any open canvas.</summary>
+    private void Fail(AgentRecord record, string message)
+    {
+        record.StartError = new AgentError(message, DateTimeOffset.UtcNow);
+        _ = BroadcastAgent(record.Id);
+    }
+
+    /// <summary>Pushes one agent's status fields; an agent deleted meanwhile is skipped.</summary>
+    public async Task BroadcastAgent(string agentId)
+    {
+        try { await AgentRoutes.BroadcastStatus(connections, sessions, agents.Get(agentId)); }
+        catch (UnknownAgentException) { }
+        catch (Exception error) { log.LogError(error, "agents: status broadcast failed for {Agent}", agentId); }
     }
 
     /// <summary>Samples every live agent's screen and pushes only the changes the detector settled on.</summary>
@@ -132,7 +155,7 @@ public sealed class AgentRuntime(
             {
                 try
                 {
-                    foreach (var (id, status) in sessions.PollStatuses()) await AgentRoutes.BroadcastStatus(connections, id, status);
+                    foreach (var id in sessions.PollStatuses()) await BroadcastAgent(id);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {

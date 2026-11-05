@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Agents;
+using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
@@ -94,14 +95,14 @@ public sealed class QuestionAgentWiringTests : IDisposable
     }
 
     [Fact]
-    public void A_bare_window_and_a_shell_get_no_mcp_config()
+    public void A_bare_window_and_a_shell_get_no_mcp_config_but_the_bare_window_keeps_the_hook_token()
     {
         var bare = _agents.Resolve("claude", initialPrompt: "x", bare: true, agentId: "agent-1", bridgeUrl: BridgeUrl)!;
         var shell = _agents.Resolve("shell", agentId: "agent-1", bridgeUrl: BridgeUrl)!;
 
         Assert.DoesNotContain("--mcp-config", bare.Argv);
         Assert.DoesNotContain("--mcp-config", shell.Argv);
-        Assert.Equal([TerminalAgents.ClassicRendererEnv], bare.Env.Keys);
+        Assert.Equal(new[] { BridgeAddress.BridgeUrlEnv, McpEndpoint.TokenEnv, BridgeAddress.WorkspaceIdEnv, TerminalAgents.ClassicRendererEnv }.Order(), bare.Env.Keys.Order());
     }
 
     [Fact]

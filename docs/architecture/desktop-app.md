@@ -72,9 +72,11 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   `ShellReply.RunAsync` via `window.__ccReply(callId, ok, json)`. `saveFile(name, mime, base64)` (the Diagrams panel's Export
   menu) posts `save-file` (`id`=file name, `method`=mime, `arg`=base64); `MainWindow.SaveFileAsync` runs
   `CodeChroma.Shell/FileSaver` over Avalonia's `SaveFilePickerAsync` and replies `{saved}` (`false` = cancelled).
-- Chrome: no native menu bar on Windows/Linux; the tab strip (`#1b1d23` bar, `#6c8cff` active underline) ends in a
-  "⋯" flyout (Open Repo, New Tab, Close Tab, Check for Updates, About; Ctrl+O/T/W work). macOS gets a native menu.
-  `App.axaml` carries the shared styles. The icon art is `Assets/icon.png`; `Assets/icon.ico` is generated from it by
+- Chrome: no native menu bar on Windows/Linux; the tab strip (`#0a0c0f` bar, active tab `#14171c` with a `#2c313b`
+  outline, per the "Project tabs" mockup) ends in a "⋯" flyout (Open Repo, New Tab, Close Tab, Next Waiting Agent,
+  Check for Updates, About; Ctrl+O/T/W and Ctrl+Shift+J work). macOS gets a native menu (Cmd+Shift+J).
+  `App.axaml` carries the shared styles and the tab/agent-status colour tokens (`Application.Resources`); code reads them
+  through `AgentChrome.Brush`, never hard-coded. The icon art is `Assets/icon.png`; `Assets/icon.ico` is generated from it by
   `scripts/make_ico.ps1` and `Assets/icon.icns` (one 256px `ic08` PNG entry) by `scripts/make_icns.py` (pure Python, no
   Pillow); regenerate both after changing `icon.png`. `pack.ps1` passes the `.ico` to `vpk --icon`; `pack.sh` passes the
   `.icns` for `osx-*` and the `.png` for `linux-x64`. On Linux `install.sh` extracts the icon from the installed AppImage
@@ -95,6 +97,60 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   (`web/src/engine-client/sameOrigin.test.ts`).
 - User data lives in `AppPaths.UserDataDir` (`%APPDATA%/CodeChroma`, `~/Library/Application Support/CodeChroma`,
   `$XDG_CONFIG_HOME/CodeChroma`).
+
+## Agent status on project tabs
+
+Each canvas page reports its agents to the shell; the tab strip shows the most urgent status per project.
+
+- Page -> shell: `window.codechromaDesktop.reportAgents(summary)` posts `{"type":"agent-summary", agents:[{id, title,
+  status, worktree, worktree_title, activity, pending_permission, status_since}]}` (debounced on the page; the shell
+  derives every roll-up itself and ignores legacy `top`/`count` fields). `DesktopMessage.Parse` turns it into
+  `Agents/AgentSummary` (the agent list, capped at `MaxAgents` = 50 rows; display strings are clipped to `MaxText` = 200
+  chars and a longer `id`/`request_id` drops the row or the permission); `MainWindow.OnCanvasMessage` hands it to
+  `ShellController.ReportAgents(tabId, ...)`, which stores it per tab in `Agents/AgentBoard` (keyed by the tab whose
+  WebView sent it). A summary is dropped, and the strip redrawn, when its page goes away: tab close, a bridge crash
+  (`RecoverAsync` forgets the tab and its PR tabs before respawning, so a failed respawn's `ShowTabError` leaves no stale
+  pill), a shell navigation of an open project to a worktree, and any new-document navigation of the WebView
+  (`NavigationStarting` -> `ShellController.PageReset`; fragment-only jumps keep it). The new page re-reports on load.
+  `AgentBoard.Report` returns an `AgentChange`: `None` (same summary) does nothing, `Tabs` (a badge or the blocked set
+  changed) redraws the strip via `TabsChanged` (`TabInfo.Agents`, `TabsSnapshot.Waiting`), and `Activity` (tool, target,
+  turn start) only calls `IShellUi.AgentsChanged`, which swaps the chip's summary and refreshes the open popover.
+- Shell -> page: `IShellUi.SendAgentCommand` runs `window.__ccAgentCommand(<json>)` (bridge-origin tabs only), which calls
+  the listeners registered with `codechromaDesktop.onAgentCommand(fn)`. Commands (`AgentCommand`): `select-agent {id}` and
+  `permission {id, request_id, decision:"allow"}`.
+- Tab chip (`TabChip`, kept across redraws so animations don't restart): `AgentRollup.Badge` picks the dot by the one
+  status order `AgentRollup.Rank` (blocked > error > done > working > idle; the dot skips idle) (blocked: pulsing `#f2b33d` circle; error: `#ff7a7a` square r=2; done: `#4cc38a` circle;
+  working: `#7ea3ff` spinner on `#26365a`; idle: nothing) and a badge counting blocked + error + done (solid yellow for
+  blocked, tinted for error/done). The active tab drops `done` from the count, so a done-only active tab shows the dot
+  without a number. There is no Avalonia reduced-motion setting, so the spinner (0.9 s) and pulse (1.6 s) always run.
+  Accessibility names: the chip is named by its title, the dot/badge "<title>: <label>" (`AgentRollup.Label`, the web's
+  `STATUS_LABELS` wording: Needs you / Error / Done / Working / Idle), the close button "Close tab <title>", the pill
+  "N agents waiting", and the popover buttons "Allow <summary> for <agent>" / "Open agent <agent>".
+- Pill "N waiting ⌘⇧J" (right of the strip) shows when any tab has blocked agents; N counts each (project, agent) once,
+  so a PR tab sharing its owner's bridge doesn't double-count. Click, Cmd+Shift+J on macOS / Ctrl+Shift+J elsewhere (the
+  other modifier is ignored; window key handler, native menu item, and a page-side keydown listener that posts
+  `next-waiting-agent` because a focused WebView swallows keys; the page listener leaves the key to xterm when focus is
+  inside a terminal, `.xterm`) call
+  `ShellController.FocusNextBlocked`: `AgentBoard.Next` walks blocked agents oldest `status_since` first, round-robin
+  from the last one visited, then the shell focuses that tab and sends `select-agent`. Repeats within 150 ms count once.
+- Hover popover (`AgentPopover`, an Avalonia `Popup` so it floats above the native WebView): header
+  "<project> · N agents · M worktrees", blocked agents first with "Asking permission: <summary>", "Allow" (only when
+  `pending_permission` is set; sends `permission` to that tab's page without switching) and "Open agent" (focus tab +
+  `select-agent`), then error/done rows, working rows "Tool · target" with an m:ss timer from `activity.turn_started_at`
+  (ticks every second while open), idle rows, sorted by `AgentRollup.Rank`; stopped/unknown statuses are neither listed
+  nor counted in the header. Rows are rebuilt only when the agent set, order, blocked state or pending permission
+  changes; otherwise text, icon and timers update in place so spinners keep turning. "Allow" disables itself on click;
+  the shell gets no result back from the page, so the only failure feedback is that it re-enables after 3 s while the
+  row is still there (a later summary without that request removes the row). The 350 ms hover-open is cancelled when
+  the chip leaves the strip, and `Open` bails for a chip no longer in the visual tree. Keyboard: chips are focusable
+  (Enter/Space selects); Tab focus opens the popover like hover, Down opens it at once and focuses its first button,
+  Escape closes it and returns focus to the chip. There is no custom focus ring on the chip.
+- ⚠ Background tabs: hidden tab WebViews are only `IsVisible=false`, not suspended, so their pages keep running and keep
+  reporting. The page sees `document.visibilityState === "hidden"`, so Chromium (WebView2) and WebKit throttle timers to
+  about once a second; the debounced report may arrive up to ~1 s late, but WebSocket events still flow. Not verified on
+  hardware for WebView2/WKWebView/WebKitGTK.
+- Tests: `AgentBoardTests.cs` (roll-up, plurals, timers, commands, round-robin, controller wiring),
+  `DesktopMessageTests.cs` (`AgentSummaryMessageTests`).
 
 ## Distribution and updates
 

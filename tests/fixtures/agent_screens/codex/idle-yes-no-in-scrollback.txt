@@ -1,0 +1,8 @@
+› how does the installer ask before overwriting?
+
+• It prints "Overwrite existing config? [y/n]" and, for a plugin, "Do you want to
+  enable it? yes / no" before it writes anything.
+
+› Ask Codex to do anything
+
+  ? for shortcuts                                              88% context left

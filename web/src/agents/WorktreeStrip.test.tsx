@@ -154,3 +154,45 @@ describe("WorktreeStrip", () => {
     expect(closeWorktree).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("WorktreeStrip status", () => {
+  function agentWith(id: string, workspace: string, status: AgentRecord["status"]): AgentRecord {
+    return { ...agentOn(workspace), id, title: id, status, exit_code: null };
+  }
+
+  it("shows the most urgent status and the attention count on a background tab", () => {
+    agentStore.upsert(agentWith("a1", "br_2", "working"));
+    agentStore.upsert(agentWith("a2", "br_2", "blocked"));
+    agentStore.upsert(agentWith("a3", "br_2", "done"));
+
+    renderStrip(client());
+
+    expect(screen.getByTestId("worktree-status-br_2").dataset.status).toBe("blocked");
+    expect(screen.getByTestId("worktree-badge-br_2").textContent).toBe("2");
+  });
+
+  it("hides done on the active tab", () => {
+    agentStore.upsert(agentWith("a1", "br_1", "done"));
+
+    renderStrip(client());
+
+    expect(screen.queryByTestId("worktree-status-br_1")).toBeNull();
+  });
+
+  it("shows a working spinner without a count", () => {
+    agentStore.upsert(agentWith("a1", "br_2", "working"));
+
+    renderStrip(client());
+
+    expect(screen.getByTestId("worktree-status-br_2").dataset.status).toBe("working");
+    expect(screen.queryByTestId("worktree-badge-br_2")).toBeNull();
+  });
+
+  it("shows nothing for idle agents", () => {
+    agentStore.upsert(agentWith("a1", "br_2", "idle"));
+
+    renderStrip(client());
+
+    expect(screen.queryByTestId("worktree-status-br_2")).toBeNull();
+  });
+});

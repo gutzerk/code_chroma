@@ -1,0 +1,8 @@
+● The dialog footer reads "Enter to select · Esc to cancel", and the
+  permission prompt asks "Do you want to proceed?" with 1. Yes / 2. No
+  before each edit, so the detector must ignore this text in scrollback.
+
+────────────────────────────────────────────────────────────────────────────────
+❯
+────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ accept edits on (shift+tab to cycle)

@@ -20,7 +20,10 @@ public sealed class WorkspaceRegistry : IDisposable
     private readonly Dictionary<string, Lazy<Workspace>> _pending = [];
     private readonly object _lock = new();
 
-    public WorkspaceRegistry(string mainRoot, IEngineFactory factory, Action<string, JsonObject> onEvent, TimeProvider time, bool startWatchers, Diagrams.DiagramBootstrap? bootstrap = null)
+    /// <summary>`tabs` are registered up front; `warmTab` (the tab the canvas will show) is analyzed in the background while main is.</summary>
+    public WorkspaceRegistry(
+        string mainRoot, IEngineFactory factory, Action<string, JsonObject> onEvent, TimeProvider time, bool startWatchers,
+        Diagrams.DiagramBootstrap? bootstrap = null, IEnumerable<(string Id, string Root)>? tabs = null, string? warmTab = null)
     {
         _bootstrap = bootstrap;
         _factory = factory;
@@ -28,6 +31,9 @@ public sealed class WorkspaceRegistry : IDisposable
         _time = time;
         _startWatchers = startWatchers;
         _roots[Workspace.MainId] = (mainRoot, false);
+        foreach (var (id, root) in tabs ?? []) Register(id, root);
+        // Without this the canvas's first request on its active tab starts a second full analysis only after main's has finished.
+        if (warmTab is not null && warmTab != Workspace.MainId && IsRegistered(warmTab)) EnsureAsync(warmTab);
         Main = Create(Workspace.MainId);
         lock (_lock) Publish(Workspace.MainId, Main);
     }

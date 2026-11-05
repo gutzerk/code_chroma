@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, cast
 
 from codechroma.bridge import diagram_seed, skill_sync
 from codechroma.bridge.agents import main_branch, session_ownership, worktree
+from codechroma.bridge.agents.live_status import STATUS_STOPPED, AgentError
 from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.git_cmd import ensure_excluded
 from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID, PR_ID_PREFIX
@@ -50,10 +51,6 @@ def max_agents() -> int:
 DEFAULT_KIND = "claude"
 
 DEFAULT_WINDOW = {"x": 120, "y": 120, "width": 720, "height": 480, "minimized": False, "z": 1}
-
-STATUS_STOPPED = "stopped"
-STATUS_RUNNING = "running"
-STATUS_EXITED = "exited"
 
 _PERSISTED_FIELDS = (
     "id", "title", "kind", "branch", "worktree", "session_id", "created_at",
@@ -149,14 +146,20 @@ class AgentRecord:
     status: str = STATUS_STOPPED
     exit_code: int | None = None
     worktree_lost: bool = False
+    # Runtime-only: when the reported status last changed, so a stopped agent keeps its time.
+    status_since: str | None = None
+    # Runtime-only: why the last start failed; cleared on a successful start or dismiss-error.
+    start_error: AgentError | None = None
 
     def to_json(self) -> dict:
         """Only the persisted subset — status/worktree_lost are derived at startup, never stored."""
         return {key: value for key, value in asdict(self).items() if key in _PERSISTED_FIELDS}
 
     def to_payload(self) -> dict:
-        """What `GET /agents` reports: the record plus its live status and worktree health."""
-        return asdict(self)
+        """The record plus its last reported status; `agent_payload` overlays the live fields."""
+        payload = asdict(self)
+        payload.pop("start_error")
+        return {**payload, "activity": None, "pending_permission": None, "error": None}
 
     @classmethod
     def from_json(cls, raw: object) -> AgentRecord | None:
@@ -597,7 +600,6 @@ class AgentManager:
         """Records the live pid; an `agent`-kind window's resolved binary rides the same save."""
         record = self.get(agent_id)
         record.pid = pid
-        record.status = STATUS_RUNNING
         record.exit_code = None
         if resolved_cli:
             record.resolved_cli = resolved_cli
@@ -607,7 +609,7 @@ class AgentManager:
     def mark_stopped(self, agent_id: str, exit_code: int | None = None) -> AgentRecord:
         record = self.get(agent_id)
         record.pid = None
-        record.status = STATUS_EXITED if exit_code is not None else STATUS_STOPPED
+        record.status = STATUS_STOPPED
         record.exit_code = exit_code
         self.save()
         return record

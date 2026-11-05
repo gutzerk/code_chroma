@@ -1,0 +1,32 @@
+[
+  {"kind": "claude", "screen": "claude/idle-prompt.txt", "expected": "idle", "rule": "live_prompt_box", "visible_blocker": false},
+  {"kind": "claude", "screen": "claude/working-spinner.txt", "expected": "working", "rule": "live_turn_working", "visible_blocker": false},
+  {"kind": "claude", "screen": "claude/blocked-bash-permission.txt", "expected": "blocked", "rule": "bash_permission_prompt", "visible_blocker": true},
+  {"kind": "claude", "screen": "claude/blocked-question-form.txt", "expected": "blocked", "rule": "live_blocked_form", "visible_blocker": true},
+  {"kind": "claude", "screen": "claude/idle-esc-to-cancel-in-scrollback.txt", "expected": "idle", "rule": "live_prompt_box", "visible_blocker": false},
+  {"kind": "claude", "screen": "claude/transcript-viewer.txt", "expected": null, "rule": "transcript_viewer", "visible_blocker": false},
+  {"kind": "claude", "title": "⠐ Fix the refund test", "expected": "working", "rule": "osc_title_working", "visible_blocker": false},
+  {"kind": "claude", "title": "◐ Fix the refund test", "expected": "working", "rule": "osc_title_working", "visible_blocker": false},
+  {"kind": "claude", "title": "✳ Claude Code", "expected": "idle", "rule": "osc_title_idle", "visible_blocker": false},
+  {"kind": "claude", "progress": "none", "expected": "idle", "rule": "osc_progress_idle", "visible_blocker": false},
+  {"kind": "claude", "screen": "claude/blocked-bash-permission.txt", "title": "✳ Claude Code", "expected": "blocked", "rule": "bash_permission_prompt", "visible_blocker": true},
+  {"kind": "claude", "screen": "claude/idle-prompt.txt", "title": "⠐ Fix the refund test", "expected": "working", "rule": "osc_title_working", "visible_blocker": false},
+  {"kind": "claude", "lines": ["some output nobody has a rule for"], "expected": null, "rule": null, "visible_blocker": false},
+
+  {"kind": "codex", "screen": "codex/working.txt", "expected": "working", "rule": "screen_working_fallback", "visible_blocker": false},
+  {"kind": "codex", "screen": "codex/idle.txt", "title": "code_chroma", "expected": "idle", "rule": "osc_title_idle", "visible_blocker": false},
+  {"kind": "codex", "screen": "codex/idle.txt", "expected": "idle", "rule": null, "visible_blocker": false},
+  {"kind": "codex", "screen": "codex/blocked-approval.txt", "expected": "blocked", "rule": "live_strong_blocker", "visible_blocker": true},
+  {"kind": "codex", "screen": "codex/idle-yes-no-in-scrollback.txt", "title": "code_chroma", "expected": "idle", "rule": "osc_title_idle", "visible_blocker": false},
+  {"kind": "codex", "screen": "codex/idle.txt", "title": "Action Required", "expected": "blocked", "rule": "osc_title_blocked", "visible_blocker": true},
+  {"kind": "codex", "screen": "codex/idle.txt", "title": "⠋ code_chroma", "expected": "working", "rule": "osc_title_working", "visible_blocker": false},
+
+  {"kind": "kimi-cli", "screen": "kimi/blocked-approval.txt", "expected": "blocked", "rule": "current_approval_panel", "visible_blocker": true},
+  {"kind": "kimi-cli", "screen": "kimi/working-moon.txt", "expected": "working", "rule": "moon_spinner_working", "visible_blocker": false},
+  {"kind": "kimi-cli", "screen": "kimi/working-braille.txt", "expected": "working", "rule": "braille_spinner_working", "visible_blocker": false},
+  {"kind": "kimi-cli", "screen": "kimi/idle.txt", "expected": "idle", "rule": null, "visible_blocker": false},
+
+  {"kind": "gemini", "screen": "gemini/blocked-allow-execution.txt", "expected": "blocked", "rule": "apply_or_allow_change", "visible_blocker": true},
+  {"kind": "gemini", "screen": "gemini/working.txt", "expected": "working", "rule": "esc_cancel_working", "visible_blocker": false},
+  {"kind": "gemini", "screen": "gemini/idle.txt", "expected": "idle", "rule": null, "visible_blocker": false}
+]

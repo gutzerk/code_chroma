@@ -33,16 +33,31 @@ def file_for(root: Path, tracking_id: str) -> Path:
     return root / ".codechroma" / "agent-sessions" / f"{normalized}.json"
 
 
-def hook_document() -> dict:
+def _script_hook(script: Path, timeout: int) -> dict:
     """Use an absolute script path so the helper works from any agent worktree."""
-    argv = [sys.executable, str(Path(__file__).resolve())]
-    hook = {"type": "command", "timeout": 5}
+    argv = [sys.executable, str(script.resolve())]
+    hook: dict = {"type": "command", "timeout": timeout}
     if os.name == "nt":
         hook["shell"] = "powershell"
         hook["command"] = "& " + " ".join("'" + arg.replace("'", "''") + "'" for arg in argv)
     else:
         hook["command"] = shlex.join(argv)
-    return {"hooks": {"SessionStart": [{"hooks": [hook]}]}}
+    return hook
+
+
+def hook_document(session_tracking: bool = True, status_hooks: bool = False) -> dict:
+    """The `--settings` hooks: SessionStart tracking and/or the status reports of agent_hook.py."""
+    from codechroma.bridge.agents import agent_hook
+
+    hooks: dict = {}
+    if session_tracking:
+        hooks["SessionStart"] = [{"hooks": [_script_hook(Path(__file__), 5)]}]
+    if status_hooks:
+        command = _script_hook(Path(agent_hook.__file__), agent_hook.HOOK_TIMEOUT_SECONDS)
+        for name in agent_hook.EVENTS:
+            entry: dict = {"matcher": "*"} if name in agent_hook.TOOL_EVENTS else {}
+            hooks.setdefault(name, []).append({**entry, "hooks": [dict(command)]})
+    return {"hooks": hooks}
 
 
 def record(input_stream: TextIO, file: str | None) -> None:

@@ -37,6 +37,19 @@ public class ScreenTapTests
     }
 
     [Fact]
+    public void Every_feed_and_resize_bumps_the_generation_and_reading_does_not()
+    {
+        var tap = Tap();
+        var start = tap.Generation;
+
+        tap.Feed("hello");
+        tap.Tail(3);
+        tap.Resize(10, 40);
+
+        Assert.Equal(start + 2, tap.Generation);
+    }
+
+    [Fact]
     public void Erase_in_line_and_display_clear_what_they_say()
     {
         var tap = Tap();

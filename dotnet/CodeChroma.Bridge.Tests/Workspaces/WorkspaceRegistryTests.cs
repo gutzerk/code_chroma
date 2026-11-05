@@ -191,6 +191,44 @@ public class WorkspaceRegistryTests : IDisposable
         Assert.Equal("ready", registry.State("main").State);
     }
 
+    [Fact]
+    public void The_active_tab_is_analyzed_at_boot_alongside_main_before_any_request()
+    {
+        var tabRoot = Directory.CreateDirectory(Path.Combine(_dir, "tab")).FullName;
+        var factory = new OverlapFactory(tabRoot);
+
+        var registry = new WorkspaceRegistry(
+            _dir, factory, (_, _) => { }, _time, startWatchers: false, tabs: [("br_wt-1", tabRoot)], warmTab: "br_wt-1");
+
+        Assert.True(factory.MainOverlappedTab);
+        Assert.True(SpinWait.SpinUntil(() => registry.IsLive("br_wt-1"), TimeSpan.FromSeconds(10)));
+        Assert.Equal(tabRoot, registry.RootFor("br_wt-1"));
+    }
+
+    [Fact]
+    public void A_warm_tab_that_is_not_among_the_tabs_is_ignored()
+    {
+        var registry = new WorkspaceRegistry(
+            _dir, new CountingFactory(_created), (_, _) => { }, _time, startWatchers: false, tabs: [], warmTab: "br_gone");
+
+        Assert.Equal([_dir], _created);
+        Assert.False(registry.IsRegistered("br_gone"));
+    }
+
+    private sealed class OverlapFactory(string tabRoot) : IEngineFactory
+    {
+        private readonly ManualResetEventSlim _tabStarted = new();
+
+        public bool MainOverlappedTab { get; private set; }
+
+        public IGraphEngine Create(string root)
+        {
+            if (root == tabRoot) _tabStarted.Set();
+            else MainOverlappedTab = _tabStarted.Wait(TimeSpan.FromSeconds(5));
+            return new JsonSnapshotEngine(Path.Combine(Contract.ContractCases.FixtureDir, "engine_snapshot.sample_repo.json"));
+        }
+    }
+
     private sealed class CountingFactory(List<string> created) : IEngineFactory
     {
         public IGraphEngine Create(string root)

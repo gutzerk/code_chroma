@@ -1,4 +1,38 @@
 <Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CodeChroma.Shell.App.App" RequestedThemeVariant="Dark">
+  <!-- Project tab strip and agent status tokens (design: "Project tabs and worktree", shared agent-status contract). -->
+  <Application.Resources>
+    <SolidColorBrush x:Key="TabBarBrush" Color="#0a0c0f" />
+    <SolidColorBrush x:Key="TabBarLineBrush" Color="#22262e" />
+    <SolidColorBrush x:Key="TabActiveBrush" Color="#14171c" />
+    <SolidColorBrush x:Key="TabActiveBorderBrush" Color="#2c313b" />
+    <SolidColorBrush x:Key="TabTextBrush" Color="#c7ccd4" />
+    <SolidColorBrush x:Key="TabActiveTextBrush" Color="#ffffff" />
+    <SolidColorBrush x:Key="TabCloseBrush" Color="#5c6370" />
+    <SolidColorBrush x:Key="TabActiveCloseBrush" Color="#7b818c" />
+    <SolidColorBrush x:Key="StatusBlockedBrush" Color="#f2b33d" />
+    <SolidColorBrush x:Key="StatusBlockedInkBrush" Color="#1a1205" />
+    <SolidColorBrush x:Key="StatusErrorBrush" Color="#ff7a7a" />
+    <SolidColorBrush x:Key="StatusErrorBadgeBrush" Color="#3a1c1f" />
+    <SolidColorBrush x:Key="StatusDoneBrush" Color="#4cc38a" />
+    <SolidColorBrush x:Key="StatusDoneBadgeBrush" Color="#1d3a2b" />
+    <SolidColorBrush x:Key="StatusWorkingBrush" Color="#7ea3ff" />
+    <SolidColorBrush x:Key="StatusWorkingTrackBrush" Color="#26365a" />
+    <SolidColorBrush x:Key="StatusIdleBrush" Color="#6b7280" />
+    <SolidColorBrush x:Key="PillBrush" Color="#1f190d" />
+    <SolidColorBrush x:Key="PillBorderBrush" Color="#4a3a1a" />
+    <SolidColorBrush x:Key="PillKeyBrush" Color="#c9a258" />
+    <SolidColorBrush x:Key="PopoverBrush" Color="#171a20" />
+    <SolidColorBrush x:Key="PopoverBorderBrush" Color="#2c313b" />
+    <SolidColorBrush x:Key="PopoverLineBrush" Color="#262a33" />
+    <SolidColorBrush x:Key="PopoverBlockedBrush" Color="#1c1810" />
+    <SolidColorBrush x:Key="PopoverTextBrush" Color="#e6e8ec" />
+    <SolidColorBrush x:Key="PopoverMutedBrush" Color="#9aa1ad" />
+    <SolidColorBrush x:Key="PopoverIdleTextBrush" Color="#b4bac4" />
+    <SolidColorBrush x:Key="PermissionTextBrush" Color="#d8c49a" />
+    <SolidColorBrush x:Key="PermissionCodeBrush" Color="#f2d28a" />
+    <SolidColorBrush x:Key="SecondaryButtonBorderBrush" Color="#3a3f4a" />
+    <FontFamily x:Key="MonoFont">JetBrains Mono, SF Mono, Menlo, Consolas, DejaVu Sans Mono, monospace</FontFamily>
+  </Application.Resources>
   <Application.Styles>
     <FluentTheme>
       <FluentTheme.Palettes>
@@ -79,6 +113,62 @@
     <Style Selector="ListBox">
       <Setter Property="Background" Value="#191d28" />
       <Setter Property="CornerRadius" Value="7" />
+    </Style>
+    <!-- Agent status motion: the working spinner turns, the blocked dot pulses (mockup: .spin 0.9s, .pulse 1.6s). -->
+    <Style Selector="Panel.spin">
+      <Style.Animations>
+        <Animation Duration="0:0:0.9" IterationCount="Infinite">
+          <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="360" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Ellipse.pulse">
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" IterationCount="Infinite" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0.55" /><Setter Property="ScaleTransform.ScaleX" Value="1" /><Setter Property="ScaleTransform.ScaleY" Value="1" /></KeyFrame>
+          <KeyFrame Cue="70%"><Setter Property="Opacity" Value="0" /><Setter Property="ScaleTransform.ScaleX" Value="2.75" /><Setter Property="ScaleTransform.ScaleY" Value="2.75" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0" /><Setter Property="ScaleTransform.ScaleX" Value="1" /><Setter Property="ScaleTransform.ScaleY" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Button.chip">
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.allow">
+      <Setter Property="Background" Value="{StaticResource StatusBlockedBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource StatusBlockedInkBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.allow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#f5c264" />
+      <Setter Property="TextElement.Foreground" Value="{StaticResource StatusBlockedInkBrush}" />
+    </Style>
+    <Style Selector="Button.open">
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{StaticResource SecondaryButtonBorderBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource PopoverTextBrush}" />
+    </Style>
+    <Style Selector="Button.pill">
+      <Setter Property="Height" Value="26" />
+      <Setter Property="Padding" Value="8,0,10,0" />
+      <Setter Property="CornerRadius" Value="13" />
+      <Setter Property="Background" Value="{StaticResource PillBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource PillBorderBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource StatusBlockedBrush}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="8,0,4,0" />
+    </Style>
+    <Style Selector="Button.pill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#2a2110" />
+      <Setter Property="BorderBrush" Value="{StaticResource PillBorderBrush}" />
     </Style>
   </Application.Styles>
 </Application>

@@ -1,52 +1,53 @@
 import type { AgentRecord, AgentStatus } from "../state/types";
-import { agentStore } from "./agentStore";
 import { getDesktopWorkspaceApi } from "./desktopWorkspaceApi";
-import { playStatusSound, type StatusSoundKind } from "./notificationSound";
+import { playStatusSound } from "./notificationSound";
+import { isAttentionStatus, type AttentionStatus } from "./statusRollup";
 
-const AUTO_CLOSE_MS = 5000;
+/** A `done` toast and OS notification close themselves after this; blocked and error stay. */
+export const DONE_AUTO_CLOSE_MS = 6000;
 
-const TITLES: Record<StatusSoundKind, (agent: AgentRecord) => string> = {
-  blocked: (agent) => `${agent.title} needs you`,
-  idle: (agent) => `${agent.title} finished`,
-  exited: (agent) => `${agent.title} crashed`,
+/** The blocked wording every surface shares: a pending permission (followed by its summary), else an open question. */
+export const BLOCKED_TEXT = {
+  permission: "Asking permission",
+  answer: "Waiting for your answer",
+} as const;
+
+const TITLES: Record<AttentionStatus, (title: string) => string> = {
+  blocked: (title) => `${title} needs you`,
+  error: (title) => `${title} failed`,
+  done: (title) => `${title} finished`,
 };
 
-const BODIES: Record<StatusSoundKind, string> = {
-  blocked: "Agent is blocked",
-  idle: "Agent is idle",
-  exited: "Agent process exited",
-};
+/** The toast and notification headline: "<agent> needs you", "failed" or "finished". */
+export function attentionTitle(agent: AgentRecord, kind: AttentionStatus): string {
+  return TITLES[kind](agent.title);
+}
 
-/** Which status transitions are worth interrupting the user for -- mirrors Telegram only pinging on
- * a new message, not every presence change. `working` -> `foreign` -> `working` and the like stay
- * silent; a missing `previous` means the agent just entered the list (e.g. on load), not a real
- * transition. */
+/** The notification's second line: what the agent asks for, why it failed, or that it is done. */
+export function attentionBody(agent: AgentRecord, kind: AttentionStatus): string {
+  if (kind === "blocked") {
+    const summary = agent.pending_permission?.summary;
+    return summary ? `${BLOCKED_TEXT.permission}: ${summary}` : BLOCKED_TEXT.answer;
+  }
+  if (kind === "error") return agent.error?.message ?? "The agent stopped with an error";
+  return "Finished its turn";
+}
+
+/** Which transitions interrupt the user: entering blocked, error or done; a missing `previous` is a fresh load. */
 export function statusChangeKind(
   previous: AgentStatus | undefined,
   next: AgentStatus,
-): StatusSoundKind | null {
+): AttentionStatus | null {
   if (previous === undefined || previous === next) return null;
-  if (next === "blocked") return "blocked";
-  if (next === "idle" && previous === "working") return "idle";
-  if (next === "exited") return "exited";
-  return null;
+  return isAttentionStatus(next) ? next : null;
 }
 
-/** True when `agent`'s window is the one on top and the page itself has the user's attention -- the
- * "you're already looking at it" case that should stay silent, the way an already-open chat does. */
-export function isAgentWindowFocused(agent: AgentRecord): boolean {
-  if (typeof document === "undefined") return false;
-  if (agent.window.minimized) return false;
-  if (!document.hasFocus() || document.visibilityState !== "visible") return false;
-  const topZ = agentStore
-    .getAgents()
-    .filter((candidate) => !candidate.window.minimized)
-    .reduce((highest, candidate) => Math.max(highest, candidate.window.z), Number.NEGATIVE_INFINITY);
-  return agent.window.z === topZ;
+/** OS notification rule: blocked and error always, done only while the page is in the background. */
+export function wantsOsNotification(kind: AttentionStatus, pageFocused: boolean): boolean {
+  return kind !== "done" || !pageFocused;
 }
 
-/** Requests notification permission once; safe to call on every mount -- browsers only ever prompt
- * on the first `"default"` call and no-op silently afterward. */
+/** Requests notification permission once; browsers only prompt on the first `"default"` call. */
 export function ensureNotificationPermission(): void {
   if (typeof Notification === "undefined") return;
   if (Notification.permission === "default") {
@@ -54,27 +55,19 @@ export function ensureNotificationPermission(): void {
   }
 }
 
-/**
- * Plays `kind`'s tone and, permission allowing, raises a desktop notification for `agent` that
- * self-closes after 5 seconds. Clicking it brings the right OS window/tab to front (a no-op outside
- * the desktop app) and then runs `onOpen`, which the caller uses to restore and raise the agent's own
- * window.
- */
-export function notifyAgentStatus(
-  agent: AgentRecord,
-  kind: StatusSoundKind,
-  onOpen: () => void,
-): void {
-  playStatusSound(kind);
-
+/** Plays the blocked tone and, when the rule and permission allow, raises an OS notification; a click focuses the tab and runs `onOpen`. */
+export function notifyAgentStatus(agent: AgentRecord, kind: AttentionStatus, onOpen: () => void): void {
+  if (kind === "blocked") playStatusSound("blocked");
+  const pageFocused = typeof document !== "undefined" && document.hasFocus();
+  if (!wantsOsNotification(kind, pageFocused)) return;
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
 
-  const notification = new Notification(TITLES[kind](agent), {
-    body: BODIES[kind],
+  const notification = new Notification(attentionTitle(agent, kind), {
+    body: attentionBody(agent, kind),
     tag: agent.id,
     silent: true,
   });
-  const closeTimer = setTimeout(() => notification.close(), AUTO_CLOSE_MS);
+  const closeTimer = kind === "done" ? setTimeout(() => notification.close(), DONE_AUTO_CLOSE_MS) : undefined;
   notification.onclick = () => {
     clearTimeout(closeTimer);
     notification.close();

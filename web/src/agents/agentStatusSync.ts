@@ -1,8 +1,8 @@
 import { canvasDocStore } from "../canvas/doc/canvasDocStore";
 import { layoutStore } from "../canvas/layout/layoutStore";
-import type { AgentRecord, CanonicalAgentStatus, WorktreeRecord } from "../state/types";
+import type { AgentRecord, AgentStatus, WorktreeRecord } from "../state/types";
 import type { AgentClient } from "./agentClient";
-import { attentionBody, notifyAgentStatus } from "./agentNotifications";
+import { attentionBody, attentionTitle, notifyAgentStatus } from "./agentNotifications";
 import { currentEffectiveStatuses, isLookingAtAgent, viewedAgentId } from "./agentAttention";
 import { answerPermission, markSeen, nextBlockedAgent, openAgent } from "./agentFocus";
 import { agentStore } from "./agentStore";
@@ -11,23 +11,17 @@ import {
   type AgentCommand,
   type AgentSummaryMessage,
 } from "./desktopWorkspaceApi";
-import { rollup, type AttentionStatus } from "./statusRollup";
+import type { AttentionStatus } from "./statusRollup";
 import { agentToastStore } from "./toasts/toastStore";
 import { worktreeStore } from "./worktreeStore";
 
 /** How long store changes settle before the shell hears the new summary. */
 export const SUMMARY_DEBOUNCE_MS = 150;
 
-const TOAST_TITLES: Record<AttentionStatus, (title: string) => string> = {
-  blocked: (title) => `${title} needs you`,
-  error: (title) => `${title} failed`,
-  done: (title) => `${title} finished`,
-};
-
-/** The page -> shell `agent-summary`: every agent with its effective status, plus the project roll-up. */
+/** The page -> shell `agent-summary`: every agent with its effective status; the shell rolls it up itself. */
 export function buildAgentSummary(
   agents: readonly AgentRecord[],
-  statuses: ReadonlyMap<string, CanonicalAgentStatus>,
+  statuses: ReadonlyMap<string, AgentStatus>,
   worktrees: readonly WorktreeRecord[],
 ): AgentSummaryMessage {
   const names = new Map(worktrees.map((tab) => [tab.id, tab.name]));
@@ -45,8 +39,7 @@ export function buildAgentSummary(
       status_since: agent.status_since ?? null,
     };
   });
-  const { top, count } = rollup(entries.map((entry) => entry.status));
-  return { type: "agent-summary", top, count, agents: entries };
+  return { type: "agent-summary", agents: entries };
 }
 
 /** A status change worth interrupting for: a toast and an OS notification, unless the user is looking at that agent. */
@@ -58,15 +51,14 @@ export function announceStatus(client: AgentClient, agent: AgentRecord, kind: At
   agentToastStore.show({
     agentId: agent.id,
     kind,
-    title: TOAST_TITLES[kind](agent.title),
+    title: attentionTitle(agent, kind),
     body: attentionBody(agent, kind),
   });
   notifyAgentStatus(agent, kind, () => openAgent(client, agent.id));
 }
 
 /** Runs a shell command: open an agent, or answer its permission request. */
-export function handleAgentCommand(client: AgentClient, raw: AgentCommand | string): void {
-  const command: AgentCommand = typeof raw === "string" ? (JSON.parse(raw) as AgentCommand) : raw;
+export function handleAgentCommand(client: AgentClient, command: AgentCommand): void {
   if (command.type === "select-agent") openAgent(client, command.id);
   else if (command.type === "permission") {
     void answerPermission(client, command.id, command.request_id, command.decision);
@@ -78,19 +70,37 @@ function isNextWaitingKey(event: KeyboardEvent): boolean {
   return (event.metaKey || event.ctrlKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === "j";
 }
 
+/** Everything the sync reads from the stores; an emit that changes none of it is skipped. */
+function syncInputs(): readonly unknown[] {
+  const { agentsMode, selectedAgentId } = layoutStore.getState();
+  return [
+    agentStore.getAgents(),
+    canvasDocStore.getDoc().elements,
+    worktreeStore.getActiveId(),
+    worktreeStore.getRecords(),
+    agentsMode,
+    selectedAgentId,
+  ];
+}
+
 /** Marks the viewed done agent seen, drops stale toasts, reports the shell summary, runs its commands; returns the teardown. */
 export function startAgentStatusSync(client: AgentClient): () => void {
   const desktop = getDesktopWorkspaceApi();
   let summaryTimer: ReturnType<typeof setTimeout> | undefined;
+  let lastSent: string | null = null;
+  let lastInputs: readonly unknown[] = [];
 
   const reportNow = () => {
     summaryTimer = undefined;
-    desktop?.reportAgents?.(
-      buildAgentSummary(agentStore.getAgents(), currentEffectiveStatuses(), worktreeStore.getRecords()),
-    );
+    const summary = buildAgentSummary(agentStore.getAgents(), currentEffectiveStatuses(), worktreeStore.getRecords());
+    const json = JSON.stringify(summary);
+    if (json === lastSent) return;
+    lastSent = json;
+    desktop?.reportAgents?.(summary);
   };
 
   const onChange = () => {
+    lastInputs = syncInputs();
     const viewed = viewedAgentId();
     if (viewed && isLookingAtAgent(viewed)) markSeen(client, viewed);
     agentToastStore.reconcile(currentEffectiveStatuses());
@@ -98,6 +108,12 @@ export function startAgentStatusSync(client: AgentClient): () => void {
       clearTimeout(summaryTimer);
       summaryTimer = setTimeout(reportNow, SUMMARY_DEBOUNCE_MS);
     }
+  };
+
+  const onStoreChange = () => {
+    const inputs = syncInputs();
+    if (inputs.every((value, index) => value === lastInputs[index])) return;
+    onChange();
   };
 
   // Inside the shell its own script owns ⌘⇧J (across every project), so the page only handles it in a plain browser.
@@ -111,10 +127,10 @@ export function startAgentStatusSync(client: AgentClient): () => void {
   };
 
   const unsubscribers = [
-    agentStore.subscribe(onChange),
-    layoutStore.subscribe(onChange),
-    worktreeStore.subscribe(onChange),
-    canvasDocStore.subscribe(onChange),
+    agentStore.subscribe(onStoreChange),
+    layoutStore.subscribe(onStoreChange),
+    worktreeStore.subscribe(onStoreChange),
+    canvasDocStore.subscribe(onStoreChange),
   ];
   window.addEventListener("focus", onChange);
   document.addEventListener("visibilitychange", onChange);

@@ -1,12 +1,13 @@
-import { useOpenAgentQuestions } from "../../canvas/doc/question/useOpenAgentQuestions";
+import { useOpenQuestionCount } from "../../canvas/doc/question/useOpenAgentQuestions";
 import type { AgentRecord } from "../../state/types";
 import { useAgentClient } from "../AgentClientContext";
 import { answerPermission, dismissAgentError } from "../agentFocus";
+import { BLOCKED_TEXT } from "../agentNotifications";
 import { agentMeta, useElapsed } from "./agentStatusText";
 
 /** What the agent is doing now: "Edit · src/x.ts 1:12", the permission it asks for, its error, or the plain meta. */
 export function AgentStatusLine({ agent }: { agent: AgentRecord }) {
-  const asking = useOpenAgentQuestions(agent.id).length > 0;
+  const asking = useOpenQuestionCount(agent.id) > 0;
   const activity = agent.status === "working" ? agent.activity : null;
   const elapsed = useElapsed(activity?.turn_started_at);
   if (activity && (activity.tool || activity.target)) {
@@ -21,7 +22,7 @@ export function AgentStatusLine({ agent }: { agent: AgentRecord }) {
     return (
       <span className="activity-switcher-meta agent-status-line" data-status="blocked">
         <span className="agent-status-line-text">
-          Asking permission: <code>{agent.pending_permission.summary}</code>
+          {BLOCKED_TEXT.permission}: <code>{agent.pending_permission.summary}</code>
         </span>
       </span>
     );
@@ -29,7 +30,7 @@ export function AgentStatusLine({ agent }: { agent: AgentRecord }) {
   if (agent.status === "blocked" || asking) {
     return (
       <span className="activity-switcher-meta agent-status-line" data-status="blocked">
-        Waiting for your answer
+        {BLOCKED_TEXT.answer}
       </span>
     );
   }

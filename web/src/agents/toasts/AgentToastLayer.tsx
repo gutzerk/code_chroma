@@ -1,13 +1,13 @@
 import { useAgentClient } from "../AgentClientContext";
 import { answerPermission, openAgent } from "../agentFocus";
-import { useAgents } from "../agentStore";
+import { useAgent } from "../agentStore";
 import { StatusIndicator } from "../StatusIndicator";
 import { agentToastStore, useAgentToasts, type AgentToast } from "./toastStore";
 import "./AgentToastLayer.css";
 
 function ToastCard({ toast }: { toast: AgentToast }) {
   const client = useAgentClient();
-  const agent = useAgents().find((candidate) => candidate.id === toast.agentId);
+  const agent = useAgent(toast.agentId);
   const permission = toast.kind === "blocked" ? agent?.pending_permission : null;
   return (
     <div
@@ -24,13 +24,18 @@ function ToastCard({ toast }: { toast: AgentToast }) {
           {permission && client.permission && (
             <button
               type="button"
-              className="agent-toast-primary"
+              className="agent-status-action agent-status-action--toast"
+              data-status="blocked"
               onClick={() => void answerPermission(client, toast.agentId, permission.request_id, "allow")}
             >
               Allow
             </button>
           )}
-          <button type="button" className="agent-toast-secondary" onClick={() => openAgent(client, toast.agentId)}>
+          <button
+            type="button"
+            className="agent-status-action agent-status-action--toast"
+            onClick={() => openAgent(client, toast.agentId)}
+          >
             Open agent
           </button>
         </div>

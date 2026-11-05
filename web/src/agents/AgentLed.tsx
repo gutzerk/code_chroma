@@ -1,4 +1,4 @@
-import { useOpenAgentQuestions } from "../canvas/doc/question/useOpenAgentQuestions";
+import { useOpenQuestionCount } from "../canvas/doc/question/useOpenAgentQuestions";
 import { QUESTION_STRINGS as S } from "../canvas/doc/question/questionStrings";
 import type { AgentStatus } from "../state/types";
 import { effectiveStatus, STATUS_LABELS } from "./statusRollup";
@@ -14,8 +14,8 @@ export function AgentLed({
   agentId: string;
   size?: "dot" | "icon";
 }) {
-  const count = useOpenAgentQuestions(agentId).length;
-  const shown = effectiveStatus({ status, exit_code: null }, count);
+  const count = useOpenQuestionCount(agentId);
+  const shown = effectiveStatus({ status }, count);
   const label = count > 0 ? `${STATUS_LABELS[shown]} · ${S.questionCount(count)}` : STATUS_LABELS[shown];
   return <StatusIndicator status={shown} size={size} label={label} testId={`agent-led-${shown}`} />;
 }

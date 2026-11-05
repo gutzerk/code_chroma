@@ -1,6 +1,5 @@
-import type { AgentActivity, AgentPendingPermission, CanonicalAgentStatus } from "../state/types";
+import type { AgentActivity, AgentPendingPermission, AgentStatus } from "../state/types";
 import type { PermissionDecision } from "./agentClient";
-import type { RollupTop } from "./statusRollup";
 
 /** The desktop shell's DesktopWorkspaceApi -- present only when running inside the
  * desktop shell, absent in the browser dev flow. */
@@ -26,7 +25,7 @@ export interface DesktopWorkspaceApi {
 export interface AgentSummaryEntry {
   id: string;
   title: string;
-  status: CanonicalAgentStatus;
+  status: AgentStatus;
   worktree: string | null;
   worktree_title: string | null;
   activity: AgentActivity | null;
@@ -34,11 +33,9 @@ export interface AgentSummaryEntry {
   status_since: string | null;
 }
 
-/** Page -> shell: `top` is the most urgent status (idle/stopped -> null); `count` is blocked + error + done. */
+/** Page -> shell: every agent's effective status; the shell computes the tab's dot, badge and pill from it. */
 export interface AgentSummaryMessage {
   type: "agent-summary";
-  top: RollupTop;
-  count: number;
   agents: AgentSummaryEntry[];
 }
 

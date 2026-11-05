@@ -9,7 +9,6 @@ import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingC
 import { agentDockStore } from "./agentDockStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
-import { normalizeAgentStatus } from "./statusRollup";
 import { AgentToastLayer } from "./toasts/AgentToastLayer";
 import { ensureWorktrees, refreshWorktrees, settleRemovedWorktree } from "./worktreeActions";
 import { worktreeStore } from "./worktreeStore";
@@ -76,7 +75,7 @@ export function AgentWindowLayer() {
           agentStore.applyStatus(id, status, fields);
           const after = agentStore.getAgent(id);
           if (!after) return;
-          const kind = statusChangeKind(previous && normalizeAgentStatus(previous), normalizeAgentStatus(after.status));
+          const kind = statusChangeKind(previous, after.status);
           if (kind) announceStatus(agentClient, after, kind);
           // A finished "Draw a diagram" task may have written into its own forked worktree, where
           // the canvas never looks -- badge its rail row so the result is one click away.

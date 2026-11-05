@@ -1,22 +1,33 @@
-import type { AgentRecord, CanonicalAgentStatus } from "../state/types";
+import type { AgentRecord, AgentStatus } from "../state/types";
 import { getDesktopWorkspaceApi } from "./desktopWorkspaceApi";
 import { playStatusSound } from "./notificationSound";
 import { isAttentionStatus, type AttentionStatus } from "./statusRollup";
 
-/** A `done` OS notification closes itself; blocked and error stay until the OS dismisses them. */
-const DONE_AUTO_CLOSE_MS = 6000;
+/** A `done` toast and OS notification close themselves after this; blocked and error stay. */
+export const DONE_AUTO_CLOSE_MS = 6000;
 
-const TITLES: Record<AttentionStatus, (agent: AgentRecord) => string> = {
-  blocked: (agent) => `${agent.title} needs you`,
-  error: (agent) => `${agent.title} failed`,
-  done: (agent) => `${agent.title} finished`,
+/** The blocked wording every surface shares: a pending permission (followed by its summary), else an open question. */
+export const BLOCKED_TEXT = {
+  permission: "Asking permission",
+  answer: "Waiting for your answer",
+} as const;
+
+const TITLES: Record<AttentionStatus, (title: string) => string> = {
+  blocked: (title) => `${title} needs you`,
+  error: (title) => `${title} failed`,
+  done: (title) => `${title} finished`,
 };
+
+/** The toast and notification headline: "<agent> needs you", "failed" or "finished". */
+export function attentionTitle(agent: AgentRecord, kind: AttentionStatus): string {
+  return TITLES[kind](agent.title);
+}
 
 /** The notification's second line: what the agent asks for, why it failed, or that it is done. */
 export function attentionBody(agent: AgentRecord, kind: AttentionStatus): string {
   if (kind === "blocked") {
     const summary = agent.pending_permission?.summary;
-    return summary ? `Asking permission: ${summary}` : "Waiting for your answer";
+    return summary ? `${BLOCKED_TEXT.permission}: ${summary}` : BLOCKED_TEXT.answer;
   }
   if (kind === "error") return agent.error?.message ?? "The agent stopped with an error";
   return "Finished its turn";
@@ -24,8 +35,8 @@ export function attentionBody(agent: AgentRecord, kind: AttentionStatus): string
 
 /** Which transitions interrupt the user: entering blocked, error or done; a missing `previous` is a fresh load. */
 export function statusChangeKind(
-  previous: CanonicalAgentStatus | undefined,
-  next: CanonicalAgentStatus,
+  previous: AgentStatus | undefined,
+  next: AgentStatus,
 ): AttentionStatus | null {
   if (previous === undefined || previous === next) return null;
   return isAttentionStatus(next) ? next : null;
@@ -51,7 +62,7 @@ export function notifyAgentStatus(agent: AgentRecord, kind: AttentionStatus, onO
   if (!wantsOsNotification(kind, pageFocused)) return;
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
 
-  const notification = new Notification(TITLES[kind](agent), {
+  const notification = new Notification(attentionTitle(agent, kind), {
     body: attentionBody(agent, kind),
     tag: agent.id,
     silent: true,

@@ -1,4 +1,4 @@
-import type { AgentRecord, AgentStatus, CanonicalAgentStatus } from "../state/types";
+import type { AgentRecord, AgentStatus } from "../state/types";
 
 /** The statuses that ask for the user's attention; their agents make up a tab's badge count. */
 export type AttentionStatus = "blocked" | "error" | "done";
@@ -10,10 +10,12 @@ export interface StatusRollup {
   top: RollupTop;
   /** Agents in blocked + error + done. */
   count: number;
+  /** The same agents split by status. */
+  counts: Record<AttentionStatus, number>;
 }
 
 /** Human wording for each status, so the indicator's colour and shape are never the only carriers. */
-export const STATUS_LABELS: Record<CanonicalAgentStatus, string> = {
+export const STATUS_LABELS: Record<AgentStatus, string> = {
   blocked: "Needs you",
   error: "Error",
   done: "Done",
@@ -22,13 +24,8 @@ export const STATUS_LABELS: Record<CanonicalAgentStatus, string> = {
   stopped: "Stopped",
 };
 
-/** The wording for a status, legacy wire values included. */
-export function agentStatusLabel(status: AgentStatus): string {
-  return STATUS_LABELS[normalizeAgentStatus(status)];
-}
-
 /** blocked > error > done > working > idle; stopped never takes part in a roll-up. */
-const PRIORITY: Record<CanonicalAgentStatus, number> = {
+const PRIORITY: Record<AgentStatus, number> = {
   blocked: 5,
   error: 4,
   done: 3,
@@ -37,51 +34,36 @@ const PRIORITY: Record<CanonicalAgentStatus, number> = {
   stopped: 0,
 };
 
-const ATTENTION: ReadonlySet<CanonicalAgentStatus> = new Set(["blocked", "error", "done"]);
+const ATTENTION: ReadonlySet<AgentStatus> = new Set(["blocked", "error", "done"]);
 
-/** Higher is more urgent. */
-export function statusPriority(status: CanonicalAgentStatus): number {
-  return PRIORITY[status];
-}
-
-export function isAttentionStatus(status: CanonicalAgentStatus): status is AttentionStatus {
+export function isAttentionStatus(status: AgentStatus): status is AttentionStatus {
   return ATTENTION.has(status);
 }
 
-/** Maps the legacy wire values onto the canonical six: a non-zero exit is an `error`, a clean one `stopped`. */
-export function normalizeAgentStatus(status: AgentStatus, exitCode: number | null = null): CanonicalAgentStatus {
-  switch (status) {
-    case "running":
-    case "foreign":
-      return "idle";
-    case "exited":
-      return exitCode ? "error" : "stopped";
-    default:
-      return status;
-  }
+/** Store-boundary guard against an older bridge: `exited` is `error` (non-zero exit) or `stopped`, any other unknown value `idle`. */
+export function normalizeAgentStatus(status: string, exitCode: number | null = null): AgentStatus {
+  if (status === "exited") return exitCode ? "error" : "stopped";
+  return Object.hasOwn(PRIORITY, status) ? (status as AgentStatus) : "idle";
 }
 
 /** An open ask_user question makes a live agent `blocked`, whatever its screen says. */
-export function effectiveStatus(
-  agent: Pick<AgentRecord, "status" | "exit_code">,
-  openQuestions: number,
-): CanonicalAgentStatus {
-  const status = normalizeAgentStatus(agent.status, agent.exit_code);
-  if (openQuestions > 0 && status !== "stopped" && status !== "error") return "blocked";
-  return status;
+export function effectiveStatus(agent: Pick<AgentRecord, "status">, openQuestions: number): AgentStatus {
+  if (openQuestions > 0 && agent.status !== "stopped" && agent.status !== "error") return "blocked";
+  return agent.status;
 }
 
-/** Most urgent status plus the attention count; `hideDone` drops `done` (the tab the user is already on). */
-export function rollup(
-  statuses: readonly CanonicalAgentStatus[],
-  options: { hideDone?: boolean } = {},
-): StatusRollup {
-  let top: CanonicalAgentStatus = "stopped";
-  let count = 0;
+/** Most urgent status plus the attention counts; `hideDone` drops `done` (the tab the user is already on). */
+export function rollup(statuses: readonly AgentStatus[], options: { hideDone?: boolean } = {}): StatusRollup {
+  let top: AgentStatus = "stopped";
+  const counts: Record<AttentionStatus, number> = { blocked: 0, error: 0, done: 0 };
   for (const status of statuses) {
     if (options.hideDone && status === "done") continue;
-    if (isAttentionStatus(status)) count += 1;
+    if (isAttentionStatus(status)) counts[status] += 1;
     if (PRIORITY[status] > PRIORITY[top]) top = status;
   }
-  return { top: top === "idle" || top === "stopped" ? null : top, count };
+  return {
+    top: top === "idle" || top === "stopped" ? null : top,
+    count: counts.blocked + counts.error + counts.done,
+    counts,
+  };
 }

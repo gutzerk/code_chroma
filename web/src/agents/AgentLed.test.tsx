@@ -46,8 +46,8 @@ describe("AgentLed", () => {
     expect(screen.getByTestId(`agent-led-${status}`)).toHaveTextContent(glyph);
   });
 
-  it("shows a legacy exited status with no exit code as stopped", () => {
-    render(<AgentLed status="exited" agentId="quiet" />);
+  it("labels a stopped agent with its status", () => {
+    render(<AgentLed status="stopped" agentId="quiet" />);
 
     expect(screen.getByRole("img")).toHaveAttribute("aria-label", "Stopped");
   });

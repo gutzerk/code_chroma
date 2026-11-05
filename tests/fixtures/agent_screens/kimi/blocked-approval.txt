@@ -1,0 +1,14 @@
+✨ run the end-to-end suite
+
+• Shell npm run e2e
+
+╭─ approval ──────────────────────────────────────────────╮
+│ Run this command?                                       │
+│   npm run e2e                                           │
+│                                                         │
+│ ▶ Approve once                                          │
+│   Approve for this session                              │
+│   Reject                                                │
+│   Revise                                                │
+╰─────────────────────────────────────────────────────────╯
+  ↑↓ select · 1/2/3/4 choose · ↵ confirm

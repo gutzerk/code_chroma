@@ -146,6 +146,11 @@ a tab and never hosts an agent. Artifacts are not shared between tabs.
   becomes `active`.
 - `PATCH /branches/{id} {name}` renames the display name and the git branch (`git branch -m`); `id` and
   worktree path stay; 409 on an invalid, duplicate or held branch name. Attached agents' `branch` follows.
+- Boot: `Program.cs` reconciles and registers every tab before main is analyzed and passes the active tab
+  (unless its worktree is lost) as `WorkspaceRegistry`'s `warmTab`, which analyzes it in the background
+  while main is. ⚠ The canvas always lands on that tab; without the warm-up its first request started a
+  second full analysis only after main's (the C# engine has no cache), adding seconds before graphs and
+  agent windows appeared (`The_active_tab_is_analyzed_at_boot_alongside_main_before_any_request`).
 - `PUT /branches/active {id}`; `GET /branches` returns `{branches, active}`, each record with `name`,
   `dirty` (count of `git status --porcelain` entries) and `worktree_lost`.
 - `DELETE /branches/{id}?worktree_too=` stops the attached agents' sessions first (so nothing holds the cwd),

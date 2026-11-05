@@ -61,17 +61,19 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddSingleton(sp =>
 {
     var connections = sp.GetRequiredService<ConnectionManager>();
-    var registry = new WorkspaceRegistry(
+    var branches = sp.GetRequiredService<BranchManager>();
+    branches.Reconcile();
+    var tabs = branches.List();
+    var active = tabs.FirstOrDefault(r => r.Id == branches.ActiveId && !r.WorktreeLost);
+    return new WorkspaceRegistry(
         repoRoot,
         sp.GetRequiredService<IEngineFactory>(),
         (key, message) => connections.BroadcastDetached(message, key),
         sp.GetRequiredService<TimeProvider>(),
         startWatchers: true,
-        sp.GetRequiredService<DiagramBootstrap>());
-    var branches = sp.GetRequiredService<BranchManager>();
-    branches.Reconcile();
-    foreach (var record in branches.List()) registry.Register(record.Id, record.Worktree);
-    return registry;
+        sp.GetRequiredService<DiagramBootstrap>(),
+        tabs: tabs.Select(r => (r.Id, r.Worktree)),
+        warmTab: active?.Id);
 });
 builder.Services.AddHostedService<RegistryLifecycle>();
 builder.Services.AddAgentsAndPrs(repoRoot);

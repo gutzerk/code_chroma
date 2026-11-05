@@ -45,6 +45,31 @@
   --row-select: rgba(183, 148, 255, 0.1); /* ticked diagram row tint */
   --ring-idle: #3f4659; /* empty status ring */
 
+  /* Agent status (design notification mockups): colour, shape and motion each carry the state. */
+  --st-blocked: #f2b33d; /* needs you: pulsing circle, "?" */
+  --st-blocked-ink: #1a1205;
+  --st-blocked-chip-bg: #2b220f;
+  --st-blocked-pulse: rgba(242, 179, 61, 0.55);
+  --st-error: #ff7a7a; /* square, "!" */
+  --st-error-ink: #2a0b0b;
+  --st-error-bg: #3a1c1f;
+  --st-error-chip-bg: #2e1517;
+  --st-done: #4cc38a; /* finished, not yet seen: circle, check */
+  --st-done-ink: #0b1f15;
+  --st-done-bg: #1d3a2b;
+  --st-done-chip-bg: #12291e;
+  --st-working: #7ea3ff; /* spinner arc */
+  --st-working-track: #26365a;
+  --st-idle: #6b7280; /* empty ring; never shown on tabs */
+  --st-stopped: #3f4659;
+  --st-blocked-surface: #1c1810; /* toast/card tints per status */
+  --st-blocked-border: #4a3a1a;
+  --st-error-surface: #171012;
+  --st-error-border: #4a2326;
+  --st-done-surface: #0f1612;
+  --st-done-border: #1f3d2e;
+  --st-button-border: #3a3f4a;
+
   /* Radii for the floating-card restyle. */
   --radius-panel: 22px;
   --radius-card: 16px;
@@ -478,13 +503,6 @@ body {
   border-color: var(--accent);
 }
 
-/* 10px per the restyle spec: the card itself is bigger, and the dot is its only non-text content. */
-.agent-rail-item .agent-led {
-  width: 10px;
-  height: 10px;
-  flex-shrink: 0;
-}
-
 /* Worktree strip — one pill per tab, in the chrome row where the branch chip used to sit. */
 .worktree-strip {
   position: relative;
@@ -527,6 +545,13 @@ body {
 .canvas-chrome .worktree-tab-close,
 .canvas-chrome .worktree-add {
   padding: 0 6px;
+}
+
+/* Dot before the name, badge after it (the design notification mockup's worktree bar). */
+.canvas-chrome .worktree-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .canvas-chrome .worktree-add:disabled {
@@ -4833,26 +4858,170 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   visibility: hidden;
 }
 
-/* The one place each status colour is defined — the rail, the panel and the window title bar all
-   read it, rather than each carrying its own copy of the palette. */
-.agent-led {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex: 0 0 auto;
-  background: var(--text-3);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+/* The one place each status shape is defined (StatusIndicator.tsx): dot 8px for tabs and strips,
+   icon 16px for agent lists. Colour, shape and motion differ, so the state reads without colour. */
+@keyframes cc-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* Status detection is intentionally disabled for now: the LED is always the success green. */
-.agent-led-stopped,
-.agent-led-running,
-.agent-led-idle,
-.agent-led-blocked,
-.agent-led-working,
-.agent-led-exited,
-.agent-led-foreign {
-  background: var(--success);
+@keyframes cc-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--st-blocked-pulse);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(242, 179, 61, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(242, 179, 61, 0);
+  }
+}
+
+.status-ind {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  line-height: 1;
+}
+
+.status-ind[data-status="blocked"] {
+  background: var(--st-blocked);
+  color: var(--st-blocked-ink);
+  font-weight: 700;
+  animation: cc-pulse 1.6s ease-out infinite;
+}
+
+.status-ind[data-status="error"] {
+  border-radius: var(--radius-2);
+  background: var(--st-error);
+  color: var(--st-error-ink);
+  font-weight: 800;
+}
+
+.status-ind[data-status="done"] {
+  background: var(--st-done);
+}
+
+.status-ind[data-status="working"] {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--st-working-track);
+  border-top-color: var(--st-working);
+  animation: cc-spin 0.9s linear infinite;
+}
+
+.status-ind[data-status="idle"] {
+  border: 1.5px solid var(--st-idle);
+}
+
+.status-ind[data-status="stopped"] {
+  border: 1.5px solid var(--st-stopped);
+}
+
+.status-ind--icon {
+  width: 16px;
+  height: 16px;
+  font-size: 11px;
+}
+
+.status-ind--icon[data-status="error"] {
+  border-radius: var(--radius-sm);
+}
+
+.status-ind--icon[data-status="working"],
+.status-ind--icon[data-status="idle"],
+.status-ind--icon[data-status="stopped"] {
+  width: 14px;
+  height: 14px;
+  margin: 1px;
+  border-width: 2px;
+}
+
+.status-ind-check {
+  width: 10px;
+  height: 10px;
+  stroke: var(--st-done-ink);
+}
+
+/* Tab badge: solid for blocked, quiet tints for error and done. */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-lg);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.status-badge[data-status="blocked"] {
+  background: var(--st-blocked);
+  color: var(--st-blocked-ink);
+}
+
+.status-badge[data-status="error"] {
+  background: var(--st-error-bg);
+  color: var(--st-error);
+}
+
+.status-badge[data-status="done"] {
+  background: var(--st-done-bg);
+  color: var(--st-done);
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 6px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-chip::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.status-chip[data-status="blocked"] {
+  background: var(--st-blocked-chip-bg);
+  color: var(--st-blocked);
+}
+
+.status-chip[data-status="error"] {
+  background: var(--st-error-chip-bg);
+  color: var(--st-error);
+}
+
+.status-chip[data-status="error"]::before {
+  border-radius: var(--radius-2);
+}
+
+.status-chip[data-status="done"] {
+  background: var(--st-done-chip-bg);
+  color: var(--st-done);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-ind[data-status="blocked"],
+  .status-ind[data-status="working"] {
+    animation: none;
+  }
 }
 
 .agent-window {
@@ -7432,9 +7601,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .aq-diagram-arrowhead { fill: var(--text-muted-soft); stroke: none; }
 .aq-diagram-edge-label { fill: var(--text-soft); stroke: var(--question-surface); stroke-width: 4px; paint-order: stroke; font-size: 13px; }
 
-.agent-led--asking { background: var(--question-accent); }
-.agent-led-badge { margin-left: 2px; color: var(--question-accent); font-size: 10px; font-weight: 700; }
-.activity-question-pill { margin-left: 6px; padding: 1px 6px; border-radius: var(--radius-full); background: var(--question-avatar-bg); color: var(--question-avatar-fg); font-size: 11px; }
+.activity-segmented .status-chip { margin-left: 6px; padding: 1px 8px 1px 6px; font-size: 11px; }
 
 /* Code sidebar (variant A) — a resizable panel right beside the project tree showing source for
    every opened file. Sits in .canvas-main-row after the tree panel; tabs run most-recently-viewed

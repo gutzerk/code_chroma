@@ -45,20 +45,10 @@ describe("playStatusSound", () => {
 
   it("does nothing when Web Audio is unavailable", async () => {
     const playStatusSound = await freshPlayStatusSound();
-    expect(() => playStatusSound("idle")).not.toThrow();
+    expect(() => playStatusSound("blocked")).not.toThrow();
   });
 
-  it("plays one oscillator for a single-tone pattern like idle", async () => {
-    const ctx = new FakeAudioContext();
-    vi.stubGlobal("AudioContext", vi.fn(() => ctx));
-    const playStatusSound = await freshPlayStatusSound();
-
-    playStatusSound("idle");
-
-    expect(ctx.createOscillator).toHaveBeenCalledTimes(1);
-  });
-
-  it("plays two oscillators for a two-tone pattern like blocked or exited", async () => {
+  it("plays the two-tone blocked pattern", async () => {
     const ctx = new FakeAudioContext();
     vi.stubGlobal("AudioContext", vi.fn(() => ctx));
     const playStatusSound = await freshPlayStatusSound();
@@ -66,21 +56,5 @@ describe("playStatusSound", () => {
     playStatusSound("blocked");
 
     expect(ctx.createOscillator).toHaveBeenCalledTimes(2);
-  });
-
-  it("uses a harsher waveform for exited than for idle/blocked", async () => {
-    const ctx = new FakeAudioContext();
-    vi.stubGlobal("AudioContext", vi.fn(() => ctx));
-    const oscillators: FakeOscillator[] = [];
-    ctx.createOscillator.mockImplementation(() => {
-      const oscillator = new FakeOscillator();
-      oscillators.push(oscillator);
-      return oscillator;
-    });
-    const playStatusSound = await freshPlayStatusSound();
-
-    playStatusSound("exited");
-
-    expect(oscillators.every((oscillator) => oscillator.type === "sawtooth")).toBe(true);
   });
 });

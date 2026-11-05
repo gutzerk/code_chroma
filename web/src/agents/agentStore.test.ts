@@ -184,8 +184,23 @@ describe("the LED's input", () => {
   it("keeps a crashed agent distinguishable from a deliberately stopped one", () => {
     agentStore.upsert(agent("crashed", { status: "exited", exit_code: 1 }));
 
-    expect(agentStore.getAgent("crashed")?.status).toBe("exited");
+    expect(agentStore.getAgent("crashed")?.status).toBe("error");
     expect(agentStore.getAgent("crashed")?.exit_code).toBe(1);
+  });
+
+  it("stores an agent-status event's activity, permission and error with its status", () => {
+    agentStore.upsert(agent("refund-flow"));
+    const activity = { tool: "Edit", target: "src/a.ts", turn_started_at: "2026-11-05T09:58:48Z" };
+
+    agentStore.applyStatus("refund-flow", "working", { status_since: "2026-11-05T10:00:00Z", activity });
+
+    expect(agentStore.getAgent("refund-flow")).toMatchObject({
+      status: "working",
+      status_since: "2026-11-05T10:00:00Z",
+      activity,
+      pending_permission: null,
+      error: null,
+    });
   });
 });
 

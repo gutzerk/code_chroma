@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentRecord, AgentStatus } from "../state/types";
+import type { AgentRecord, CanonicalAgentStatus } from "../state/types";
 import {
+  attentionBody,
   ensureNotificationPermission,
-  isAgentWindowFocused,
   notifyAgentStatus,
   statusChangeKind,
+  wantsOsNotification,
 } from "./agentNotifications";
-import { agentStore } from "./agentStore";
+import type { AttentionStatus } from "./statusRollup";
 
 vi.mock("./notificationSound", () => ({ playStatusSound: vi.fn() }));
 vi.mock("./desktopWorkspaceApi", () => ({ getDesktopWorkspaceApi: vi.fn(() => undefined) }));
@@ -55,75 +56,47 @@ describe("statusChangeKind", () => {
   });
 
   it("returns null when the status did not actually change", () => {
-    expect(statusChangeKind("working", "working")).toBeNull();
+    expect(statusChangeKind("blocked", "blocked")).toBeNull();
   });
 
-  it("fires 'blocked' whenever the agent enters blocked", () => {
-    expect(statusChangeKind("working", "blocked")).toBe("blocked");
-    expect(statusChangeKind("idle", "blocked")).toBe("blocked");
+  it.each<CanonicalAgentStatus>(["blocked", "error", "done"])("fires on entering %s", (next) => {
+    expect(statusChangeKind("working", next)).toBe(next);
   });
 
-  it("fires 'idle' only when idle follows working, not e.g. a fresh stopped agent", () => {
-    expect(statusChangeKind("working", "idle")).toBe("idle");
-    expect(statusChangeKind("stopped", "idle")).toBeNull();
-  });
-
-  it("fires 'exited' on any transition into exited", () => {
-    expect(statusChangeKind("working", "exited")).toBe("exited");
-  });
-
-  it("stays silent for transitions that aren't actionable", () => {
-    const silent: [AgentStatus, AgentStatus][] = [
-      ["idle", "working"],
-      ["working", "foreign"],
-      ["foreign", "working"],
-    ];
-    for (const [previous, next] of silent) {
-      expect(statusChangeKind(previous, next)).toBeNull();
-    }
+  it.each<[CanonicalAgentStatus, CanonicalAgentStatus]>([
+    ["idle", "working"],
+    ["working", "idle"],
+    ["done", "idle"],
+    ["error", "stopped"],
+  ])("stays silent for %s -> %s", (previous, next) => {
+    expect(statusChangeKind(previous, next)).toBeNull();
   });
 });
 
-describe("isAgentWindowFocused", () => {
-  beforeEach(() => {
-    agentStore.reset();
+describe("wantsOsNotification", () => {
+  it.each<[AttentionStatus, boolean, boolean]>([
+    ["blocked", true, true],
+    ["error", true, true],
+    ["done", true, false],
+    ["done", false, true],
+  ])("%s with page focus %s -> %s", (kind, focused, expected) => {
+    expect(wantsOsNotification(kind, focused)).toBe(expected);
   });
+});
 
-  it("is false when the window is minimized", () => {
-    const agent = record({ window: { x: 0, y: 0, width: 1, height: 1, minimized: true, z: 5 } });
-    agentStore.upsert(agent);
-    vi.spyOn(document, "hasFocus").mockReturnValue(true);
-
-    expect(isAgentWindowFocused(agent)).toBe(false);
-  });
-
-  it("is false when the document itself is not focused", () => {
-    const agent = record();
-    agentStore.upsert(agent);
-    vi.spyOn(document, "hasFocus").mockReturnValue(false);
-
-    expect(isAgentWindowFocused(agent)).toBe(false);
-  });
-
-  it("is false when another agent's window is on top", () => {
-    const agent = record({ window: { x: 0, y: 0, width: 1, height: 1, minimized: false, z: 1 } });
-    const other = record({
-      id: "other",
-      window: { x: 0, y: 0, width: 1, height: 1, minimized: false, z: 2 },
+describe("attentionBody", () => {
+  it("names the permission a blocked agent asks for", () => {
+    const agent = record({
+      pending_permission: { request_id: "p1", tool: "Bash", summary: "Bash(npm run e2e)", at: "" },
     });
-    agentStore.upsert(agent);
-    agentStore.upsert(other);
-    vi.spyOn(document, "hasFocus").mockReturnValue(true);
 
-    expect(isAgentWindowFocused(agent)).toBe(false);
+    expect(attentionBody(agent, "blocked")).toBe("Asking permission: Bash(npm run e2e)");
   });
 
-  it("is true when the agent's window is the topmost, unminimized one and the page has focus", () => {
-    const agent = record({ window: { x: 0, y: 0, width: 1, height: 1, minimized: false, z: 3 } });
-    agentStore.upsert(agent);
-    vi.spyOn(document, "hasFocus").mockReturnValue(true);
-
-    expect(isAgentWindowFocused(agent)).toBe(true);
+  it("carries the error message", () => {
+    expect(attentionBody(record({ error: { message: "claude exited with code 1", at: "" } }), "error")).toBe(
+      "claude exited with code 1",
+    );
   });
 });
 
@@ -157,21 +130,29 @@ describe("notifyAgentStatus", () => {
     FakeNotification.permission = "granted";
     vi.stubGlobal("Notification", FakeNotification);
     vi.spyOn(window, "focus").mockImplementation(() => {});
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
     vi.useFakeTimers();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
-  it("always plays the tone, even when notifications are unavailable", () => {
+  it("plays the tone for blocked, even when notifications are unavailable", () => {
     vi.stubGlobal("Notification", undefined);
 
-    notifyAgentStatus(record(), "idle", vi.fn());
+    notifyAgentStatus(record(), "blocked", vi.fn());
 
-    expect(playStatusSound).toHaveBeenCalledWith("idle");
+    expect(playStatusSound).toHaveBeenCalledWith("blocked");
+  });
+
+  it.each(["error", "done"] as const)("stays silent for %s", (kind) => {
+    notifyAgentStatus(record(), kind, vi.fn());
+
+    expect(playStatusSound).not.toHaveBeenCalled();
   });
 
   it("skips the desktop notification when permission was never granted", () => {
@@ -185,20 +166,26 @@ describe("notifyAgentStatus", () => {
   it("shows a titled notification naming the agent when permission is granted", () => {
     notifyAgentStatus(record({ title: "refund flow" }), "blocked", vi.fn());
 
-    expect(FakeNotification.instances).toHaveLength(1);
-    expect(FakeNotification.instances[0].title).toBe("refund flow needs you");
+    expect(FakeNotification.instances.map((n) => n.title)).toEqual(["refund flow needs you"]);
   });
 
-  it("self-closes the notification after 5 seconds", () => {
-    notifyAgentStatus(record(), "idle", vi.fn());
+  it("skips a done notification while the page has focus", () => {
+    notifyAgentStatus(record(), "done", vi.fn());
+
+    expect(FakeNotification.instances).toHaveLength(0);
+  });
+
+  it("self-closes a background done notification after 6 seconds", () => {
+    vi.mocked(document.hasFocus).mockReturnValue(false);
+    notifyAgentStatus(record(), "done", vi.fn());
     const notification = FakeNotification.instances[0];
 
-    vi.advanceTimersByTime(5000);
+    vi.advanceTimersByTime(6000);
 
     expect(notification.close).toHaveBeenCalledTimes(1);
   });
 
-  it("focuses the desktop tab and opens the agent window when the notification is clicked", () => {
+  it("focuses the desktop tab and opens the agent when the notification is clicked", () => {
     const focusThisTab = vi.fn(async () => {});
     vi.mocked(getDesktopWorkspaceApi).mockReturnValue({
       openWorkspaceWindow: vi.fn(),
@@ -207,7 +194,7 @@ describe("notifyAgentStatus", () => {
       closeThisProject: vi.fn(async () => {}),
     });
     const onOpen = vi.fn();
-    notifyAgentStatus(record(), "exited", onOpen);
+    notifyAgentStatus(record(), "error", onOpen);
     const notification = FakeNotification.instances[0];
 
     notification.onclick?.();

@@ -34,6 +34,21 @@ describe("AgentLed", () => {
       </EngineClientProvider>,
     );
 
-    await waitFor(() => expect(screen.getByRole("img")).toHaveAttribute("aria-label", "Working · 2 questions"));
+    await waitFor(() => expect(screen.getByRole("img")).toHaveAttribute("aria-label", "Needs you · 2 questions"));
+  });
+
+  it.each([
+    ["blocked", "?"],
+    ["error", "!"],
+  ] as const)("draws the %s icon with its glyph", (status, glyph) => {
+    render(<AgentLed status={status} agentId="quiet" size="icon" />);
+
+    expect(screen.getByTestId(`agent-led-${status}`)).toHaveTextContent(glyph);
+  });
+
+  it("shows a legacy exited status with no exit code as stopped", () => {
+    render(<AgentLed status="exited" agentId="quiet" />);
+
+    expect(screen.getByRole("img")).toHaveAttribute("aria-label", "Stopped");
   });
 });

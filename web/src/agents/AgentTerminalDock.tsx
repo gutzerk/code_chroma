@@ -1,4 +1,4 @@
-import { agentMeta } from "./activity/AgentSwitcherRow";
+import { agentMeta } from "./activity/agentStatusText";
 import { useCallback, useEffect, useState } from "react";
 import { ResizableRail } from "../canvas/ResizableRail";
 import type { AgentRecord } from "../state/types";
@@ -159,7 +159,7 @@ export function DockedAgentPanel({
     >
       <div className="agent-terminal-dock-header">
         <img className="agent-window-icon" src={runAgentIcon} alt="" aria-hidden="true" />
-        <AgentLed status={agent.status} agentId={agent.id} />
+        <AgentLed status={agent.status} agentId={agent.id} size="icon" />
         {full ? (
           <span className="agent-full-heading">
             <span className="agent-full-title">{agent.title}</span>

@@ -15,13 +15,13 @@ export function selectAgent(client: AgentClient, agent: AgentRecord): void {
   restoreAgentWindow(client, agent.id);
 }
 
-/** POST /agents/{id}/seen for a `done` agent, once at a time; the reply's `idle` lands in the store. */
+/** POST /agents/{id}/seen for a `done` agent, once at a time; the reply's `idle` lands unless a newer event beat it. */
 export function markSeen(client: AgentClient, id: string): void {
   if (!client.seen || seenInFlight.has(id) || agentStore.getAgent(id)?.status !== "done") return;
   seenInFlight.add(id);
   client
     .seen(id)
-    .then(agentStore.upsert)
+    .then(agentStore.upsertIfCurrent)
     .catch(() => {
       // The next look tries again; a stale done badge is better than an error.
     })
@@ -38,7 +38,7 @@ export function openAgent(client: AgentClient, id: string): void {
   markSeen(client, id);
 }
 
-/** Answers a pending PermissionRequest; the reply replaces the record, a 404 (already answered) is ignored. */
+/** Answers a pending PermissionRequest; the reply replaces the record unless a newer event beat it, a 404 (already answered) is ignored. */
 export async function answerPermission(
   client: AgentClient,
   id: string,
@@ -47,7 +47,7 @@ export async function answerPermission(
 ): Promise<void> {
   if (!client.permission) return;
   try {
-    agentStore.upsert(await client.permission(id, requestId, decision));
+    agentStore.upsertIfCurrent(await client.permission(id, requestId, decision));
   } catch {
     // The terminal answered first, so the request is gone; the next status event says what happened.
   }
@@ -58,7 +58,7 @@ export async function dismissAgentError(client: AgentClient, id: string): Promis
   if (!client.dismissError) return;
   agentToastStore.dismiss(id);
   try {
-    agentStore.upsert(await client.dismissError(id));
+    agentStore.upsertIfCurrent(await client.dismissError(id));
   } catch {
     // The agent may have restarted meanwhile; nothing to undo.
   }

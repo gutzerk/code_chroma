@@ -101,6 +101,13 @@ class AgentStore extends Store {
     this.emit();
   };
 
+  /** `upsert` for an HTTP reply: dropped when a newer `agent-status` event already landed. */
+  upsertIfCurrent = (agent: AgentRecord): void => {
+    const stored = this.getAgent(agent.id);
+    if (stored && isOlder(agent.status_since, stored.status_since)) return;
+    this.upsert(agent);
+  };
+
   remove = (id: string): void => {
     this.agents = this.agents.filter((agent) => agent.id !== id);
     if (id in this.startErrors) {
@@ -135,19 +142,20 @@ class AgentStore extends Store {
   };
 
   /** Lands an `agent-status` event: the status plus its activity, pending permission and error. */
-  applyStatus = (id: string, status: AgentStatus, fields: AgentStatusFields): void => {
-    this.agents = this.agents.map((agent) =>
-      agent.id === id
-        ? {
-            ...agent,
-            status: normalizeAgentStatus(status, agent.exit_code),
-            status_since: fields.status_since ?? agent.status_since ?? null,
-            activity: fields.activity ?? null,
-            pending_permission: fields.pending_permission ?? null,
-            error: fields.error ?? null,
-          }
-        : agent,
-    );
+  applyStatus = (id: string, status: AgentStatus, fields: AgentStatusFields & { exit_code?: number | null }): void => {
+    this.agents = this.agents.map((agent) => {
+      if (agent.id !== id) return agent;
+      const exitCode = fields.exit_code !== undefined ? fields.exit_code : agent.exit_code;
+      return {
+        ...agent,
+        exit_code: exitCode,
+        status: normalizeAgentStatus(status, exitCode),
+        status_since: fields.status_since ?? agent.status_since ?? null,
+        activity: fields.activity ?? null,
+        pending_permission: fields.pending_permission ?? null,
+        error: fields.error ?? null,
+      };
+    });
     this.emit();
   };
 
@@ -249,6 +257,13 @@ class AgentStore extends Store {
 }
 
 /** The one status guard: whatever an older bridge sends lands as one of the six (`normalizeAgentStatus`). */
+/** True when timestamp `a` is strictly before `b`; a missing or unparsable one is never older. */
+function isOlder(a: string | null | undefined, b: string | null | undefined): boolean {
+  const at = a ? Date.parse(a) : NaN;
+  const bt = b ? Date.parse(b) : NaN;
+  return !Number.isNaN(at) && !Number.isNaN(bt) && at < bt;
+}
+
 function normalized(agent: AgentRecord): AgentRecord {
   const status = normalizeAgentStatus(agent.status, agent.exit_code);
   return status === agent.status ? agent : { ...agent, status };

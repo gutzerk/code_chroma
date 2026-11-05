@@ -4,7 +4,7 @@ import { useEngineClient } from "../engine-client/EngineClientContext";
 import { ensureNotificationPermission, statusChangeKind } from "./agentNotifications";
 import { useAgentClient } from "./AgentClientContext";
 import { flagDiagramsReady } from "./agentDiagramsReady";
-import { announceStatus, startAgentStatusSync } from "./agentStatusSync";
+import { startAgentStatusSync } from "./agentStatusSync";
 import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingClose } from "./agentStore";
 import { agentDockStore } from "./agentDockStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
@@ -75,11 +75,10 @@ export function AgentWindowLayer() {
           agentStore.applyStatus(id, status, fields);
           const after = agentStore.getAgent(id);
           if (!after) return;
-          const kind = statusChangeKind(previous, after.status);
-          if (kind) announceStatus(agentClient, after, kind);
           // A finished "Draw a diagram" task may have written into its own forked worktree, where
           // the canvas never looks -- badge its rail row so the result is one click away.
-          const finished = kind === "done" || (previous === "working" && after.status === "idle");
+          const finished =
+            statusChangeKind(previous, after.status) === "done" || (previous === "working" && after.status === "idle");
           if (finished && after.context_kind === "task") {
             void flagDiagramsReady(id);
           }

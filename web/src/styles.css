@@ -43,13 +43,11 @@
   --dot-grid: #262b38; /* canvas grid dots */
   --text-faint: #5b6170; /* hidden / disabled glyphs, hairline arrows */
   --row-select: rgba(183, 148, 255, 0.1); /* ticked diagram row tint */
-  --ring-idle: #3f4659; /* empty status ring */
 
   /* Agent status (design notification mockups): colour, shape and motion each carry the state. */
   --st-blocked: #f2b33d; /* needs you: pulsing circle, "?" */
   --st-blocked-ink: #1a1205;
   --st-blocked-chip-bg: #2b220f;
-  --st-blocked-pulse: rgba(242, 179, 61, 0.55);
   --st-error: #ff7a7a; /* square, "!" */
   --st-error-ink: #2a0b0b;
   --st-error-bg: #3a1c1f;
@@ -61,14 +59,13 @@
   --st-working: #7ea3ff; /* spinner arc */
   --st-working-track: #26365a;
   --st-idle: #6b7280; /* empty ring; never shown on tabs */
-  --st-stopped: #3f4659;
+  --st-stopped: #3f4659; /* empty ring */
   --st-blocked-surface: #1c1810; /* toast/card tints per status */
   --st-blocked-border: #4a3a1a;
   --st-error-surface: #171012;
   --st-error-border: #4a2326;
   --st-done-surface: #0f1612;
   --st-done-border: #1f3d2e;
-  --st-button-border: #3a3f4a;
 
   /* Radii for the floating-card restyle. */
   --radius-panel: 22px;
@@ -1264,7 +1261,7 @@ body {
   animation: spin 0.8s linear infinite;
 }
 
-/* The one spin keyframe, shared by every spinner (diff toggle, workspace banner). */
+/* The one spin keyframe, shared by every spinner (diff toggle, workspace banner, agent status). */
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -4898,21 +4895,15 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 /* The one place each status shape is defined (StatusIndicator.tsx): dot 8px for tabs and strips,
    icon 16px for agent lists. Colour, shape and motion differ, so the state reads without colour. */
-@keyframes cc-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @keyframes cc-pulse {
   0% {
-    box-shadow: 0 0 0 0 var(--st-blocked-pulse);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--st-blocked) 55%, transparent);
   }
   70% {
-    box-shadow: 0 0 0 7px rgba(242, 179, 61, 0);
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--st-blocked) 0%, transparent);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(242, 179, 61, 0);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--st-blocked) 0%, transparent);
   }
 }
 
@@ -4951,7 +4942,7 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   height: 10px;
   border: 2px solid var(--st-working-track);
   border-top-color: var(--st-working);
-  animation: cc-spin 0.9s linear infinite;
+  animation: spin 0.9s linear infinite;
 }
 
 .status-ind[data-status="idle"] {
@@ -5053,6 +5044,35 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .status-chip[data-status="done"] {
   background: var(--st-done-chip-bg);
   color: var(--st-done);
+}
+
+/* The one agent action button (row Allow/Dismiss, toast Allow/Open agent); data-status="blocked" is the filled primary. */
+.agent-status-action {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-7);
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.agent-status-action[data-status="blocked"] {
+  border-color: transparent;
+  background: var(--st-blocked);
+  color: var(--st-blocked-ink);
+}
+
+.agent-status-action--toast {
+  height: 28px;
+  padding: 0 12px;
+}
+
+.agent-status-action--toast:not([data-status="blocked"]) {
+  font-weight: normal;
 }
 
 @media (prefers-reduced-motion: reduce) {

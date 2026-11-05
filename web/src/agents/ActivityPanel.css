@@ -619,23 +619,6 @@
 .agent-status-line code {
   font: inherit;
 }
-.agent-status-action {
-  flex-shrink: 0;
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-7);
-  background: transparent;
-  color: var(--text-soft);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.agent-status-action[data-status="blocked"] {
-  border-color: transparent;
-  background: var(--st-blocked);
-  color: var(--st-blocked-ink);
-}
 .activity-switcher > .agent-status-action {
   align-self: center;
   margin-left: 6px;

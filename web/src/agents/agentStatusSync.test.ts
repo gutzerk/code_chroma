@@ -6,7 +6,8 @@ import { agentStore } from "./agentStore";
 import { announceStatus, buildAgentSummary, handleAgentCommand, startAgentStatusSync, SUMMARY_DEBOUNCE_MS } from "./agentStatusSync";
 import type { DesktopWorkspaceApi } from "./desktopWorkspaceApi";
 import { PR_CLIENT_STUB } from "./stubAgentClient";
-import { agentToastStore, DONE_TOAST_MS } from "./toasts/toastStore";
+import { DONE_AUTO_CLOSE_MS } from "./agentNotifications";
+import { agentToastStore } from "./toasts/toastStore";
 import { worktreeStore } from "./worktreeStore";
 
 vi.mock("./notificationSound", () => ({ playStatusSound: vi.fn() }));
@@ -62,13 +63,14 @@ afterEach(() => {
 });
 
 describe("buildAgentSummary", () => {
-  it("rolls up the effective statuses and names each agent's worktree", () => {
+  it("carries the effective statuses and names each agent's worktree", () => {
     const agents = [agent("a1", { status_since: "2026-11-05T10:00:00Z" }), agent("a2"), agent("a3")];
     const statuses = new Map([["a1", "blocked" as const], ["a2", "done" as const], ["a3", "working" as const]]);
 
     const summary = buildAgentSummary(agents, statuses, worktreeStore.getRecords());
 
-    expect(summary).toMatchObject({ type: "agent-summary", top: "blocked", count: 2 });
+    expect(summary.type).toBe("agent-summary");
+    expect(summary.agents.map((entry) => entry.status)).toEqual(["blocked", "done", "working"]);
     expect(summary.agents[0]).toMatchObject({ id: "a1", status: "blocked", worktree: "br_1", worktree_title: "wt-1", status_since: "2026-11-05T10:00:00Z" });
   });
 });
@@ -88,7 +90,7 @@ describe("handleAgentCommand", () => {
     const c = client();
     agentStore.upsert(agent("a1", { status: "blocked" }));
 
-    handleAgentCommand(c, JSON.stringify({ type: "permission", id: "a1", request_id: "p1", decision: "allow" }));
+    handleAgentCommand(c, { type: "permission", id: "a1", request_id: "p1", decision: "allow" });
 
     await vi.waitFor(() => expect(c.permission).toHaveBeenCalledWith("a1", "p1", "allow"));
   });
@@ -103,7 +105,7 @@ describe("announceStatus", () => {
 
     announceStatus(client(), agentStore.getAgent("a2")!, "done");
     const shown = agentToastStore.getToasts().map((t) => t.agentId);
-    vi.advanceTimersByTime(DONE_TOAST_MS);
+    vi.advanceTimersByTime(DONE_AUTO_CLOSE_MS);
 
     expect(shown).toEqual(["a2"]);
     expect(agentToastStore.getToasts()).toEqual([]);
@@ -162,6 +164,23 @@ describe("startAgentStatusSync", () => {
     stop();
 
     expect(layoutStore.getState().selectedAgentId).toBe("a1");
-    expect(reportAgents).toHaveBeenLastCalledWith(expect.objectContaining({ top: "blocked", count: 1 }));
+    expect(reportAgents.mock.lastCall?.[0].agents.map((entry: { status: string }) => entry.status)).toEqual([
+      "idle",
+      "blocked",
+    ]);
+  });
+
+  it("skips a summary identical to the last one sent", () => {
+    vi.useFakeTimers();
+    const reportAgents = vi.fn();
+    window.codechromaDesktop = { reportAgents } as unknown as DesktopWorkspaceApi;
+    agentStore.upsert(agent("a1"));
+    const stop = startAgentStatusSync(client());
+
+    agentStore.setWindow("a1", { x: 40 });
+    vi.advanceTimersByTime(SUMMARY_DEBOUNCE_MS);
+    stop();
+
+    expect(reportAgents).toHaveBeenCalledTimes(1);
   });
 });

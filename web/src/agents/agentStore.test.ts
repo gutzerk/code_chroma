@@ -181,8 +181,8 @@ describe("the LED's input", () => {
     expect(seen).toEqual(["idle", "working", "blocked", "working", "idle"]);
   });
 
-  it("keeps a crashed agent distinguishable from a deliberately stopped one", () => {
-    agentStore.upsert(agent("crashed", { status: "exited", exit_code: 1 }));
+  it("maps an older bridge's crashed `exited` agent to error at the store boundary", () => {
+    agentStore.upsert(agent("crashed", { status: "exited" as AgentRecord["status"], exit_code: 1 }));
 
     expect(agentStore.getAgent("crashed")?.status).toBe("error");
     expect(agentStore.getAgent("crashed")?.exit_code).toBe(1);

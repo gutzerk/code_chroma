@@ -248,7 +248,7 @@ class AgentStore extends Store {
   };
 }
 
-/** Maps a legacy wire status (`running`/`exited`/`foreign`) onto the canonical six. */
+/** The one status guard: whatever an older bridge sends lands as one of the six (`normalizeAgentStatus`). */
 function normalized(agent: AgentRecord): AgentRecord {
   const status = normalizeAgentStatus(agent.status, agent.exit_code);
   return status === agent.status ? agent : { ...agent, status };
@@ -288,9 +288,14 @@ export function useAgents(): AgentRecord[] {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getAgents);
 }
 
-/** Whether the agent's terminal (and so its question host) is mounted: not stopped, exited or failed. */
+/** One agent's record; re-renders only when that record changes. */
+export function useAgent(id: string): AgentRecord | undefined {
+  return useSyncExternalStore(agentStore.subscribe, () => agentStore.getAgent(id));
+}
+
+/** Whether the agent's terminal (and so its question host) is mounted: not stopped or failed. */
 export function isAgentRunning(agent: AgentRecord): boolean {
-  return agent.status !== "stopped" && agent.status !== "exited" && agent.status !== "error";
+  return agent.status !== "stopped" && agent.status !== "error";
 }
 
 export function useAgentCountInWorkspace(workspace: string): number {

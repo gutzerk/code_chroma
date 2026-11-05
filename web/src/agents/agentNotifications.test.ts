@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentRecord, CanonicalAgentStatus } from "../state/types";
+import type { AgentRecord, AgentStatus } from "../state/types";
 import {
   attentionBody,
   ensureNotificationPermission,
@@ -59,11 +59,11 @@ describe("statusChangeKind", () => {
     expect(statusChangeKind("blocked", "blocked")).toBeNull();
   });
 
-  it.each<CanonicalAgentStatus>(["blocked", "error", "done"])("fires on entering %s", (next) => {
+  it.each<AgentStatus>(["blocked", "error", "done"])("fires on entering %s", (next) => {
     expect(statusChangeKind("working", next)).toBe(next);
   });
 
-  it.each<[CanonicalAgentStatus, CanonicalAgentStatus]>([
+  it.each<[AgentStatus, AgentStatus]>([
     ["idle", "working"],
     ["working", "idle"],
     ["done", "idle"],

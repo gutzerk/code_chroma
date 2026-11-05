@@ -496,11 +496,7 @@ export interface AgentWindowGeometry {
 
 /** The six statuses the bridge sends: `stopped` (no session), `idle`, `working`, `blocked` (needs
  * the user), `done` (finished, not yet seen) and `error` (crashed or failed to start). */
-export type CanonicalAgentStatus = "stopped" | "idle" | "working" | "blocked" | "done" | "error";
-
-/** What the LED shows. `running`/`exited`/`foreign` are legacy values an older bridge still sends;
- * agentStore maps them onto the canonical six on arrival (`normalizeAgentStatus`). */
-export type AgentStatus = CanonicalAgentStatus | "running" | "exited" | "foreign";
+export type AgentStatus = "stopped" | "idle" | "working" | "blocked" | "done" | "error";
 
 /** What a `working` agent is doing: the PreToolUse tool, its short argument, and when the turn began. */
 export interface AgentActivity {

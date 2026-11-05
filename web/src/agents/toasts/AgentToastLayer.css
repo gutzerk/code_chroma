@@ -64,28 +64,6 @@
   margin-top: 4px;
 }
 
-.agent-toast-primary,
-.agent-toast-secondary {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: var(--radius-7);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.agent-toast-primary {
-  border: 0;
-  background: var(--st-blocked);
-  color: var(--st-blocked-ink);
-  font-weight: 600;
-}
-
-.agent-toast-secondary {
-  border: 1px solid var(--st-button-border);
-  background: transparent;
-  color: var(--text-soft);
-}
-
 .agent-toast-close {
   border: 0;
   background: transparent;

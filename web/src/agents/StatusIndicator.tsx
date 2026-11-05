@@ -1,4 +1,4 @@
-import type { CanonicalAgentStatus } from "../state/types";
+import type { AgentStatus } from "../state/types";
 import type { AttentionStatus } from "./statusRollup";
 
 /** Chip wording per attention status: "2 waiting", "1 done", "1 failed". */
@@ -15,7 +15,7 @@ export function StatusIndicator({
   label,
   testId,
 }: {
-  status: CanonicalAgentStatus;
+  status: AgentStatus;
   size?: "dot" | "icon";
   /** Set to expose the indicator as an image; omitted, it is decorative. */
   label?: string;

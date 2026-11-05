@@ -74,7 +74,7 @@ function record(overrides: Partial<AgentRecord> = {}): AgentRecord {
     pr_url: null,
     pid: 4242,
     window: { x: 100, y: 120, width: 720, height: 480, minimized: true, z: 1 },
-    status: "running",
+    status: "idle",
     exit_code: null,
     worktree_lost: false,
     ...overrides,

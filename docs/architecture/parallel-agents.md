@@ -110,22 +110,25 @@ Roll-up priority is blocked > error > done > working > idle; stopped never count
 
 | Piece | File | Role |
 |---|---|---|
-| Types | `state/types.ts` | `CanonicalAgentStatus`; `AgentStatusFields` (`status_since`, `activity`, `pending_permission`, `error`) on `AgentRecord` and the `agent-status` event |
-| Store | `agentStore.ts` | Maps legacy `running`/`foreign` to `idle` and `exited` to `error` (non-zero exit) or `stopped`; `applyStatus` keeps the event's extra fields |
-| Roll-up | `statusRollup.ts` | `effectiveStatus` (an open ask_user question makes a live agent `blocked`), `rollup` -> `{top, count}`, `count` = blocked + error + done |
+| Types | `state/types.ts` | `AgentStatus` (the six); `AgentStatusFields` (`status_since`, `activity`, `pending_permission`, `error`) on `AgentRecord` and the `agent-status` event |
+| Store | `agentStore.ts` | The one status guard (`normalizeAgentStatus`, on `setList`/`upsert`/`applyStatus`): an older bridge's `exited` becomes `error` (non-zero exit) or `stopped`, any other unknown value `idle`; `applyStatus` keeps the event's extra fields |
+| Roll-up | `statusRollup.ts` | `effectiveStatus` (an open ask_user question makes a live agent `blocked`), `rollup` -> `{top, count, counts}`, `count` = blocked + error + done, `counts` per status (the panel's header chips) |
+| Question counts | `canvas/doc/question/useOpenAgentQuestions.ts` | `openQuestionCounts` cached per `elements` object (WeakMap); `useOpenQuestionCount(id)` re-renders only when that agent's number changes |
 | Shapes | `StatusIndicator.tsx`, `AgentLed.tsx` | `dot` 8px (tabs, strips), `icon` 16px (agent lists); pulse circle "?", square "!", check circle, spinner, ring; animations stop under `prefers-reduced-motion` |
 | Worktree tabs | `WorktreeStrip.tsx`, `agentAttention.tabRollups` | Dot + badge per tab from its agents (`workspace`/`shares_workspace_with`); the selected tab hides `done`; idle shows nothing |
-| Rows | `activity/AgentStatusLine.tsx` | `working`: "Edit · src/x.ts" + live m:ss turn timer; `blocked`: "Asking permission: Bash(...)" + Allow (`POST /agents/{id}/permission`); `error`: message + Dismiss (`POST /agents/{id}/dismiss-error`) |
-| Toasts | `toasts/` | blocked until answered, error until closed, done 6 s; one per agent, dropped when the agent leaves that status |
-| OS + sound | `agentNotifications.ts`, `notificationSound.ts` | OS notification for blocked and error, for done only when the page is in the background; sound only for blocked |
-| Sync | `agentStatusSync.ts` | Marks the viewed `done` agent seen (`POST /agents/{id}/seen`), reconciles toasts, sends the desktop `agent-summary` (150 ms debounce), runs shell commands |
+| Rows | `activity/AgentStatusLine.tsx` | `working`: "Edit · src/x.ts" + live m:ss turn timer; `blocked`: "Asking permission: Bash(...)" + Allow (`POST /agents/{id}/permission`); `error`: message + Dismiss (`POST /agents/{id}/dismiss-error`); every timer shares one 1 s clock that runs only while a timer is shown |
+| Toasts | `toasts/` | blocked until answered, error until closed, done `DONE_AUTO_CLOSE_MS` (6 s); one per agent, dropped when the agent leaves that status; buttons share the rows' `.agent-status-action` class (`--toast` modifier) |
+| OS + sound | `agentNotifications.ts`, `notificationSound.ts` | OS notification for blocked and error, for done only when the page is in the background; sound only for blocked; `attentionTitle`/`attentionBody`/`BLOCKED_TEXT` are the one wording source for toasts, notifications and rows |
+| Sync | `agentStatusSync.ts` | Marks the viewed `done` agent seen (`POST /agents/{id}/seen`), reconciles toasts, sends the desktop `agent-summary` (150 ms debounce, skipped when identical to the last one sent), runs shell commands; store emits that change none of its inputs are ignored |
 
 - "Looking at an agent" (`agentAttention.isLookingAtAgent`): it is the agent the panel shows on the
   active worktree tab, the panel is not collapsed, and the page has focus. No toast or OS notification
   fires for that agent, and a `done` there is marked seen at once.
 - Desktop shell: the page calls `window.codechromaDesktop.reportAgents(summary)` with every agent's
-  effective status and registers `onAgentCommand` for `select-agent` (switch tab, select, mark seen)
-  and `permission`. Both are optional, so the browser build works without the shell.
+  effective status (no `top`/`count`: the shell rolls the list up itself) and registers
+  `onAgentCommand` for `select-agent` (switch tab, select, mark seen) and `permission`; the shell
+  script parses the JSON, so listeners get an object. Both are optional, so the browser build works
+  without the shell.
 - ⌘⇧J / Ctrl+Shift+J opens the next blocked agent, oldest `status_since` first. ⚠ The page handles it
   only in a plain browser; inside the shell its own script owns the key across all projects.
 

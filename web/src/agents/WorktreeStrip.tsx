@@ -6,14 +6,14 @@ import { tabRollups } from "./agentAttention";
 import type { AgentClient } from "./agentClient";
 import { useAgentClient } from "./AgentClientContext";
 import { useActiveWorkspace, useAgents } from "./agentStore";
-import { STATUS_LABELS, type RollupTop, type StatusRollup } from "./statusRollup";
+import { rollup, STATUS_LABELS, type RollupTop, type StatusRollup } from "./statusRollup";
 import { StatusBadge, StatusIndicator } from "./StatusIndicator";
 import { CloseWorktreeDialog } from "./CloseWorktreeDialog";
 import { getRememberedCloseChoice, type CloseChoice } from "./closeChoice";
 import { closeWorktree, createWorktree, refreshWorktrees, renameWorktree, selectWorktree } from "./worktreeActions";
 import { useActiveWorktreeId, useWorktreeCreating, useWorktrees, useWorktreeWarning } from "./worktreeStore";
 
-const QUIET: StatusRollup = { top: null, count: 0 };
+const QUIET: StatusRollup = rollup([]);
 
 /** The tab's title suffix naming its roll-up, since the dot and badge are decorative. */
 function tabStatusTitle(top: RollupTop, count: number): string {

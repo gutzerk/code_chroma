@@ -15,7 +15,7 @@ import { AgentList, AgentSwitcherRow } from "./activity/AgentSwitcherRow";
 import { selectAgent } from "./agentFocus";
 import { useAgentClient } from "./AgentClientContext";
 import { panelAgents } from "./agentAttention";
-import { effectiveStatus, isAttentionStatus, type AttentionStatus } from "./statusRollup";
+import { effectiveStatus, rollup, type AttentionStatus } from "./statusRollup";
 import { StatusChip } from "./StatusIndicator";
 import { PromptOutline } from "./prompts/PromptOutline";
 import { promptNavStore } from "./prompts/promptNavStore";
@@ -46,14 +46,10 @@ export function ActivityPanel({
   const agents = useMemo(() => panelAgents(allAgents, worktreeTab), [allAgents, worktreeTab]);
   const agentClient = useAgentClient();
   const questionCounts = useOpenQuestionCounts();
-  const attention = useMemo(() => {
-    const counts: Record<AttentionStatus, number> = { blocked: 0, error: 0, done: 0 };
-    for (const agent of agents) {
-      const status = effectiveStatus(agent, questionCounts.get(agent.id) ?? 0);
-      if (isAttentionStatus(status)) counts[status] += 1;
-    }
-    return counts;
-  }, [agents, questionCounts]);
+  const attention = useMemo(
+    () => rollup(agents.map((agent) => effectiveStatus(agent, questionCounts.get(agent.id) ?? 0))).counts,
+    [agents, questionCounts],
+  );
   const { agentsMode, leftOpen, selectedAgentId } = useLayoutState();
   const [tab, setTab] = useState<ActivityTab>("agents");
   const runs = useRuns();

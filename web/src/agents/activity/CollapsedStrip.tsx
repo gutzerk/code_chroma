@@ -4,7 +4,7 @@ import { layoutStore } from "../../canvas/layout/layoutStore";
 import type { Run } from "../../workflows/types";
 import { agentStore } from "../agentStore";
 import { AgentLed } from "../AgentLed";
-import { agentStatusLabel } from "../statusRollup";
+import { STATUS_LABELS } from "../statusRollup";
 import { agentInitials } from "./initials";
 import { AgentsIcon, PlusIcon, WorkflowsIcon } from "./icons";
 
@@ -83,7 +83,7 @@ export function CollapsedStrip({
       {agents.map((agent) => (
         <StripButton
           key={agent.id}
-          label={`Open ${agent.title} (${agentStatusLabel(agent.status)})`}
+          label={`Open ${agent.title} (${STATUS_LABELS[agent.status]})`}
           onClick={() => {
             agentStore.clearDiagramsReady(agent.id);
             layoutStore.selectAgent(agent.id);

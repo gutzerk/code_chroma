@@ -8,7 +8,7 @@ public class AgentRollupTests
     private static AgentEntry Agent(string id, string status, string? worktree = null) =>
         new(id, id, status, worktree, worktree, null, null, DateTimeOffset.Parse("2026-11-05T10:00:00Z"));
 
-    private static AgentSummary Summary(params AgentEntry[] agents) => new(null, 0, agents);
+    private static AgentSummary Summary(params AgentEntry[] agents) => new(agents);
 
     [Theory]
     [InlineData(new[] { "idle", "working", "done", "error", "blocked" }, "blocked")]
@@ -21,6 +21,19 @@ public class AgentRollupTests
         var agents = statuses.Select((s, i) => Agent($"a{i}", s));
 
         Assert.Equal(top, AgentRollup.Top(agents));
+    }
+
+    [Theory]
+    [InlineData("blocked", 0)]
+    [InlineData("error", 1)]
+    [InlineData("done", 2)]
+    [InlineData("working", 3)]
+    [InlineData("idle", 4)]
+    [InlineData("stopped", -1)]
+    [InlineData("running", -1)]
+    public void The_rank_orders_by_urgency_and_hides_stopped_or_unknown(string status, int rank)
+    {
+        Assert.Equal(rank, AgentRollup.Rank(status));
     }
 
     [Theory]
@@ -97,7 +110,7 @@ public class AgentBoardTests
     private static AgentEntry Blocked(string id, int sinceMinutes) =>
         new(id, id, "blocked", null, null, null, null, DateTimeOffset.Parse("2026-11-05T10:00:00Z").AddMinutes(sinceMinutes));
 
-    private static AgentSummary Summary(params AgentEntry[] agents) => new("blocked", agents.Length, agents);
+    private static AgentSummary Summary(params AgentEntry[] agents) => new(agents);
 
     [Fact]
     public void Reporting_the_same_summary_twice_is_not_a_change()
@@ -107,8 +120,33 @@ public class AgentBoardTests
 
         var changed = board.Report("t1", Summary(Blocked("a1", 0)));
 
-        Assert.False(changed);
+        Assert.Equal(AgentChange.None, changed);
     }
+
+    [Fact]
+    public void A_new_blocked_agent_changes_the_tabs()
+    {
+        var board = new AgentBoard();
+        board.Report("t1", Summary(Blocked("a1", 0)));
+
+        var changed = board.Report("t1", Summary(Blocked("a1", 0), Blocked("a2", 1)));
+
+        Assert.Equal(AgentChange.Tabs, changed);
+    }
+
+    [Fact]
+    public void A_new_tool_call_is_an_activity_only_change()
+    {
+        var board = new AgentBoard();
+        board.Report("t1", Summary(Working("a1", "Read")));
+
+        var changed = board.Report("t1", Summary(Working("a1", "Edit")));
+
+        Assert.Equal(AgentChange.Activity, changed);
+    }
+
+    private static AgentEntry Working(string id, string tool) =>
+        new(id, id, "working", null, null, new AgentActivity(tool, "src/a.ts", null), null, null);
 
     [Fact]
     public void Blocked_agents_are_ordered_oldest_first_and_a_satellite_repeat_is_counted_once()
@@ -159,7 +197,7 @@ public class AgentBoardTests
 public class AgentControllerTests
 {
     private static AgentSummary BlockedSummary(string id) =>
-        new("blocked", 1, [new AgentEntry(id, id, "blocked", null, null, null, new AgentPermission("p_1", "Bash", "Bash(ls)", null), DateTimeOffset.Parse("2026-11-05T10:00:00Z"))]);
+        new([new AgentEntry(id, id, "blocked", null, null, null, new AgentPermission("p_1", "Bash", "Bash(ls)", null), DateTimeOffset.Parse("2026-11-05T10:00:00Z"))]);
 
     [Fact]
     public void A_reported_summary_reaches_the_tab_snapshot_and_the_waiting_total()
@@ -185,6 +223,23 @@ public class AgentControllerTests
 
         Assert.Equal(before, h.Ui.Snapshots.Count);
     }
+
+    [Fact]
+    public void An_activity_only_change_refreshes_the_popover_without_redrawing_the_tabs()
+    {
+        using var h = new ShellHarness();
+        var tab = h.Tabs.ActiveTab!;
+        h.Controller.ReportAgents(tab.Id, WorkingSummary("Read"));
+        var before = h.Ui.Snapshots.Count;
+
+        h.Controller.ReportAgents(tab.Id, WorkingSummary("Edit"));
+
+        Assert.Equal(before, h.Ui.Snapshots.Count);
+        Assert.Equal((tab.Id, WorkingSummary("Edit")), Assert.Single(h.Ui.AgentUpdates));
+    }
+
+    private static AgentSummary WorkingSummary(string tool) =>
+        new([new AgentEntry("a1", "a1", "working", null, null, new AgentActivity(tool, null, null), null, null)]);
 
     [Fact]
     public void Focusing_the_next_blocked_agent_switches_tab_and_selects_it_on_that_page()

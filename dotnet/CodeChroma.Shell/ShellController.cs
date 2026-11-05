@@ -41,7 +41,12 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
 
     public void ReportAgents(string tabId, AgentSummary summary)
     {
-        if (tabs.FindTab(tabId) is not null && agents.Report(tabId, summary)) Changed();
+        if (tabs.FindTab(tabId) is null) return;
+        switch (agents.Report(tabId, summary))
+        {
+            case AgentChange.Tabs: Changed(); break;
+            case AgentChange.Activity: ui.AgentsChanged(tabId, summary); break;
+        }
     }
 
     public BlockedAgent? FocusNextBlocked()

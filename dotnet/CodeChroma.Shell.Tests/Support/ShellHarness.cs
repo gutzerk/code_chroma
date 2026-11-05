@@ -10,10 +10,12 @@ internal sealed class FakeShellUi : IShellUi
     public List<object> ClosedViews { get; } = [];
     public List<(string Title, string Message)> Errors { get; } = [];
     public List<(Tab Tab, string Json)> AgentCommands { get; } = [];
+    public List<(string TabId, AgentSummary Summary)> AgentUpdates { get; } = [];
 
     public TabsSnapshot Last => Snapshots[^1];
 
     public void TabsChanged(TabsSnapshot snapshot) => Snapshots.Add(snapshot);
+    public void AgentsChanged(string tabId, AgentSummary summary) => AgentUpdates.Add((tabId, summary));
     public void Navigate(Tab tab, string url) => Navigations.Add((tab, url));
     public void ShowProgress(Tab tab, string line) => Progress.Add((tab, line));
     public void ShowTabError(Tab tab, string message) => TabErrors.Add((tab, message));

@@ -64,7 +64,7 @@ public class AgentSummaryMessageTests
         var message = DesktopMessage.Parse(Summary);
 
         var summary = Assert.IsType<AgentSummary>(message?.Agents);
-        Assert.Equal(("blocked", 1, 2), (summary.Top, summary.Count, summary.Agents.Count));
+        Assert.Equal(2, summary.Agents.Count);
         Assert.Equal(new AgentEntry("a1", "agent1", "working", "br_wt-1", "wt-1",
             new AgentActivity("Edit", "src/guard/policy.ts", DateTimeOffset.Parse("2026-11-05T09:58:48Z")), null,
             DateTimeOffset.Parse("2026-11-05T09:58:48Z")), summary.Agents[0]);
@@ -72,11 +72,11 @@ public class AgentSummaryMessageTests
     }
 
     [Fact]
-    public void A_summary_with_an_unknown_top_and_no_agents_parses_to_an_empty_summary()
+    public void Legacy_top_and_count_fields_are_ignored_and_no_agents_parses_to_an_empty_summary()
     {
-        var message = DesktopMessage.Parse("""{"type":"agent-summary","top":"running"}""");
+        var message = DesktopMessage.Parse("""{"type":"agent-summary","top":"blocked","count":3}""");
 
-        Assert.Equal(new AgentSummary(null, 0, []), message?.Agents);
+        Assert.Equal(new AgentSummary([]), message?.Agents);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using static CodeChroma.Shell.JsonFields;
 
 namespace CodeChroma.Shell;
 
@@ -23,7 +24,4 @@ public sealed record DesktopMessage(string Type, string? Id, string? CallId = nu
             return null;
         }
     }
-
-    private static string? Text(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 }

@@ -50,6 +50,12 @@ public sealed class TabChip : Border
         Show(AgentRollup.Badge(info.Agents, active));
     }
 
+    /// <summary>Swaps in a new agent summary whose badge is unchanged (activity-only report).</summary>
+    public void SetAgents(AgentSummary summary)
+    {
+        if (Info is { } info) Info = info with { Agents = summary };
+    }
+
     private void Show(TabBadge badge)
     {
         if (badge.Dot != shown.Dot)

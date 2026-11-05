@@ -8,26 +8,31 @@ public sealed record TabBadge(string? Dot, int Count)
     public static readonly TabBadge None = new(null, 0);
 }
 
+/// <summary>What a new report changed: nothing, only what the popover shows, or the tab strip (badges, waiting set).</summary>
+public enum AgentChange { None, Activity, Tabs }
+
 /// <summary>A blocked agent and the tab whose page reported it.</summary>
 public sealed record BlockedAgent(string TabId, AgentEntry Agent);
 
 /// <summary>Pure roll-up rules shared by the tab strip, the pill and the hover popover.</summary>
 public static class AgentRollup
 {
-    private static readonly string[] Priority = ["blocked", "error", "done", "working"];
+    private static readonly string[] Order = ["blocked", "error", "done", "working", "idle"];
+
+    /// <summary>Position in the urgency order; -1 for statuses that are never shown (stopped, unknown).</summary>
+    public static int Rank(string status) => Array.IndexOf(Order, status);
 
     public static string? Top(IEnumerable<AgentEntry> agents)
     {
         var statuses = agents.Select(a => a.Status).ToHashSet();
-        return Priority.FirstOrDefault(statuses.Contains);
+        return Order.Where(s => s != "idle").FirstOrDefault(statuses.Contains);
     }
 
     public static TabBadge Badge(AgentSummary? summary, bool active)
     {
         if (summary is null || Top(summary.Agents) is not { } top) return TabBadge.None;
         var counted = active ? new[] { "blocked", "error" } : ["blocked", "error", "done"];
-        var count = top == "working" ? 0 : summary.Agents.Count(a => counted.Contains(a.Status));
-        return new TabBadge(top, count);
+        return new TabBadge(top, summary.Agents.Count(a => counted.Contains(a.Status)));
     }
 
     public static string Counts(AgentSummary summary)
@@ -67,12 +72,21 @@ public sealed class AgentBoard
 
     public AgentSummary? For(string tabId) => byTab.GetValueOrDefault(tabId);
 
-    public bool Report(string tabId, AgentSummary summary)
+    public AgentChange Report(string tabId, AgentSummary summary)
     {
-        if (byTab.TryGetValue(tabId, out var current) && current.Equals(summary)) return false;
+        var current = byTab.GetValueOrDefault(tabId);
+        if (summary.Equals(current)) return AgentChange.None;
         byTab[tabId] = summary;
-        return true;
+        return SameTabs(current, summary) ? AgentChange.Activity : AgentChange.Tabs;
     }
+
+    private static bool SameTabs(AgentSummary? before, AgentSummary after) =>
+        AgentRollup.Badge(before, active: true) == AgentRollup.Badge(after, active: true)
+        && AgentRollup.Badge(before, active: false) == AgentRollup.Badge(after, active: false)
+        && BlockedIds(before).SetEquals(BlockedIds(after));
+
+    private static HashSet<string> BlockedIds(AgentSummary? summary) =>
+        [.. summary?.Agents.Where(a => a.Status == "blocked").Select(a => a.Id) ?? []];
 
     public bool Forget(string tabId) => byTab.Remove(tabId);
 

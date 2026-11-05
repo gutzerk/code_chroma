@@ -12,6 +12,9 @@ public static class AgentChrome
     public static IBrush Brush(string key) =>
         Application.Current?.FindResource(key) as IBrush ?? Brushes.Transparent;
 
+    public static FontFamily Font(string key) =>
+        Application.Current?.FindResource(key) as FontFamily ?? FontFamily.Default;
+
     public static Control? Dot(string? status, double size = 8) => status switch
     {
         "blocked" => Pulse(size),

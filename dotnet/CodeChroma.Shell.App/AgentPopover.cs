@@ -11,15 +11,36 @@ namespace CodeChroma.Shell.App;
 /// <summary>The hover popover over a project tab: its agents, "Allow" for a pending permission, "Open agent", ticking turn timers.</summary>
 public sealed class AgentPopover
 {
-    private static readonly string[] Order = ["blocked", "error", "done", "working", "idle"];
     private readonly Popup popup;
     private readonly ShellController controller;
     private readonly DispatcherTimer openTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
     private readonly DispatcherTimer closeTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly DispatcherTimer tick = new() { Interval = TimeSpan.FromSeconds(1) };
-    private readonly List<(TextBlock Text, DateTimeOffset Start, bool Coarse)> clocks = [];
+    private readonly List<RowView> rows = [];
+    private TextBlock title = new();
+    private TextBlock counts = new();
+    private List<(string Id, bool Blocked, AgentPermission? Permission)> layout = [];
     private TabChip? pending;
     private TabInfo? shown;
+
+    /// <summary>A ticking label: an m:ss turn timer, or "worktree · N min" for a blocked agent.</summary>
+    private sealed class Clock(TextBlock text, bool coarse)
+    {
+        public TextBlock Text { get; } = text;
+        public bool Coarse { get; } = coarse;
+        public DateTimeOffset? Start { get; set; }
+        public string? Prefix { get; set; }
+    }
+
+    /// <summary>The live parts of one rendered agent row, updated in place on activity-only reports.</summary>
+    private sealed class RowView(TextBlock name, Clock clock, Decorator? icon = null, TextBlock? detail = null)
+    {
+        public TextBlock Name { get; } = name;
+        public Clock Clock { get; } = clock;
+        public Decorator? Icon { get; } = icon;
+        public TextBlock? Detail { get; } = detail;
+        public string? Status { get; set; }
+    }
 
     public AgentPopover(Popup popup, ShellController controller)
     {
@@ -61,7 +82,8 @@ public sealed class AgentPopover
         tick.Stop();
         popup.IsOpen = false;
         shown = null;
-        clocks.Clear();
+        rows.Clear();
+        layout = [];
     }
 
     private static bool HasAgents(TabInfo info) => info.Agents?.Agents.Any(a => a.Status != "stopped") == true;
@@ -77,20 +99,37 @@ public sealed class AgentPopover
 
     private void Render(TabInfo info)
     {
-        shown = info;
-        clocks.Clear();
         var summary = info.Agents!;
-        var rows = new StackPanel();
+        var agents = summary.Agents.Where(a => AgentRollup.Rank(a.Status) >= 0).OrderBy(a => AgentRollup.Rank(a.Status)).ToList();
+        var next = agents.Select(a => (a.Id, a.Status == "blocked", a.PendingPermission)).ToList();
+        if (shown?.Id != info.Id || !next.SequenceEqual(layout)) Build(info.Id, agents);
+        shown = info;
+        layout = next;
+        title.Text = info.Title;
+        counts.Text = AgentRollup.Counts(summary);
+        for (var i = 0; i < agents.Count; i++) Update(rows[i], agents[i]);
+        Tick();
+    }
+
+    private void Build(string tabId, IReadOnlyList<AgentEntry> agents)
+    {
+        rows.Clear();
+        var list = new StackPanel();
+        foreach (var agent in agents)
+        {
+            var (control, view) = agent.Status == "blocked" ? Blocked(tabId, agent) : Row();
+            list.Children.Add(control);
+            rows.Add(view);
+        }
         var header = new DockPanel { Margin = new Thickness(14, 12) };
-        var counts = Text(AgentRollup.Counts(summary), 12, "PopoverMutedBrush");
+        counts = Text("", 12, "PopoverMutedBrush");
         DockPanel.SetDock(counts, Dock.Right);
         header.Children.Add(counts);
-        header.Children.Add(new TextBlock { Text = info.Title, FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = AgentChrome.Brush("PopoverTextBrush"), TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 12, 0) });
-        var agents = summary.Agents.Where(a => Array.IndexOf(Order, a.Status) >= 0).OrderBy(a => Array.IndexOf(Order, a.Status)).ToList();
-        foreach (var agent in agents) rows.Children.Add(agent.Status == "blocked" ? Blocked(info.Id, agent) : Row(agent));
-        var list = new StackPanel();
-        list.Children.Add(Lined(header));
-        list.Children.Add(new ScrollViewer { Content = rows, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        title = new TextBlock { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = AgentChrome.Brush("PopoverTextBrush"), TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 12, 0) };
+        header.Children.Add(title);
+        var body = new StackPanel();
+        body.Children.Add(Lined(header));
+        body.Children.Add(new ScrollViewer { Content = list, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         var card = new Border
         {
             Width = 420,
@@ -99,24 +138,49 @@ public sealed class AgentPopover
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             ClipToBounds = true,
-            Child = list,
+            Child = body,
         };
         card.PointerEntered += (_, _) => closeTimer.Stop();
         card.PointerExited += (_, _) => Leave();
         popup.Child = card;
-        Tick();
     }
 
-    private Control Blocked(string tabId, AgentEntry agent)
+    private static void Update(RowView view, AgentEntry agent)
+    {
+        view.Name.Text = agent.Title;
+        if (view.Detail is not { } detail || view.Icon is not { } icon)
+        {
+            view.Clock.Prefix = agent.WorktreeTitle ?? agent.Worktree;
+            view.Clock.Start = agent.StatusSince;
+            return;
+        }
+        view.Name.Foreground = AgentChrome.Brush(agent.Status == "idle" ? "PopoverIdleTextBrush" : "PopoverTextBrush");
+        if (view.Status != agent.Status)
+        {
+            icon.Child = Icon(agent.Status);
+            view.Status = agent.Status;
+        }
+        detail.Text = agent.Status switch
+        {
+            "working" => Activity(agent.Activity),
+            "error" => "Failed",
+            "done" => "Done",
+            _ => "Idle",
+        };
+        detail.Foreground = AgentChrome.Brush(agent.Status == "error" ? "StatusErrorBrush" : "PopoverMutedBrush");
+        view.Clock.Start = agent.Status == "working" ? agent.Activity?.TurnStartedAt : null;
+        view.Clock.Text.IsVisible = view.Clock.Start is not null;
+    }
+
+    private (Control, RowView) Blocked(string tabId, AgentEntry agent)
     {
         var block = new StackPanel { Spacing = 10 };
         var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         head.Children.Add(Glyph("?", "StatusBlockedBrush", "StatusBlockedInkBrush", circle: true));
-        head.Children.Add(new TextBlock { Text = agent.Title, FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = AgentChrome.Brush("PopoverTextBrush"), VerticalAlignment = VerticalAlignment.Center });
+        var name = new TextBlock { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = AgentChrome.Brush("PopoverTextBrush"), VerticalAlignment = VerticalAlignment.Center };
+        head.Children.Add(name);
         var meta = Text("", 12, "PopoverMutedBrush");
         head.Children.Add(meta);
-        if (agent.StatusSince is { } since) clocks.Add((meta, since, true));
-        meta.Tag = agent.WorktreeTitle ?? agent.Worktree;
         block.Children.Add(head);
 
         var permission = agent.PendingPermission;
@@ -124,7 +188,7 @@ public sealed class AgentPopover
         if (permission is not null)
         {
             ask.Inlines!.Add(new Run("Asking permission: "));
-            ask.Inlines.Add(new Run(permission.Summary ?? permission.Tool ?? "a tool") { FontFamily = (FontFamily)Application.Current!.FindResource("MonoFont")!, FontSize = 12, Foreground = AgentChrome.Brush("PermissionCodeBrush") });
+            ask.Inlines.Add(new Run(permission.Summary ?? permission.Tool ?? "a tool") { FontFamily = AgentChrome.Font("MonoFont"), FontSize = 12, Foreground = AgentChrome.Brush("PermissionCodeBrush") });
         }
         else ask.Text = "Waiting for your answer";
         block.Children.Add(ask);
@@ -148,44 +212,34 @@ public sealed class AgentPopover
         };
         buttons.Children.Add(open);
         block.Children.Add(buttons);
-        return Lined(new Border { Background = AgentChrome.Brush("PopoverBlockedBrush"), Padding = new Thickness(14, 12), Child = block });
+        return (Lined(new Border { Background = AgentChrome.Brush("PopoverBlockedBrush"), Padding = new Thickness(14, 12), Child = block }), new RowView(name, new Clock(meta, coarse: true)));
     }
 
-    private Control Row(AgentEntry agent)
+    private static (Control, RowView) Row()
     {
         var row = new DockPanel { Margin = new Thickness(14, 11) };
-        var icon = agent.Status switch
-        {
-            "working" => AgentChrome.Spinner(14),
-            "error" => Glyph("!", "StatusErrorBrush", "StatusBlockedInkBrush", circle: false),
-            "done" => Glyph("✓", "StatusDoneBrush", "StatusBlockedInkBrush", circle: true),
-            _ => AgentChrome.IdleRing(14),
-        };
-        icon.Margin = new Thickness(0, 0, 10, 0);
+        var icon = new Decorator { Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
         DockPanel.SetDock(icon, Dock.Left);
         row.Children.Add(icon);
-        var name = new TextBlock { Text = agent.Title, FontSize = 13, Foreground = AgentChrome.Brush(agent.Status == "idle" ? "PopoverIdleTextBrush" : "PopoverTextBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+        var name = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
         DockPanel.SetDock(name, Dock.Left);
         row.Children.Add(name);
-        if (agent.Status == "working" && agent.Activity?.TurnStartedAt is { } started)
-        {
-            var clock = new TextBlock { FontFamily = (FontFamily)Application.Current!.FindResource("MonoFont")!, FontSize = 11, Foreground = AgentChrome.Brush("PopoverMutedBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
-            DockPanel.SetDock(clock, Dock.Right);
-            row.Children.Add(clock);
-            clocks.Add((clock, started, false));
-        }
-        var detail = agent.Status switch
-        {
-            "working" => Activity(agent.Activity),
-            "error" => "Failed",
-            "done" => "Done",
-            _ => "Idle",
-        };
-        var line = Text(detail, 12, agent.Status == "error" ? "StatusErrorBrush" : "PopoverMutedBrush");
-        line.TextTrimming = TextTrimming.CharacterEllipsis;
-        row.Children.Add(line);
-        return Lined(row);
+        var clock = new TextBlock { FontFamily = AgentChrome.Font("MonoFont"), FontSize = 11, Foreground = AgentChrome.Brush("PopoverMutedBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+        DockPanel.SetDock(clock, Dock.Right);
+        row.Children.Add(clock);
+        var detail = Text("", 12, "PopoverMutedBrush");
+        detail.TextTrimming = TextTrimming.CharacterEllipsis;
+        row.Children.Add(detail);
+        return (Lined(row), new RowView(name, new Clock(clock, coarse: false), icon, detail));
     }
+
+    private static Control Icon(string status) => status switch
+    {
+        "working" => AgentChrome.Spinner(14),
+        "error" => Glyph("!", "StatusErrorBrush", "StatusBlockedInkBrush", circle: false),
+        "done" => Glyph("✓", "StatusDoneBrush", "StatusBlockedInkBrush", circle: true),
+        _ => AgentChrome.IdleRing(14),
+    };
 
     private static string Activity(AgentActivity? activity) => activity switch
     {
@@ -197,9 +251,9 @@ public sealed class AgentPopover
     private void Tick()
     {
         var now = DateTimeOffset.UtcNow;
-        foreach (var (text, start, coarse) in clocks)
-            text.Text = coarse
-                ? string.Join(" · ", new[] { text.Tag as string, AgentRollup.Waiting(now - start) }.Where(s => !string.IsNullOrEmpty(s)))
+        foreach (var clock in rows.Select(r => r.Clock))
+            clock.Text.Text = clock.Start is not { } start ? ""
+                : clock.Coarse ? string.Join(" · ", new[] { clock.Prefix, AgentRollup.Waiting(now - start) }.Where(s => !string.IsNullOrEmpty(s)))
                 : AgentRollup.Clock(now - start);
     }
 

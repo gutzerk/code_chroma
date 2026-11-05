@@ -1,5 +1,5 @@
-using System.Globalization;
 using System.Text.Json;
+using static CodeChroma.Shell.JsonFields;
 
 namespace CodeChroma.Shell;
 
@@ -20,15 +20,12 @@ public sealed record AgentEntry(
     AgentPermission? PendingPermission,
     DateTimeOffset? StatusSince);
 
-/// <summary>The agent-summary a canvas page reports for its project (see the desktop channel contract).</summary>
-public sealed record AgentSummary(string? Top, int Count, IReadOnlyList<AgentEntry> Agents)
+/// <summary>The agent list a canvas page reports for its project (see the desktop channel contract); legacy top/count fields are ignored.</summary>
+public sealed record AgentSummary(IReadOnlyList<AgentEntry> Agents)
 {
-    public static readonly string[] Statuses = ["blocked", "error", "done", "working", "idle", "stopped"];
+    public bool Equals(AgentSummary? other) => other is not null && Agents.SequenceEqual(other.Agents);
 
-    public bool Equals(AgentSummary? other) =>
-        other is not null && Top == other.Top && Count == other.Count && Agents.SequenceEqual(other.Agents);
-
-    public override int GetHashCode() => HashCode.Combine(Top, Count, Agents.Count);
+    public override int GetHashCode() => Agents.Count;
 
     public static AgentSummary Parse(JsonElement root)
     {
@@ -36,9 +33,7 @@ public sealed record AgentSummary(string? Top, int Count, IReadOnlyList<AgentEnt
         if (root.TryGetProperty("agents", out var list) && list.ValueKind == JsonValueKind.Array)
             foreach (var item in list.EnumerateArray())
                 if (Entry(item) is { } entry) agents.Add(entry);
-        var top = Text(root, "top") is { } t && Statuses.Contains(t) ? t : null;
-        var count = root.TryGetProperty("count", out var c) && c.ValueKind == JsonValueKind.Number && c.TryGetInt32(out var n) ? n : 0;
-        return new AgentSummary(top, count, agents);
+        return new AgentSummary(agents);
     }
 
     private static AgentEntry? Entry(JsonElement item)
@@ -52,10 +47,4 @@ public sealed record AgentSummary(string? Top, int Count, IReadOnlyList<AgentEnt
             : null;
         return new AgentEntry(id, Text(item, "title") ?? id, status, Text(item, "worktree"), Text(item, "worktree_title"), activity, permission, Time(item, "status_since"));
     }
-
-    private static string? Text(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-
-    private static DateTimeOffset? Time(JsonElement root, string name) =>
-        Text(root, name) is { } text && DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) ? at : null;
 }

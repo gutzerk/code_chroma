@@ -102,17 +102,19 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
 
 Each canvas page reports its agents to the shell; the tab strip shows the most urgent status per project.
 
-- Page -> shell: `window.codechromaDesktop.reportAgents(summary)` posts `{"type":"agent-summary", top, count, agents:[{id,
-  title, status, worktree, worktree_title, activity, pending_permission, status_since}]}` (debounced on the page).
-  `DesktopMessage.Parse` turns it into `Agents/AgentSummary`; `MainWindow.OnCanvasMessage` hands it to
-  `ShellController.ReportAgents(tabId, ...)`, which stores it per tab in `Agents/AgentBoard` (keyed by the tab whose
-  WebView sent it; dropped on close) and redraws only when the summary changed. `TabInfo.Agents` and
-  `TabsSnapshot.Waiting` carry it to `TabsChanged`.
+- Page -> shell: `window.codechromaDesktop.reportAgents(summary)` posts `{"type":"agent-summary", agents:[{id, title,
+  status, worktree, worktree_title, activity, pending_permission, status_since}]}` (debounced on the page; the shell
+  derives every roll-up itself and ignores legacy `top`/`count` fields). `DesktopMessage.Parse` turns it into
+  `Agents/AgentSummary` (the agent list); `MainWindow.OnCanvasMessage` hands it to `ShellController.ReportAgents(tabId,
+  ...)`, which stores it per tab in `Agents/AgentBoard` (keyed by the tab whose WebView sent it; dropped on close).
+  `AgentBoard.Report` returns an `AgentChange`: `None` (same summary) does nothing, `Tabs` (a badge or the blocked set
+  changed) redraws the strip via `TabsChanged` (`TabInfo.Agents`, `TabsSnapshot.Waiting`), and `Activity` (tool, target,
+  turn start) only calls `IShellUi.AgentsChanged`, which swaps the chip's summary and refreshes the open popover.
 - Shell -> page: `IShellUi.SendAgentCommand` runs `window.__ccAgentCommand(<json>)` (bridge-origin tabs only), which calls
   the listeners registered with `codechromaDesktop.onAgentCommand(fn)`. Commands (`AgentCommand`): `select-agent {id}` and
   `permission {id, request_id, decision:"allow"}`.
-- Tab chip (`TabChip`, kept across redraws so animations don't restart): `AgentRollup.Badge` picks the dot by priority
-  blocked > error > done > working (blocked: pulsing `#f2b33d` circle; error: `#ff7a7a` square r=2; done: `#4cc38a` circle;
+- Tab chip (`TabChip`, kept across redraws so animations don't restart): `AgentRollup.Badge` picks the dot by the one
+  status order `AgentRollup.Rank` (blocked > error > done > working > idle; the dot skips idle) (blocked: pulsing `#f2b33d` circle; error: `#ff7a7a` square r=2; done: `#4cc38a` circle;
   working: `#7ea3ff` spinner on `#26365a`; idle: nothing) and a badge counting blocked + error + done (solid yellow for
   blocked, tinted for error/done). The active tab drops `done` from the count, so a done-only active tab shows the dot
   without a number. There is no Avalonia reduced-motion setting, so the spinner (0.9 s) and pulse (1.6 s) always run.
@@ -125,7 +127,9 @@ Each canvas page reports its agents to the shell; the tab strip shows the most u
   "<project> · N agents · M worktrees", blocked agents first with "Asking permission: <summary>", "Allow" (only when
   `pending_permission` is set; sends `permission` to that tab's page without switching) and "Open agent" (focus tab +
   `select-agent`), then error/done rows, working rows "Tool · target" with an m:ss timer from `activity.turn_started_at`
-  (ticks every second while open), idle rows.
+  (ticks every second while open), idle rows, sorted by `AgentRollup.Rank`. Rows are rebuilt only when the agent
+  set, order, blocked state or pending permission changes; otherwise text, icon and timers update in place so spinners
+  keep turning.
 - ⚠ Background tabs: hidden tab WebViews are only `IsVisible=false`, not suspended, so their pages keep running and keep
   reporting. The page sees `document.visibilityState === "hidden"`, so Chromium (WebView2) and WebKit throttle timers to
   about once a second; the debounced report may arrive up to ~1 s late, but WebSocket events still flow. Not verified on

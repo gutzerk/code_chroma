@@ -9,6 +9,9 @@ public interface IShellUi
 {
     void TabsChanged(TabsSnapshot snapshot);
 
+    /// <summary>A tab's agents changed without touching its badge or the waiting set: refresh only the open popover.</summary>
+    void AgentsChanged(string tabId, AgentSummary summary);
+
     void Navigate(Tab tab, string url);
 
     void ShowProgress(Tab tab, string line);

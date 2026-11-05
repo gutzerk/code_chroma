@@ -270,6 +270,13 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         popover.Refresh(chips);
     }
 
+    public void AgentsChanged(string tabId, AgentSummary summary)
+    {
+        if (!chips.TryGetValue(tabId, out var chip)) return;
+        chip.SetAgents(summary);
+        popover.Refresh(chips);
+    }
+
     public void SendAgentCommand(Tab tab, string json)
     {
         var view = (TabView)tab.View;

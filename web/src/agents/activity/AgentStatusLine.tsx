@@ -56,6 +56,7 @@ export function AgentStatusActions({ agent }: { agent: AgentRecord }) {
         data-status="blocked"
         data-testid={`agent-allow-${agent.id}`}
         title={`Allow ${permission.summary}`}
+        aria-label={`Allow ${agent.title}: ${permission.summary}`}
         onClick={() => void answerPermission(client, agent.id, permission.request_id, "allow")}
       >
         Allow

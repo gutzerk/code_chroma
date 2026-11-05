@@ -113,7 +113,7 @@ describe("ActivityPanel", () => {
     setup();
 
     fireEvent.click(screen.getByRole("button", { name: "Select agent" }));
-    fireEvent.click(screen.getByRole("option", { name: /Builder/ }));
+    fireEvent.click(within(screen.getByRole("list", { name: "Agents" })).getByRole("button", { name: /Builder/ }));
 
     expect(layoutStore.getState().selectedAgentId).toBe(agentStore.getAgents()[1].id);
   });
@@ -195,7 +195,7 @@ describe("ActivityPanel", () => {
     agentStore.upsert(plain);
     setup();
     fireEvent.click(screen.getByRole("button", { name: "Select agent" }));
-    const menu = screen.getByRole("listbox", { name: "Agents" });
+    const menu = screen.getByRole("list", { name: "Agents" });
     expect(menu.querySelectorAll("[data-diagram]")).toHaveLength(1);
     expect(menu.querySelectorAll(".activity-agent-badge")).toHaveLength(1);
   });

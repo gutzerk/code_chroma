@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { canvasDocStore } from "../canvas/doc/canvasDocStore";
 import { layoutStore } from "../canvas/layout/layoutStore";
-import type { AgentRecord } from "../state/types";
+import type { AgentRecord, CanvasElement } from "../state/types";
 import type { AgentClient } from "./agentClient";
 import { agentStore } from "./agentStore";
 import { announceStatus, buildAgentSummary, handleAgentCommand, startAgentStatusSync, SUMMARY_DEBOUNCE_MS } from "./agentStatusSync";
@@ -9,6 +10,7 @@ import { PR_CLIENT_STUB } from "./stubAgentClient";
 import { DONE_AUTO_CLOSE_MS } from "./agentNotifications";
 import { agentToastStore } from "./toasts/toastStore";
 import { worktreeStore } from "./worktreeStore";
+import { playStatusSound } from "./notificationSound";
 
 vi.mock("./notificationSound", () => ({ playStatusSound: vi.fn() }));
 
@@ -43,6 +45,22 @@ function client(overrides: Partial<AgentClient> = {}): AgentClient {
   } as unknown as AgentClient;
 }
 
+function question(id: string, agentId: string): CanvasElement {
+  return {
+    id,
+    render: "question",
+    layer: "questions",
+    label: "Which way?",
+    description: "",
+    node_id: null,
+    position: { x: 0, y: 0 },
+    size: { w: 200, h: 100 },
+    group_id: null,
+    meta: { state: "open", agent_id: agentId },
+    created_by: "ai",
+  };
+}
+
 function keyJ(): KeyboardEvent {
   return new KeyboardEvent("keydown", { key: "J", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true });
 }
@@ -52,6 +70,8 @@ beforeEach(() => {
   worktreeStore.reset();
   layoutStore.reset();
   agentToastStore.reset();
+  canvasDocStore.reset();
+  vi.mocked(playStatusSound).mockClear();
   worktreeStore.setList([{ id: "br_1", name: "wt-1", branch: "wt-1", worktree: "/w/wt-1" }], "br_1");
   vi.spyOn(document, "hasFocus").mockReturnValue(true);
 });
@@ -168,6 +188,68 @@ describe("startAgentStatusSync", () => {
       "idle",
       "blocked",
     ]);
+  });
+
+  it("announces an agent that asked a question and ended its turn as needing you, not finished", () => {
+    agentStore.upsert(agent("a1"));
+    agentStore.upsert(agent("a2", { status: "working" }));
+    layoutStore.selectAgent("a1");
+    const stop = startAgentStatusSync(client());
+
+    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: { q: question("q", "a2") } });
+    agentStore.setStatus("a2", "done");
+    stop();
+
+    expect(agentToastStore.getToasts().map((t) => [t.agentId, t.kind])).toEqual([["a2", "blocked"]]);
+    expect(playStatusSound).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays quiet when an answered question uncovers a turn that already ended", () => {
+    agentStore.upsert(agent("a1"));
+    agentStore.upsert(agent("a2", { status: "done" }));
+    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: { q: question("q", "a2") } });
+    layoutStore.selectAgent("a1");
+    const stop = startAgentStatusSync(client());
+
+    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: {} });
+    stop();
+
+    expect(agentToastStore.getToasts()).toEqual([]);
+  });
+
+  it("ignores a drag that moves elements without changing any open question", () => {
+    vi.useFakeTimers();
+    const reportAgents = vi.fn();
+    window.codechromaDesktop = { reportAgents } as unknown as DesktopWorkspaceApi;
+    agentStore.upsert(agent("a1"));
+    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: { q: question("q", "a1") } });
+    const stop = startAgentStatusSync(client());
+    const reconcile = vi.spyOn(agentToastStore, "reconcile");
+
+    canvasDocStore.moveElement("q", { x: 50, y: 50 });
+    vi.advanceTimersByTime(SUMMARY_DEBOUNCE_MS);
+    stop();
+
+    expect(reconcile).not.toHaveBeenCalled();
+    expect(reportAgents).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves Ctrl+Shift+J to a focused terminal", () => {
+    agentStore.upsert(agent("a1"));
+    agentStore.upsert(agent("old", { status: "blocked" }));
+    layoutStore.selectAgent("a1");
+    const terminal = document.createElement("div");
+    terminal.className = "xterm";
+    const input = document.createElement("textarea");
+    terminal.appendChild(input);
+    document.body.appendChild(terminal);
+    const stop = startAgentStatusSync(client());
+
+    input.dispatchEvent(keyJ());
+    stop();
+    terminal.remove();
+
+    expect(layoutStore.getState().selectedAgentId).toBe("a1");
   });
 
   it("skips a summary identical to the last one sent", () => {

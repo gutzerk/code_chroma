@@ -336,7 +336,7 @@
   align-items: center;
   gap: 4px;
 }
-.activity-switcher-menu button[role="option"] {
+.activity-switcher-option-button {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -351,8 +351,8 @@
   cursor: pointer;
   text-align: left;
 }
-.activity-switcher-menu button[role="option"]:hover,
-.activity-switcher-menu button[aria-selected="true"] {
+.activity-switcher-option-button:hover,
+.activity-switcher-option-button[aria-current="true"] {
   background: var(--bg-raised);
 }
 .activity-strip {

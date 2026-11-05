@@ -16,7 +16,7 @@ import type {
   WorktreeRecord,
 } from "../state/types";
 import { parsePrNumber } from "../pr/prUrl";
-import type { AgentClient, DiagramTaskHint } from "./agentClient";
+import type { AgentClient, DiagramTaskHint, PermissionDecision } from "./agentClient";
 
 const MAX_AGENTS = 5;
 
@@ -178,6 +178,23 @@ export class MockAgentClient implements AgentClient {
 
   async stop(id: string): Promise<AgentRecord> {
     return this.patch(id, { status: "stopped", pid: null });
+  }
+
+  async seen(id: string): Promise<AgentRecord> {
+    const agent = this.patch(id, {});
+    return agent.status === "done" ? this.patch(id, { status: "idle" }) : { ...agent };
+  }
+
+  async dismissError(id: string): Promise<AgentRecord> {
+    const agent = this.patch(id, {});
+    return agent.status === "error" ? this.patch(id, { status: "stopped", error: null }) : { ...agent };
+  }
+
+  /** Mirrors the bridge's 404 when `requestId` is not the pending request; a decision resumes the turn. */
+  async permission(id: string, requestId: string, _decision: PermissionDecision): Promise<AgentRecord> {
+    const agent = this.patch(id, {});
+    if (agent.pending_permission?.request_id !== requestId) throw new Error("no such pending permission request");
+    return this.patch(id, { status: "working", pending_permission: null });
   }
 
   async remove(

@@ -1,23 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { layoutStore } from "../../canvas/layout/layoutStore";
 import type { AgentRecord } from "../../state/types";
-import { agentStore } from "../agentStore";
 import { useAgentClient } from "../AgentClientContext";
-import type { AgentClient } from "../agentClient";
-import { AgentLed, agentStatusLabel } from "../AgentLed";
-import { restoreAgentWindow } from "../windowActions";
+import { AgentLed } from "../AgentLed";
+import { selectAgent } from "../agentFocus";
+import { AgentStatusActions, AgentStatusLine } from "./AgentStatusLine";
+import { agentMeta } from "./agentStatusText";
 import { ChevronDownIcon } from "./icons";
-
-/** "<cli> · <branch> · <status>", the agent subtitle every agent list shows. */
-export function agentMeta(agent: AgentRecord): string {
-  return [agent.resolved_cli ?? agent.kind, agent.branch, agentStatusLabel(agent.status)].join(" · ");
-}
-
-export function selectAgent(client: AgentClient, agent: AgentRecord) {
-  agentStore.clearDiagramsReady(agent.id);
-  layoutStore.selectAgent(agent.id);
-  restoreAgentWindow(client, agent.id);
-}
 
 /** Full screen's left column: every agent with its status and branch; the terminal sits beside it. */
 export function AgentList({ agents, activeId }: { agents: AgentRecord[]; activeId: string | undefined }) {
@@ -26,22 +14,24 @@ export function AgentList({ agents, activeId }: { agents: AgentRecord[]; activeI
     <nav className="activity-agent-list" aria-label="Agents">
       <div className="activity-agent-list-heading">Agents · {agents.length}</div>
       {agents.map((agent) => (
-        <button
-          key={agent.id}
-          type="button"
-          className="activity-agent-list-item"
-          aria-current={agent.id === activeId || undefined}
-          data-testid={`agent-tab-${agent.id}`}
-          data-diagram={agent.context_kind === "task" || undefined}
-          title={agentMeta(agent)}
-          onClick={() => selectAgent(client, agent)}
-        >
-          <AgentLed status={agent.status} agentId={agent.id} />
-          <span className="activity-switcher-text">
-            <span className="activity-switcher-title">{agent.title}</span>
-            <span className="activity-switcher-meta">{agentMeta(agent)}</span>
-          </span>
-        </button>
+        <div key={agent.id} className="activity-agent-list-row">
+          <button
+            type="button"
+            className="activity-agent-list-item"
+            aria-current={agent.id === activeId || undefined}
+            data-testid={`agent-tab-${agent.id}`}
+            data-diagram={agent.context_kind === "task" || undefined}
+            title={agentMeta(agent)}
+            onClick={() => selectAgent(client, agent)}
+          >
+            <AgentLed status={agent.status} agentId={agent.id} size="icon" />
+            <span className="activity-switcher-text">
+              <span className="activity-switcher-title">{agent.title}</span>
+              <AgentStatusLine agent={agent} />
+            </span>
+          </button>
+          <AgentStatusActions agent={agent} />
+        </div>
       ))}
     </nav>
   );
@@ -80,16 +70,16 @@ export function AgentSwitcherRow({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="Select agent"
-        title="Switch agents: Ctrl/Cmd+Alt+Up/Down"
+        title="Switch agents: Ctrl/Cmd+Alt+Up/Down · next waiting agent: Ctrl/Cmd+Shift+J"
         disabled={agents.length === 0}
         onClick={() => setOpen((v) => !v)}
       >
         {active ? (
           <>
-            <AgentLed status={active.status} agentId={active.id} />
+            <AgentLed status={active.status} agentId={active.id} size="icon" />
             <span className="activity-switcher-text">
               <span className="activity-switcher-title">{active.title}</span>
-              <span className="activity-switcher-meta">{agentMeta(active)}</span>
+              <AgentStatusLine agent={active} />
             </span>
           </>
         ) : (
@@ -106,10 +96,11 @@ export function AgentSwitcherRow({
         )}
         <ChevronDownIcon size={14} />
       </button>
+      {active && <AgentStatusActions agent={active} />}
       {open && (
         <ul className="activity-switcher-menu" role="listbox" aria-label="Agents">
           {agents.map((agent) => (
-            <li key={agent.id} role="presentation">
+            <li key={agent.id} role="presentation" className="activity-switcher-option">
               <button
                 type="button"
                 role="option"
@@ -117,13 +108,14 @@ export function AgentSwitcherRow({
                 data-diagram={agent.context_kind === "task" || undefined}
                 onClick={() => select(agent)}
               >
-                <AgentLed status={agent.status} agentId={agent.id} />
+                <AgentLed status={agent.status} agentId={agent.id} size="icon" />
                 <span className="activity-switcher-text">
                   <span className="activity-switcher-title">{agent.title}</span>
-                  <span className="activity-switcher-meta">{agentMeta(agent)}</span>
+                  <AgentStatusLine agent={agent} />
                 </span>
                 {agent.context_kind === "task" && <span className="activity-agent-badge">Diagram</span>}
               </button>
+              <AgentStatusActions agent={agent} />
             </li>
           ))}
         </ul>

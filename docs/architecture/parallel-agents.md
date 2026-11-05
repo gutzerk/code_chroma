@@ -56,6 +56,32 @@ at either end. It uses the same selection path as the dropdown, shows the Agents
 collapsed panel, preserves full screen, and focuses the selected terminal. Modal dialogs keep their
 keyboard input. The dropdown's tooltip documents these shortcuts.
 
+### Agent status on the web
+
+Six wire statuses: `stopped`, `idle`, `working`, `blocked`, `done` (finished, not yet seen), `error`.
+Roll-up priority is blocked > error > done > working > idle; stopped never counts.
+
+| Piece | File | Role |
+|---|---|---|
+| Types | `state/types.ts` | `CanonicalAgentStatus`; `AgentStatusFields` (`status_since`, `activity`, `pending_permission`, `error`) on `AgentRecord` and the `agent-status` event |
+| Store | `agentStore.ts` | Maps legacy `running`/`foreign` to `idle` and `exited` to `error` (non-zero exit) or `stopped`; `applyStatus` keeps the event's extra fields |
+| Roll-up | `statusRollup.ts` | `effectiveStatus` (an open ask_user question makes a live agent `blocked`), `rollup` -> `{top, count}`, `count` = blocked + error + done |
+| Shapes | `StatusIndicator.tsx`, `AgentLed.tsx` | `dot` 8px (tabs, strips), `icon` 16px (agent lists); pulse circle "?", square "!", check circle, spinner, ring; animations stop under `prefers-reduced-motion` |
+| Worktree tabs | `WorktreeStrip.tsx`, `agentAttention.tabRollups` | Dot + badge per tab from its agents (`workspace`/`shares_workspace_with`); the selected tab hides `done`; idle shows nothing |
+| Rows | `activity/AgentStatusLine.tsx` | `working`: "Edit · src/x.ts" + live m:ss turn timer; `blocked`: "Asking permission: Bash(...)" + Allow (`POST /agents/{id}/permission`); `error`: message + Dismiss (`POST /agents/{id}/dismiss-error`) |
+| Toasts | `toasts/` | blocked until answered, error until closed, done 6 s; one per agent, dropped when the agent leaves that status |
+| OS + sound | `agentNotifications.ts`, `notificationSound.ts` | OS notification for blocked and error, for done only when the page is in the background; sound only for blocked |
+| Sync | `agentStatusSync.ts` | Marks the viewed `done` agent seen (`POST /agents/{id}/seen`), reconciles toasts, sends the desktop `agent-summary` (150 ms debounce), runs shell commands |
+
+- "Looking at an agent" (`agentAttention.isLookingAtAgent`): it is the agent the panel shows on the
+  active worktree tab, the panel is not collapsed, and the page has focus. No toast or OS notification
+  fires for that agent, and a `done` there is marked seen at once.
+- Desktop shell: the page calls `window.codechromaDesktop.reportAgents(summary)` with every agent's
+  effective status and registers `onAgentCommand` for `select-agent` (switch tab, select, mark seen)
+  and `permission`. Both are optional, so the browser build works without the shell.
+- ⌘⇧J / Ctrl+Shift+J opens the next blocked agent, oldest `status_since` first. ⚠ The page handles it
+  only in a plain browser; inside the shell its own script owns the key across all projects.
+
 Wikis do not follow a tab: wiki-general and the plain wiki live in the main checkout and are tracked against the main branch tip (see `wiki-general.md`, "One wiki per project").
 
 ## Worktree tabs (C# bridge; supersedes the personal-worktree and branch-switcher notes below)
@@ -371,8 +397,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   uses `display: none` and the layer renders **every** agent, minimized or not — it used to filter
   them out before rendering, which unmounted the xterm and made each restore a full reattach; the
   CSS, the comment in `AgentWindow.tsx` and `AgentWindow.test.tsx` all assumed otherwise, and only
-  `AgentWindowLayer.test.tsx` + `e2e/agent-windows.spec.ts` now pin it. The LED colour map lives once
-  in `styles.css` under `.agent-led-*`, and `App.tsx` passes `useActiveWorkspace()` as the engine
+  `AgentWindowLayer.test.tsx` + `e2e/agent-windows.spec.ts` now pin it. The status shapes and colours
+  live once in `styles.css` (`.status-ind`/`.status-badge`/`.status-chip`, `--st-*` tokens; see "Agent
+  status on the web" above), and `App.tsx` passes `useActiveWorkspace()` as the engine
   client's `repoId`, so switching agents moves **every** canvas request at once. `HttpEngineClient`
   drops pings whose `workspace` isn't the one it is drawing (absent key = `main`). The layer also
   carries `data-active-workspace` for the e2e specs: once a workspace is `ready` nothing on screen says

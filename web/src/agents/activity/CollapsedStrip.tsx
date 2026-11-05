@@ -3,7 +3,8 @@ import type { AgentRecord } from "../../state/types";
 import { layoutStore } from "../../canvas/layout/layoutStore";
 import type { Run } from "../../workflows/types";
 import { agentStore } from "../agentStore";
-import { AgentLed, agentStatusLabel } from "../AgentLed";
+import { AgentLed } from "../AgentLed";
+import { agentStatusLabel } from "../statusRollup";
 import { agentInitials } from "./initials";
 import { AgentsIcon, PlusIcon, WorkflowsIcon } from "./icons";
 
@@ -50,7 +51,7 @@ export function CollapsedStrip({
   onOpenTab: (tab: ActivityTab) => void;
   onRunAgent: () => void;
 }) {
-  const working = agents.filter((a) => a.status === "working" || a.status === "running").length;
+  const working = agents.filter((a) => a.status === "working").length;
   const activeRuns = runs.filter((r) => !["done", "stopped"].includes(r.state)).length;
   const needsYou = runs.some((r) => r.state === "needs_you");
   return (

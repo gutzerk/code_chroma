@@ -1,22 +1,20 @@
 import { useCallback, useEffect } from "react";
 import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
 import { useEngineClient } from "../engine-client/EngineClientContext";
-import {
-  ensureNotificationPermission,
-  isAgentWindowFocused,
-  notifyAgentStatus,
-  statusChangeKind,
-} from "./agentNotifications";
+import { ensureNotificationPermission, statusChangeKind } from "./agentNotifications";
 import { useAgentClient } from "./AgentClientContext";
 import { flagDiagramsReady } from "./agentDiagramsReady";
+import { announceStatus, startAgentStatusSync } from "./agentStatusSync";
 import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingClose } from "./agentStore";
 import { agentDockStore } from "./agentDockStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
+import { normalizeAgentStatus } from "./statusRollup";
+import { AgentToastLayer } from "./toasts/AgentToastLayer";
 import { ensureWorktrees, refreshWorktrees, settleRemovedWorktree } from "./worktreeActions";
 import { worktreeStore } from "./worktreeStore";
 import { WorkspaceStatusBanner } from "./WorkspaceStatusBanner";
-import { confirmCloseAgentWindow, restoreAgentWindow } from "./windowActions";
+import { confirmCloseAgentWindow } from "./windowActions";
 
 /** Agent lifecycle, live updates, workspace status and launch/close dialogs. Terminals live in ActivityPanel. */
 export function AgentWindowLayer() {
@@ -54,6 +52,9 @@ export function AgentWindowLayer() {
 
   useEffect(ensureNotificationPermission, []);
 
+  // Seen marking, toast clean-up, the desktop shell's agent summary and commands, ⌘⇧J in a browser.
+  useEffect(() => startAgentStatusSync(agentClient), [agentClient]);
+
   // A monitor unplugged mid-session shrinks the browser window in place -- pull any window that
   // landed off-screen back into view (see agentStore.reclampToViewport).
   useEffect(() => {
@@ -70,19 +71,18 @@ export function AgentWindowLayer() {
         if (message.type === "agent-added") agentStore.upsert(message.agent);
         else if (message.type === "agent-removed") agentStore.remove(message.id);
         else if (message.type === "agent-status") {
-          const before = agentStore.getAgent(message.id);
-          const kind = statusChangeKind(before?.status, message.status);
-          agentStore.setStatus(message.id, message.status);
-          if (kind && before && !isAgentWindowFocused(before)) {
-            notifyAgentStatus(before, kind, () => {
-              agentDockStore.activate(before.id);
-              restoreAgentWindow(agentClient, before.id);
-            });
-          }
+          const { type: _type, id, status, ...fields } = message;
+          const previous = agentStore.getAgent(id)?.status;
+          agentStore.applyStatus(id, status, fields);
+          const after = agentStore.getAgent(id);
+          if (!after) return;
+          const kind = statusChangeKind(previous && normalizeAgentStatus(previous), normalizeAgentStatus(after.status));
+          if (kind) announceStatus(agentClient, after, kind);
           // A finished "Draw a diagram" task may have written into its own forked worktree, where
           // the canvas never looks -- badge its rail row so the result is one click away.
-          if (kind === "idle" && before?.context_kind === "task") {
-            void flagDiagramsReady(message.id);
+          const finished = kind === "done" || (previous === "working" && after.status === "idle");
+          if (finished && after.context_kind === "task") {
+            void flagDiagramsReady(id);
           }
         } else if (message.type === "branch-removed") {
           if (worktreeStore.has(message.id)) void settleRemovedWorktree(agentClient, message.id);
@@ -107,6 +107,7 @@ export function AgentWindowLayer() {
       data-hidden={agentsMode === "full"}
     >
       <WorkspaceStatusBanner />
+      <AgentToastLayer />
       {preflight && preflight.state !== "ready" && (
         <GitInitDialog
           preflight={preflight}

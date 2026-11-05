@@ -1,4 +1,5 @@
-export type StatusSoundKind = "blocked" | "idle" | "exited";
+/** Only `blocked` makes a sound: per the status mockup, error and done stay silent. */
+export type StatusSoundKind = "blocked";
 
 interface Tone {
   frequency: number;
@@ -6,18 +7,11 @@ interface Tone {
   duration: number;
 }
 
-/** One tone burst per kind -- distinct enough by ear alone, since the user may not be looking at the
- * screen when it plays. `blocked` rises (needs you), `idle` is a single bright chime (done), `exited`
- * falls on a harsher waveform (crashed). */
+/** A rising two-tone "needs you", distinct by ear alone since the user may not be looking. */
 const PATTERNS: Record<StatusSoundKind, Tone[]> = {
   blocked: [
     { frequency: 660, start: 0, duration: 0.12 },
     { frequency: 880, start: 0.12, duration: 0.16 },
-  ],
-  idle: [{ frequency: 784, start: 0, duration: 0.18 }],
-  exited: [
-    { frequency: 220, start: 0, duration: 0.14 },
-    { frequency: 165, start: 0.14, duration: 0.18 },
   ],
 };
 
@@ -43,7 +37,7 @@ if (typeof document !== "undefined") {
 
 /** Synthesizes and plays the tone pattern for `kind`. Silently does nothing where Web Audio is
  * unavailable (e.g. jsdom in tests) rather than throwing. */
-export function playStatusSound(kind: StatusSoundKind): void {
+export function playStatusSound(kind: StatusSoundKind = "blocked"): void {
   const ctx = audioContext();
   if (!ctx) return;
   void ctx.resume();
@@ -52,7 +46,7 @@ export function playStatusSound(kind: StatusSoundKind): void {
   for (const tone of PATTERNS[kind]) {
     const oscillator = ctx.createOscillator();
     const gain = ctx.createGain();
-    oscillator.type = kind === "exited" ? "sawtooth" : "sine";
+    oscillator.type = "sine";
     oscillator.frequency.value = tone.frequency;
 
     const start = now + tone.start;

@@ -494,11 +494,46 @@ export interface AgentWindowGeometry {
   z: number;
 }
 
-/** What the LED shows. `stopped`/`exited` come from the process itself; `idle`/`blocked`/`working`
- * are inferred from the live PTY screen by the bridge's detector, and `foreign` means the terminal
- * is running something else (vim, a nested shell), so the last known colour is held. */
-export type AgentStatus =
-  "stopped" | "running" | "exited" | "idle" | "blocked" | "working" | "foreign";
+/** The six statuses the bridge sends: `stopped` (no session), `idle`, `working`, `blocked` (needs
+ * the user), `done` (finished, not yet seen) and `error` (crashed or failed to start). */
+export type CanonicalAgentStatus = "stopped" | "idle" | "working" | "blocked" | "done" | "error";
+
+/** What the LED shows. `running`/`exited`/`foreign` are legacy values an older bridge still sends;
+ * agentStore maps them onto the canonical six on arrival (`normalizeAgentStatus`). */
+export type AgentStatus = CanonicalAgentStatus | "running" | "exited" | "foreign";
+
+/** What a `working` agent is doing: the PreToolUse tool, its short argument, and when the turn began. */
+export interface AgentActivity {
+  tool: string | null;
+  target: string | null;
+  turn_started_at: string | null;
+}
+
+/** A PermissionRequest hook waiting on the user; `summary` reads like `Bash(npm run e2e)`. */
+export interface AgentPendingPermission {
+  request_id: string;
+  tool: string;
+  summary: string;
+  at: string;
+}
+
+/** Why an agent is in `error`: a non-zero exit, a failed auto-start or a missing CLI. */
+export interface AgentErrorInfo {
+  message: string;
+  at: string;
+}
+
+/** Runtime status fields on every agent payload and `agent-status` event; absent from an older bridge. */
+export interface AgentStatusFields {
+  /** ISO UTC time of the last status change. */
+  status_since?: string | null;
+  /** Non-null only while `working`. */
+  activity?: AgentActivity | null;
+  /** Non-null only while a PermissionRequest hook waits for a decision. */
+  pending_permission?: AgentPendingPermission | null;
+  /** Non-null only while `error`. */
+  error?: AgentErrorInfo | null;
+}
 
 /** One user prompt from `GET /agents/{id}/prompts`, with the file edits and command runs of its reply. */
 export interface RawPrompt {
@@ -510,7 +545,7 @@ export interface RawPrompt {
 }
 
 /** One parallel agent session: its own branch, its own git worktree, its own window (GET /agents). */
-export interface AgentRecord {
+export interface AgentRecord extends AgentStatusFields {
   id: string;
   title: string;
   kind: string;
@@ -625,7 +660,7 @@ export interface GitInitResult {
 export type AgentEvent =
   | { type: "agent-added"; agent: AgentRecord }
   | { type: "agent-removed"; id: string }
-  | { type: "agent-status"; id: string; status: AgentStatus }
+  | ({ type: "agent-status"; id: string; status: AgentStatus } & AgentStatusFields)
   | { type: "branch-removed"; id: string };
 
 /** How far a workspace's graph is from being drawable (GET /workspaces/{id}/status). A worktree is

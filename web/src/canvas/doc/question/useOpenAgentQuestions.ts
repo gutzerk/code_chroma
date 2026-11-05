@@ -17,17 +17,18 @@ export function useOpenAgentQuestions(agentId: string): CanvasElement[] {
   );
 }
 
-/** How many open questions the given agents have in total (the Agents tab counter). */
-export function useOpenQuestionCount(agentIds: readonly string[]): number {
+/** Open question counts per asking agent id; an agent with none is absent. */
+export function openQuestionCounts(elements: Record<string, CanvasElement>): ReadonlyMap<string, number> {
+  const counts = new Map<string, number>();
+  for (const el of Object.values(elements)) {
+    const id = questionAgentId(el);
+    if (id !== null && (el.meta.state ?? "open") === "open") counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** `openQuestionCounts` over the live canvas doc, recomputed only when its elements change. */
+export function useOpenQuestionCounts(): ReadonlyMap<string, number> {
   const doc = useCanvasDoc();
-  return useMemo(
-    () =>
-      Object.values(doc.elements).filter(
-        (el) => {
-          const id = questionAgentId(el);
-          return id !== null && agentIds.includes(id) && (el.meta.state ?? "open") === "open";
-        },
-      ).length,
-    [doc.elements, agentIds],
-  );
+  return useMemo(() => openQuestionCounts(doc.elements), [doc.elements]);
 }

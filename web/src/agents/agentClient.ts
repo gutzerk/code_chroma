@@ -38,6 +38,9 @@ export interface AgentUsage {
   costUsd: number | null;
 }
 
+/** The answer to a PermissionRequest hook (POST /agents/{id}/permission). */
+export type PermissionDecision = "allow" | "deny";
+
 /** Facade over the bridge's workspace-control routes — `/agents`, `/workspaces` and `/prs`. Unlike
  * EngineClient these are *not* under `/repos/{id}`: each list spans every workspace, so all three are
  * owned by the main repository. The PR methods live here rather than in their own client because this
@@ -78,6 +81,12 @@ export interface AgentClient {
   usage?(id: string): Promise<AgentUsage | null>;
   /** The user's own prompts in the agent's claude session, in order (GET /agents/{id}/prompts). */
   prompts?(id: string): Promise<{ prompts: RawPrompt[] }>;
+  /** The user saw the finished turn: `done` -> `idle`, a no-op otherwise (POST /agents/{id}/seen). */
+  seen?(id: string): Promise<AgentRecord>;
+  /** Closes the error: `error` -> `stopped` (POST /agents/{id}/dismiss-error). */
+  dismissError?(id: string): Promise<AgentRecord>;
+  /** Answers a waiting PermissionRequest hook; rejects on 404 when it is no longer pending. */
+  permission?(id: string, requestId: string, decision: PermissionDecision): Promise<AgentRecord>;
   /** Makes a workspace the canvas's data source and kicks off its lazy bring-up. */
   activateWorkspace(id: string): Promise<WorkspaceStatus>;
   /** analyzing / ready / error plus a progress line, polled while a worktree's graph comes up. */
@@ -211,6 +220,21 @@ export class HttpAgentClient implements AgentClient {
 
   prompts(id: string): Promise<{ prompts: RawPrompt[] }> {
     return this.request<{ prompts: RawPrompt[] }>(`/agents/${id}/prompts`);
+  }
+
+  seen(id: string): Promise<AgentRecord> {
+    return this.request<AgentRecord>(`/agents/${id}/seen`, this.json("POST"));
+  }
+
+  dismissError(id: string): Promise<AgentRecord> {
+    return this.request<AgentRecord>(`/agents/${id}/dismiss-error`, this.json("POST"));
+  }
+
+  permission(id: string, requestId: string, decision: PermissionDecision): Promise<AgentRecord> {
+    return this.request<AgentRecord>(
+      `/agents/${id}/permission`,
+      this.json("POST", { request_id: requestId, decision }),
+    );
   }
 
   activateWorkspace(id: string): Promise<WorkspaceStatus> {

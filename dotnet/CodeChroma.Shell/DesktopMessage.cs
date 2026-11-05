@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace CodeChroma.Shell;
 
 /// <summary>A message from the canvas page (window.codechromaDesktop) to the shell.</summary>
-public sealed record DesktopMessage(string Type, string? Id, string? CallId = null, string? Method = null, string? Arg = null)
+public sealed record DesktopMessage(string Type, string? Id, string? CallId = null, string? Method = null, string? Arg = null, AgentSummary? Agents = null)
 {
     public static DesktopMessage? Parse(string? json)
     {
@@ -14,7 +14,9 @@ public sealed record DesktopMessage(string Type, string? Id, string? CallId = nu
             var root = doc.RootElement;
             if (root.ValueKind == JsonValueKind.String) return Parse(root.GetString());
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String) return null;
-            return new DesktopMessage(type.GetString()!, Text(root, "id"), Text(root, "callId"), Text(root, "method"), Text(root, "arg"));
+            var kind = type.GetString()!;
+            var agents = kind == "agent-summary" ? AgentSummary.Parse(root) : null;
+            return new DesktopMessage(kind, Text(root, "id"), Text(root, "callId"), Text(root, "method"), Text(root, "arg"), agents);
         }
         catch (JsonException)
         {

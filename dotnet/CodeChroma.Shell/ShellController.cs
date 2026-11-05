@@ -4,6 +4,7 @@ namespace CodeChroma.Shell;
 public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShellUi ui, string recentsPath, string version, Action<Action>? post = null)
 {
     private readonly Action<Action> dispatch = post ?? (action => action());
+    private readonly AgentBoard agents = new();
     private bool shuttingDown;
 
     public string Version { get; } = version;
@@ -33,10 +34,37 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
 
     public TabsSnapshot Snapshot()
     {
-        var infos = tabs.Tabs.Select(t => new TabInfo(t.Id, TabTitles.For(tabs, t))).ToList();
+        var infos = tabs.Tabs.Select(t => new TabInfo(t.Id, TabTitles.For(tabs, t), agents.For(t.Id))).ToList();
         var active = tabs.ActiveTab;
-        return new TabsSnapshot(infos, active?.Id, AppInfo.WindowTitle(Version, active is null ? null : TabTitles.For(tabs, active)));
+        return new TabsSnapshot(infos, active?.Id, AppInfo.WindowTitle(Version, active is null ? null : TabTitles.For(tabs, active)), agents.Blocked(Order()).Count);
     }
+
+    public void ReportAgents(string tabId, AgentSummary summary)
+    {
+        if (tabs.FindTab(tabId) is not null && agents.Report(tabId, summary)) Changed();
+    }
+
+    public BlockedAgent? FocusNextBlocked()
+    {
+        if (agents.Next(Order()) is not { } next) return null;
+        OpenAgent(next.TabId, next.Agent.Id);
+        return next;
+    }
+
+    public void OpenAgent(string tabId, string agentId)
+    {
+        if (tabs.FindTab(tabId) is not { } tab) return;
+        SurfaceTab(tab);
+        ui.SendAgentCommand(tab, AgentCommand.Select(agentId));
+    }
+
+    public void AllowPermission(string tabId, string agentId, string requestId)
+    {
+        if (tabs.FindTab(tabId) is { } tab) ui.SendAgentCommand(tab, AgentCommand.Allow(agentId, requestId));
+    }
+
+    private List<(string TabId, string RootId)> Order() =>
+        [.. tabs.Tabs.Select(t => (t.Id, t.OwnerTabId ?? t.Id))];
 
     public async Task OpenRepoAsync(string repoPath, string? requestingTabId, string? workspaceId = null)
     {
@@ -100,6 +128,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
     {
         foreach (var dependant in tabs.Tabs.Where(t => t.OwnerTabId == tabId).ToList()) await CloseTabAsync(dependant.Id);
         if (tabs.CloseTab(tabId) is not { } outcome) return;
+        agents.Forget(tabId);
         ui.CloseView(outcome.ClosedView);
         foreach (var satellite in outcome.SatellitesToClose) ui.CloseView(satellite);
         Changed();

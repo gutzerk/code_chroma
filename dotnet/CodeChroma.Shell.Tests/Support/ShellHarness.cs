@@ -9,6 +9,7 @@ internal sealed class FakeShellUi : IShellUi
     public List<string> Surfaced { get; } = [];
     public List<object> ClosedViews { get; } = [];
     public List<(string Title, string Message)> Errors { get; } = [];
+    public List<(Tab Tab, string Json)> AgentCommands { get; } = [];
 
     public TabsSnapshot Last => Snapshots[^1];
 
@@ -19,6 +20,7 @@ internal sealed class FakeShellUi : IShellUi
     public void Surface(Tab tab) => Surfaced.Add(tab.Id);
     public void CloseView(object view) => ClosedViews.Add(view);
     public void ShowError(string title, string message) => Errors.Add((title, message));
+    public void SendAgentCommand(Tab tab, string json) => AgentCommands.Add((tab, json));
 }
 
 internal sealed class ShellHarness : IDisposable

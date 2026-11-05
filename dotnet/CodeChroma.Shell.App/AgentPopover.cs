@@ -1,10 +1,13 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace CodeChroma.Shell.App;
 
@@ -16,6 +19,7 @@ public sealed class AgentPopover
     private readonly DispatcherTimer openTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
     private readonly DispatcherTimer closeTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly DispatcherTimer tick = new() { Interval = TimeSpan.FromSeconds(1) };
+    private static readonly TimeSpan AllowRetry = TimeSpan.FromSeconds(3);
     private readonly List<RowView> rows = [];
     private TextBlock title = new();
     private TextBlock counts = new();
@@ -68,8 +72,25 @@ public sealed class AgentPopover
         if (popup.IsOpen) closeTimer.Start();
     }
 
+    /// <summary>Keyboard path (Down on a focused chip): open now and move focus into the card; false when there is nothing to show.</summary>
+    public bool OpenFromKeyboard(TabChip chip)
+    {
+        openTimer.Stop();
+        pending = null;
+        if (chip.Info is not { } info || !HasAgents(info)) return false;
+        Open(chip, info);
+        if (!popup.IsOpen) return false;
+        Dispatcher.UIThread.Post(() => popup.Child?.GetVisualDescendants().OfType<Button>().FirstOrDefault()?.Focus(NavigationMethod.Tab));
+        return true;
+    }
+
     public void Refresh(IReadOnlyDictionary<string, TabChip> chips)
     {
+        if (pending is { } waiting && !chips.Values.Contains(waiting))
+        {
+            openTimer.Stop();
+            pending = null;
+        }
         if (!popup.IsOpen || shown is null) return;
         if (!chips.TryGetValue(shown.Id, out var chip) || chip.Info is not { } info || !HasAgents(info)) { Close(); return; }
         popup.PlacementTarget = chip;
@@ -86,11 +107,11 @@ public sealed class AgentPopover
         layout = [];
     }
 
-    private static bool HasAgents(TabInfo info) => info.Agents?.Agents.Any(a => a.Status != "stopped") == true;
+    private static bool HasAgents(TabInfo info) => info.Agents?.Agents.Any(a => AgentRollup.Rank(a.Status) >= 0) == true;
 
     private void Open(TabChip chip, TabInfo info)
     {
-        if (!HasAgents(info)) { Close(); return; }
+        if (!HasAgents(info) || chip.GetVisualRoot() is null) { Close(); return; }
         popup.PlacementTarget = chip;
         Render(info);
         popup.IsOpen = true;
@@ -142,6 +163,15 @@ public sealed class AgentPopover
         };
         card.PointerEntered += (_, _) => closeTimer.Stop();
         card.PointerExited += (_, _) => Leave();
+        card.GotFocus += (_, _) => closeTimer.Stop();
+        card.KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Escape) return;
+            e.Handled = true;
+            var anchor = popup.PlacementTarget;
+            Close();
+            anchor?.Focus(NavigationMethod.Tab);
+        };
         popup.Child = card;
     }
 
@@ -177,7 +207,7 @@ public sealed class AgentPopover
         var block = new StackPanel { Spacing = 10 };
         var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         head.Children.Add(Glyph("?", "StatusBlockedBrush", "StatusBlockedInkBrush", circle: true));
-        var name = new TextBlock { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = AgentChrome.Brush("PopoverTextBrush"), VerticalAlignment = VerticalAlignment.Center };
+        var name = new TextBlock { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = AgentChrome.Brush("PopoverTextBrush"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 220 };
         head.Children.Add(name);
         var meta = Text("", 12, "PopoverMutedBrush");
         head.Children.Add(meta);
@@ -197,14 +227,17 @@ public sealed class AgentPopover
         if (permission is not null)
         {
             var allow = new Button { Content = "Allow", Classes = { "chip", "allow" } };
+            AutomationProperties.SetName(allow, $"Allow {permission.Summary ?? permission.Tool ?? "the tool"} for {agent.Title}");
             allow.Click += (_, _) =>
             {
                 allow.IsEnabled = false;
                 controller.AllowPermission(tabId, agent.Id, permission.RequestId);
+                DispatcherTimer.RunOnce(() => allow.IsEnabled = true, AllowRetry);
             };
             buttons.Children.Add(allow);
         }
         var open = new Button { Content = "Open agent", Classes = { "chip", "open" } };
+        AutomationProperties.SetName(open, $"Open agent {agent.Title}");
         open.Click += (_, _) =>
         {
             Close();
@@ -221,7 +254,7 @@ public sealed class AgentPopover
         var icon = new Decorator { Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
         DockPanel.SetDock(icon, Dock.Left);
         row.Children.Add(icon);
-        var name = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+        var name = new TextBlock { FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 200 };
         DockPanel.SetDock(name, Dock.Left);
         row.Children.Add(name);
         var clock = new TextBlock { FontFamily = AgentChrome.Font("MonoFont"), FontSize = 11, Foreground = AgentChrome.Brush("PopoverMutedBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };

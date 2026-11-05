@@ -49,6 +49,14 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         }
     }
 
+    /// <summary>The tab's page is gone or reloading: drop its summary so the pill and badges stop pointing at it.</summary>
+    public void PageReset(string tabId) => ForgetAgents([tabId]);
+
+    private void ForgetAgents(IEnumerable<string> tabIds)
+    {
+        if (tabIds.Count(agents.Forget) > 0) Changed();
+    }
+
     public BlockedAgent? FocusNextBlocked()
     {
         if (agents.Next(Order()) is not { } next) return null;
@@ -76,7 +84,9 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         if (tabs.FindByRepoPath(repoPath) is { } existing)
         {
             SurfaceTab(existing);
-            if (workspaceId is not null && tabs.BridgeFor(existing) is { } open) ui.Navigate(existing, WorkspaceUrl(open, workspaceId));
+            if (workspaceId is null || tabs.BridgeFor(existing) is not { } open) return;
+            ForgetAgents([existing.Id]);
+            ui.Navigate(existing, WorkspaceUrl(open, workspaceId));
             return;
         }
 
@@ -94,6 +104,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         catch (Exception e) when (e is InvalidOperationException or TimeoutException or IOException or System.ComponentModel.Win32Exception)
         {
             tab.RepoPath = null;
+            ForgetAgents([tab.Id]);
             ui.ShowTabError(tab, e.Message);
             return;
         }
@@ -172,6 +183,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
     private async Task RecoverAsync(string tabId, BridgeHandle dead)
     {
         if (shuttingDown || tabs.FindTab(tabId) is not { RepoPath: { } repoPath } tab || !ReferenceEquals(tab.Bridge, dead)) return;
+        ForgetAgents([tabId, .. tabs.Tabs.Where(t => t.OwnerTabId == tabId).Select(t => t.Id)]);
         BridgeHandle fresh;
         try
         {

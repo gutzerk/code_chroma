@@ -80,6 +80,29 @@ public class AgentSummaryMessageTests
     }
 
     [Fact]
+    public void A_summary_keeps_at_most_fifty_agents()
+    {
+        var agents = string.Join(",", Enumerable.Range(0, 80).Select(i => $$$"""{"id":"a{{{i}}}","status":"idle"}"""));
+
+        var message = DesktopMessage.Parse($$"""{"type":"agent-summary","agents":[{{agents}}]}""");
+
+        Assert.Equal(AgentSummary.MaxAgents, message?.Agents?.Agents.Count);
+    }
+
+    [Fact]
+    public void Long_display_text_is_clipped_and_an_overlong_id_drops_the_row()
+    {
+        var longText = new string('x', 500);
+        var json = $$$"""{"type":"agent-summary","agents":[{"id":"a1","title":"{{{longText}}}","status":"blocked","pending_permission":{"request_id":"{{{longText}}}","summary":"s"}},{"id":"{{{longText}}}","status":"idle"}]}""";
+
+        var agents = DesktopMessage.Parse(json)?.Agents?.Agents;
+
+        var agent = Assert.Single(agents!);
+        Assert.Equal(AgentSummary.MaxText, agent.Title.Length);
+        Assert.Null(agent.PendingPermission);
+    }
+
+    [Fact]
     public void Other_messages_carry_no_agent_summary()
     {
         var message = DesktopMessage.Parse("""{"type":"focus-tab","agents":[]}""");

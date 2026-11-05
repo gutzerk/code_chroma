@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -27,8 +28,15 @@ public sealed class TabChip : Border
         CornerRadius = new CornerRadius(8, 8, 0, 0);
         VerticalAlignment = VerticalAlignment.Bottom;
         Cursor = new Cursor(StandardCursorType.Hand);
+        Focusable = true;
         close.Click += async (_, e) => { e.Handled = true; await closeTab(Id); };
         PointerPressed += (_, _) => select(Id);
+        KeyDown += (_, e) =>
+        {
+            if (e.Key is not (Key.Enter or Key.Space)) return;
+            e.Handled = true;
+            select(Id);
+        };
     }
 
     public string Id { get; }
@@ -47,6 +55,8 @@ public sealed class TabChip : Border
         Background = active ? AgentChrome.Brush("TabActiveBrush") : Brushes.Transparent;
         BorderBrush = AgentChrome.Brush("TabActiveBorderBrush");
         BorderThickness = active ? new Thickness(1, 1, 1, 0) : new Thickness(0);
+        AutomationProperties.SetName(this, info.Title);
+        AutomationProperties.SetName(close, $"Close tab {info.Title}");
         Show(AgentRollup.Badge(info.Agents, active));
     }
 
@@ -70,6 +80,9 @@ public sealed class TabChip : Border
         }
         dotSlot.IsVisible = badge.Dot is not null;
         badgeSlot.IsVisible = badge.Count > 0;
+        var label = badge.Dot is { } status ? $"{Info?.Title}: {AgentRollup.Label(status)}" : null;
+        AutomationProperties.SetName(dotSlot, label);
+        AutomationProperties.SetName(badgeSlot, badge.Count > 0 ? $"{label} ({badge.Count})" : null);
         shown = badge;
     }
 }

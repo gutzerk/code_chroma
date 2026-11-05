@@ -10,6 +10,7 @@ public sealed class AgentRecord
     public const string StatusStopped = "stopped";
     public const string StatusRunning = "running";
     public const string StatusExited = "exited";
+    public const string StatusError = "error";
     public static readonly string[] ContextKinds = ["view", "task"];
 
     public required string Id { get; set; }
@@ -64,6 +65,15 @@ public sealed class AgentRecord
     public int? ExitCode { get; set; }
     public bool WorktreeLost { get; set; }
 
+    /// <summary>Runtime only: why the agent failed to start or its process failed; cleared on start or dismiss-error.</summary>
+    public AgentError? Error { get; set; }
+
+    /// <summary>Runtime only: when Status last changed.</summary>
+    public DateTimeOffset? StatusSince { get; set; }
+
+    public AgentActivity? Activity { get; set; }
+    public PendingPermission? PendingPermission { get; set; }
+
     public static JsonObject DefaultWindow() => new()
     {
         ["x"] = 120, ["y"] = 120, ["width"] = 720, ["height"] = 480, ["minimized"] = false, ["z"] = 1,
@@ -91,6 +101,10 @@ public sealed class AgentRecord
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli,
         ["diagram_type"] = DiagramType, ["diagram_request"] = DiagramRequest,
         ["status"] = Status, ["exit_code"] = ExitCode, ["worktree_lost"] = WorktreeLost,
+        ["status_since"] = StatusSince is { } since ? AgentStatusState.Iso(since) : null,
+        ["activity"] = Status == StatusDetector.Working ? Activity?.ToJson() : null,
+        ["pending_permission"] = PendingPermission?.ToJson(),
+        ["error"] = Status == StatusError ? Error?.ToJson() : null,
     };
 
     /// <summary>One record from disk, or null when the entry is missing the fields that identify it.</summary>

@@ -40,6 +40,53 @@ A Python-only change does not fix the production desktop runtime.
   `Terminal/TerminalAgentsBareTests.cs`. Run
   `dotnet test dotnet/CodeChroma.Bridge.Tests/CodeChroma.Bridge.Tests.csproj`.
 
+## Status hooks, done and error (both bridges)
+
+Claude Code hooks are the main status source; the screen detector fills in until the first hook
+report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `working`, `blocked`,
+`done` and `error` (`running`/`exited` are no longer sent).
+
+- Every Claude launch with a bridge URL and agent id passes `--settings` with the status hooks, bare
+  diagram windows included (`AgentSessionOwnership.TryHookSettings(..., statusHooks)`; Python
+  `session_ownership.hook_document(..., status_hooks=True)`). The launch also exports
+  `CODECHROMA_BRIDGE_URL`, `CODECHROMA_QUESTION_TOKEN` and `CODECHROMA_WORKSPACE_ID` (= agent id) even
+  without the MCP server. Events: `UserPromptSubmit`, `PreToolUse` (`*`, after the AskUserQuestion
+  entry), `PostToolUse` (`*`), `Stop`, `Notification`, `PermissionRequest` (`*`).
+- The hook command is the bridge binary's `agent-hook` subcommand (`Agents/AgentHook.cs`, dispatched
+  in `Program.cs`); Python runs the stdlib-only `bridge/agents/agent_hook.py`. It POSTs stdin to
+  `POST /agents/{id}/hook` with the bearer token and exits 0 silently on any error.
+- Mapping (`Agents/AgentStatusState.cs`, Python `bridge/agents/live_status.py`):
+
+  | Hook | Status | Also |
+  |---|---|---|
+  | `UserPromptSubmit` | working | `activity = {tool: null, target: null, turn_started_at: now}` |
+  | `PreToolUse` | working | `activity.tool`/`target` (`file_path`, `command`, `pattern` or `url`, one line, ≤120 chars); turn start kept |
+  | `PostToolUse` | working | clears `pending_permission` |
+  | `Notification` `permission_prompt` / `elicitation*` | blocked | other types (`idle_prompt`, ...) ignored |
+  | `PermissionRequest` | blocked | registers `pending_permission {request_id, tool, summary, at}` |
+  | `Stop` | done | `done` = idle not yet seen; `POST /agents/{id}/seen` makes it idle |
+
+- Arbitration: before the first hook report the screen decides, and a screen working→idle also
+  yields `done`. After it, hooks own working/idle (the session calls `StatusDetector.Force`); the
+  screen can still raise `blocked` when `LastVisibleBlocker` / `last_visible_blocker` turns on, and
+  its turning off resumes `working` and clears a pending permission.
+- ⚠ Permission button: the hook call long-polls for at most `AgentHook.PermissionWaitMs` (1 s;
+  Python `PERMISSION_WAIT_SECONDS`). Claude shows its terminal dialog only after the hook returns, so
+  the wait stays short. `POST /agents/{id}/permission {request_id, decision}` answers a waiting hook,
+  which prints `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":...}}}`.
+  On timeout the bridge drops `pending_permission` (the status stays `blocked`) and the hook prints
+  nothing, so the terminal dialog takes over.
+- `error {message, at}` is runtime-only (`ToPayload`, never `ToJson`): a non-zero exit not caused by
+  Stop, a failed start or auto-start (CLI not found, missing worktree, unknown kind). A successful
+  start or `POST /agents/{id}/dismiss-error` clears it; exit code 0 reads as `stopped`.
+- Exit is broadcast at once: `AgentSessionRegistry.Exited` (Python `on_exit`) fires from the PTY
+  exit callback for the still-registered session. The poller broadcasts only real payload changes.
+- Every payload and `agent-status` event carries `status`, `status_since` (ISO UTC, seconds),
+  `activity` (only while working), `pending_permission` and `error` (only while error).
+- Tests: `Agents/AgentStatusStateTests.cs`, `Agents/AgentHookTests.cs`,
+  `Agents/AgentLifecycleStatusTests.cs`, `tests/unit/test_agent_live_status.py`, contract cases in
+  `tests/fixtures/bridge_contract/agents.cases.json` (the `token` step mints an agent's bearer token).
+
 ## Python development/reference implementation
 
 The Python bridge uses the same `session_tracking_id` and per-launch file format. Both manual
@@ -305,7 +352,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   leaves `resolved_cli` empty, which the front end maps back to the `claude` label. The status
   detector for an `agent` window uses the manifest of the CLI adapter it resolves to
   (C# `AgentLaunch.DetectorKind`, set by `TerminalAgents.Resolve` from the same resolution; Python `terminal/agents.py` `agent_launch(...).detector_kind`, from the same single resolution, so Claude gets
-  `detect/claude.toml`; a stand-in binary behind the claude adapter keeps the `agent` kind); an adapter with no `detect/<adapter>.toml` (codex, gemini, kimi) still holds.
+  `detect/claude.toml`; a stand-in binary behind the claude adapter keeps the `agent` kind); codex, gemini and kimi use their own `detect/<adapter>.toml`, with an idle fallback when nothing matches.
   🔴 Before this, every `agent` window looked up the missing `detect/agent.toml`, never looked idle, and
   so never got its `ask_user` answers typed. Tests: `QuestionAgentWiringTests.cs`,
   `test_question_agent_wiring.py`.
@@ -394,7 +441,8 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   is permanently dirty, its diff layer opens full of our own files, and `git worktree remove` always
   needs `--force`. It is untracked and local, never committed or shared.
 - Routes: `GET|POST /agents`, `DELETE /agents/{id}?worktree=&branch=&force=`,
-  `POST /agents/{id}/{start,stop,recreate-worktree,pr}`, `PATCH /agents/{id}/window`,
+  `POST /agents/{id}/{start,stop,recreate-worktree,pr,seen,dismiss-error,permission}`,
+  `POST /agents/{id}/hook` (bearer token of that agent), `PATCH /agents/{id}/window`,
   `GET /agents/{id}/pr-preflight`, `GET /agents/git-preflight`, `POST /agents/git-init`,
   `POST /workspaces/{id}/activate`, `GET /workspaces/{id}/status`. Lifecycle pings
   (`agent-added`/`agent-removed`/`agent-status`) travel over the existing

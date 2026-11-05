@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, cast
 
 from codechroma.bridge import diagram_seed, skill_sync
 from codechroma.bridge.agents import main_branch, session_ownership, worktree
+from codechroma.bridge.agents.live_status import AgentError
 from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.git_cmd import ensure_excluded
 from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID, PR_ID_PREFIX
@@ -149,6 +150,13 @@ class AgentRecord:
     status: str = STATUS_STOPPED
     exit_code: int | None = None
     worktree_lost: bool = False
+    # Runtime-only status detail, filled by routes/agents.agent_payload from the live session.
+    status_since: str | None = None
+    activity: dict | None = None
+    pending_permission: dict | None = None
+    error: dict | None = None
+    # Runtime-only: why the last start failed; cleared on a successful start or dismiss-error.
+    start_error: AgentError | None = None
 
     def to_json(self) -> dict:
         """Only the persisted subset — status/worktree_lost are derived at startup, never stored."""
@@ -156,7 +164,9 @@ class AgentRecord:
 
     def to_payload(self) -> dict:
         """What `GET /agents` reports: the record plus its live status and worktree health."""
-        return asdict(self)
+        payload = asdict(self)
+        payload.pop("start_error")
+        return payload
 
     @classmethod
     def from_json(cls, raw: object) -> AgentRecord | None:

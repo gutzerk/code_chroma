@@ -15,6 +15,9 @@ using CodeChroma.Bridge.Workspaces;
 if (args.Length > 0 && args[0] == "agent-session")
     return AgentSessionOwnership.Record(Console.In, Environment.GetEnvironmentVariable(AgentSessionOwnership.FileEnv));
 
+if (args.Length > 0 && args[0] == AgentHook.Command)
+    return AgentHook.Run(Console.In, Console.Out);
+
 if (args.Length > 0 && args[0] == AskUserQuestionHook.Command)
     return AskUserQuestionHook.Run(Console.In, Console.Out);
 

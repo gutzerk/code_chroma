@@ -15,13 +15,13 @@ public static class AgentSessionOwnership
         return Path.Combine(root, ".codechroma", "agent-sessions", id.ToString() + ".json");
     }
 
-    public static string HookSettings(bool sessionTracking = true, bool askUserQuestion = false) =>
-        TryHookSettings(sessionTracking, askUserQuestion) ?? new JsonObject { ["hooks"] = new JsonObject() }.ToJsonString();
+    public static string HookSettings(bool sessionTracking = true, bool askUserQuestion = false, bool statusHooks = false) =>
+        TryHookSettings(sessionTracking, askUserQuestion, statusHooks) ?? new JsonObject { ["hooks"] = new JsonObject() }.ToJsonString();
 
     /// <summary>The `--settings` document: the hooks plus, with `askUserQuestion` (the MCP server is registered), its tools pre-approved; null when it would hold nothing.</summary>
-    public static string? TryHookSettings(bool sessionTracking = true, bool askUserQuestion = false)
+    public static string? TryHookSettings(bool sessionTracking = true, bool askUserQuestion = false, bool statusHooks = false)
     {
-        var hooks = Hooks(sessionTracking, askUserQuestion);
+        var hooks = Hooks(sessionTracking, askUserQuestion, statusHooks);
         if (hooks is null && !askUserQuestion) return null;
         var settings = new JsonObject();
         if (hooks is not null) settings["hooks"] = hooks;
@@ -31,7 +31,7 @@ public static class AgentSessionOwnership
     }
 
     /// <summary>The hook commands, or null when no bridge executable can be resolved to run them.</summary>
-    private static JsonObject? Hooks(bool sessionTracking, bool askUserQuestion)
+    private static JsonObject? Hooks(bool sessionTracking, bool askUserQuestion, bool statusHooks)
     {
         // Use the native apphost when published and dotnet + our assembly during development/tests.
         var assembly = typeof(AgentSessionOwnership).Assembly.Location;
@@ -57,6 +57,15 @@ public static class AgentSessionOwnership
                 ["matcher"] = Questions.AskUserQuestionHook.ToolMatcher,
                 ["hooks"] = new JsonArray(Hook(Questions.AskUserQuestionHook.Command, 15)),
             });
+        if (statusHooks)
+            foreach (var name in AgentHook.Events)
+            {
+                var entry = new JsonObject();
+                if (name is "PreToolUse" or "PostToolUse" or "PermissionRequest") entry["matcher"] = "*";
+                entry["hooks"] = new JsonArray(Hook(AgentHook.Command, AgentHook.HookTimeoutSeconds));
+                if (hooks[name] is not JsonArray list) hooks[name] = list = [];
+                list.Add(entry);
+            }
         return hooks;
     }
 

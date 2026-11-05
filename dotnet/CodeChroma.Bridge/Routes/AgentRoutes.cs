@@ -4,6 +4,7 @@ using CodeChroma.Bridge.Context;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Prs;
+using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
@@ -14,6 +15,9 @@ namespace CodeChroma.Bridge.Routes;
 /// <summary>Parallel agents: the cards, their worktrees, their PTYs, and publishing one as a PR (routes/agents.py).</summary>
 public static class AgentRoutes
 {
+    /// <summary>How long a PermissionRequest hook call waits for a canvas decision before the terminal dialog takes over.</summary>
+    public const int PermissionWaitMs = AgentHook.PermissionWaitMs;
+
     public static void Map(WebApplication app, string repoRoot)
     {
         app.MapGet("/agents/git-preflight", () => Reply.GuardBlocking(() => Reply.Json(AgentBootstrap.Preflight(repoRoot))));
@@ -100,7 +104,15 @@ public static class AgentRoutes
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
-            var session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths, banner));
+            AgentSession session;
+            try { session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths, banner)); }
+            catch (AgentStartException error)
+            {
+                record.Error = new AgentError(error.Message, DateTimeOffset.UtcNow);
+                await BroadcastStatus(connections, sessions, record);
+                throw;
+            }
+            record.Error = null;
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
             if (pending is { Kind: not "task" } view)
                 _ = session.InjectWhenIdle(
@@ -108,8 +120,51 @@ public static class AgentRoutes
                     + "Please acknowledge you understand this context. Do not act on it or start any work — just confirm you've read it and say you're ready.");
             agents.RecordSessionLaunch(agentId, session);
             var payload = Payload(sessions, updated);
-            await BroadcastStatus(connections, agentId, (string)payload["status"]!);
+            await BroadcastStatus(connections, sessions, updated);
             return Reply.Json(payload);
+        }));
+
+        app.MapPost("/agents/{agentId}/hook", (string agentId, HttpRequest request, QuestionMcp mcp, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        {
+            if (!HookAuthorized(mcp, request, agentId)) return Reply.Error(401, "invalid or missing workspace token");
+            var record = OrNotFound(agents, agentId);
+            var body = await Reply.LenientBody(request);
+            var session = sessions.Get(agentId);
+            if (session is null) return Reply.Json(new JsonObject { ["ok"] = true });
+            var outcome = session.ApplyHook(body);
+            if (outcome.Changed) await BroadcastStatus(connections, sessions, record);
+            if (outcome.Decision is not { } waiting) return Reply.Json(new JsonObject { ["ok"] = true });
+            var decision = await WaitForDecision(waiting, request.HttpContext.RequestAborted);
+            if (decision is null && session.ExpirePermission(outcome.RequestId!)) await BroadcastStatus(connections, sessions, record);
+            return Reply.Json(new JsonObject { ["decision"] = decision });
+        }));
+
+        app.MapPost("/agents/{agentId}/seen", (string agentId, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        {
+            var record = OrNotFound(agents, agentId);
+            if (sessions.Get(agentId)?.MarkSeen() == true) await BroadcastStatus(connections, sessions, record);
+            return Reply.Json(Payload(sessions, record));
+        }));
+
+        app.MapPost("/agents/{agentId}/dismiss-error", (string agentId, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        {
+            var record = OrNotFound(agents, agentId);
+            var hadError = record.Error is not null;
+            record.Error = null;
+            if ((sessions.Get(agentId)?.DismissError() ?? false) | hadError) await BroadcastStatus(connections, sessions, record);
+            return Reply.Json(Payload(sessions, record));
+        }));
+
+        app.MapPost("/agents/{agentId}/permission", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        {
+            var record = OrNotFound(agents, agentId);
+            var body = await Reply.LenientBody(request);
+            var decision = Json.Str(body["decision"]);
+            if (decision is not ("allow" or "deny")) return Reply.Error(400, "decision must be 'allow' or 'deny'");
+            var requestId = Json.Str(body["request_id"]) ?? "";
+            if (sessions.Get(agentId)?.Decide(requestId, decision!) != true) return Reply.Error(404, $"no pending permission request: {requestId}");
+            await BroadcastStatus(connections, sessions, record);
+            return Reply.Json(Payload(sessions, record));
         }));
 
         app.MapPost("/agents/{agentId}/recreate-worktree", (string agentId, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry) => Reply.GuardAsync(async () =>
@@ -127,8 +182,9 @@ public static class AgentRoutes
         {
             OrNotFound(agents, agentId);
             sessions.Stop(agentId);
-            var payload = Payload(sessions, agents.MarkStopped(agentId));
-            await BroadcastStatus(connections, agentId, (string)payload["status"]!);
+            var stopped = agents.MarkStopped(agentId);
+            var payload = Payload(sessions, stopped);
+            await BroadcastStatus(connections, sessions, stopped);
             return Reply.Json(payload);
         }));
 
@@ -188,24 +244,58 @@ public static class AgentRoutes
     public static JsonObject Payload(AgentSessionRegistry sessions, AgentRecord record)
     {
         var session = sessions.Get(record.Id);
-        if (session is null)
+        record.Pid = session?.Pid;
+        record.ExitCode = session?.ExitCode;
+        var previous = record.Status;
+        if (record.Error is { } failed)
         {
-            record.Pid = null;
-            record.Status = AgentRecord.StatusStopped;
-            record.ExitCode = null;
+            record.Status = AgentRecord.StatusError;
+            record.StatusSince = failed.At;
+            (record.Activity, record.PendingPermission) = (null, null);
+        }
+        else if (session is not null)
+        {
+            var live = session.Snapshot();
+            record.Status = live.Status;
+            record.StatusSince = live.Since;
+            (record.Activity, record.PendingPermission) = (live.Activity, live.Pending);
         }
         else
         {
-            record.Pid = session.Pid;
-            record.Status = session.Status;
-            record.ExitCode = session.ExitCode;
+            record.Status = AgentRecord.StatusStopped;
+            if (previous != AgentRecord.StatusStopped || record.StatusSince is null) record.StatusSince = DateTimeOffset.UtcNow;
+            (record.Activity, record.PendingPermission) = (null, null);
         }
-        return record.ToPayload();
+        var payload = record.ToPayload();
+        if (session?.Error is { } exitError && record.Status == AgentRecord.StatusError) payload["error"] = exitError.ToJson();
+        return payload;
     }
 
-    /// <summary>The LED's only input: one agent-status ping per real change, over the existing socket.</summary>
-    public static Task BroadcastStatus(ConnectionManager connections, string agentId, string status) =>
-        connections.Broadcast(new JsonObject { ["type"] = "agent-status", ["id"] = agentId, ["status"] = status });
+    /// <summary>The status fields every agent payload and agent-status event carry.</summary>
+    public static readonly string[] StatusFields = ["status", "status_since", "activity", "pending_permission", "error"];
+
+    /// <summary>The LED's only input: one agent-status event per real change, over the existing socket.</summary>
+    public static Task BroadcastStatus(ConnectionManager connections, AgentSessionRegistry sessions, AgentRecord record)
+    {
+        var payload = Payload(sessions, record);
+        var message = new JsonObject { ["type"] = "agent-status", ["id"] = record.Id };
+        foreach (var field in StatusFields) message[field] = payload[field]?.DeepClone();
+        return connections.Broadcast(message);
+    }
+
+    /// <summary>Whether the bearer token is the hook token of exactly this agent's workspace.</summary>
+    private static bool HookAuthorized(QuestionMcp mcp, HttpRequest request, string agentId)
+    {
+        try { return mcp.WorkspaceIdFor(QuestionMcp.BearerToken(request.Headers.Authorization.ToString())) == agentId; }
+        catch (QuestionAuthException) { return false; }
+    }
+
+    /// <summary>The canvas's decision, or null once the wait times out or the hook hangs up.</summary>
+    private static async Task<string?> WaitForDecision(Task<string?> waiting, CancellationToken aborted)
+    {
+        try { return await waiting.WaitAsync(TimeSpan.FromMilliseconds(PermissionWaitMs), aborted); }
+        catch (Exception error) when (error is TimeoutException or OperationCanceledException) { return null; }
+    }
 
     private static string? Validate(JsonObject body, out string title, out string kind, out string? attachTo, out string? context, out string contextKind, out string? workspace)
     {

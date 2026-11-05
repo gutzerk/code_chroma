@@ -64,7 +64,8 @@ def test_a_window_with_the_mcp_server_pre_approves_its_tools_so_no_worktree_asks
     argv, _ = agent_cli("claude", mcp=ENDPOINT)
 
     settings = json.loads(argv[argv.index("--settings") + 1])
-    assert settings == {"permissions": {"allow": ["mcp__codechroma"]}}
+    assert settings["permissions"] == {"allow": ["mcp__codechroma"]}
+    assert "SessionStart" not in settings["hooks"]
 
 
 def test_claude_argv_is_unchanged_without_an_endpoint():

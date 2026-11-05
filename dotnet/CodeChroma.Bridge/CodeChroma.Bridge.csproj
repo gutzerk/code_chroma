@@ -11,6 +11,7 @@
     <EmbeddedResource Include="../../tests/fixtures/bridge_contract/llm_catalog.json" LogicalName="llm_catalog.json" />
     <EmbeddedResource Include="../../src/codechroma/diagrams/kinds.json" LogicalName="diagram_kinds.json" />
     <EmbeddedResource Include="../../src/codechroma/bridge/agents/detect/*.toml" LogicalName="detect/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../src/codechroma/bridge/agents/detect/LICENSE-herdr.txt" LogicalName="detect/LICENSE-herdr.txt" />
     <EmbeddedResource Include="../../src/codechroma/prompts/*.yaml" LogicalName="prompts/%(Filename)%(Extension)" />
   </ItemGroup>
 

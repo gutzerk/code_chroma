@@ -96,6 +96,31 @@ public class StatusDetectorTests
     }
 
     [Fact]
+    public void Forcing_the_same_status_keeps_a_pending_verdict_settling()
+    {
+        var detector = new StatusDetector(StatusRules.ForKind("claude"), initial: "working");
+        var idle = new DetectClassification("idle", VisibleIdle: true);
+        detector.Settle(idle, now: 0);
+
+        detector.Force("working");
+        var settled = detector.Settle(idle, now: 1);
+
+        Assert.Equal("idle", settled);
+    }
+
+    [Theory]
+    [InlineData("bottom_lines(10000)", true)]
+    [InlineData("bottom_lines(10001)", false)]
+    [InlineData("bottom_lines(99999999999)", false)]
+    [InlineData("bottom_lines(\u0663)", false)]
+    public void A_counted_region_names_at_most_ten_thousand_ascii_digit_lines(string region, bool valid)
+    {
+        var accepted = DetectScreen.IsValidRegion(region);
+
+        Assert.Equal(valid, accepted);
+    }
+
+    [Fact]
     public void The_highest_priority_wins_and_file_order_breaks_ties()
     {
         var rules = StatusRules.Parse("""

@@ -59,8 +59,10 @@ _PLAIN_REGIONS = frozenset(
     }
 )
 _COUNTED_REGION = re.compile(
-    r"^(bottom_lines|bottom_non_empty_lines|top_non_empty_lines)\((\d+)\)$"
+    r"^(bottom_lines|bottom_non_empty_lines|top_non_empty_lines)\(([0-9]+)\)$"
 )
+# The largest line count a counted region may name; a screen never holds more.
+MAX_REGION_LINES = 10_000
 
 # herdr's PendingIdleConfirmation: working -> plain idle waits for 3 more sightings or 700 ms.
 IDLE_CONFIRMATIONS = 3
@@ -291,7 +293,11 @@ def _list(value: object) -> list:
 
 def _valid_count(region: str) -> bool:
     match = _COUNTED_REGION.match(region)
-    return bool(match) and not match.group(2).startswith("0")
+    return (
+        bool(match)
+        and not match.group(2).startswith("0")
+        and int(match.group(2)) <= MAX_REGION_LINES
+    )
 
 
 def _positive_int(value: object, fallback: int) -> int:
@@ -532,7 +538,9 @@ class StatusDetector:
         return self.rules.evaluate(tail, title, progress)
 
     def force(self, status: str) -> None:
-        """Sets the status from outside the rules: hooks, once reporting, own working and idle."""
+        """Sets the status from outside the rules; the same status keeps a pending verdict."""
+        if self.status == status:
+            return
         self.status = status
         self._pending = None
         self._clear_idle_gate()

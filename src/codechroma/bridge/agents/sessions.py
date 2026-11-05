@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -124,6 +125,8 @@ class AgentSession(AgentSessionPort):
         self._closing = False
         self._exited = on_exit
         self._state = AgentStatusState()
+        # The poll thread and hook requests both drive the detector, which is not thread-safe.
+        self._detector_lock = threading.Lock()
         self._consumers: set[asyncio.Queue] = set()
         self._inject_lock = asyncio.Lock()
         # Seeded with the PTY's own geometry, so the tap renders the screen the agent actually drew.
@@ -167,23 +170,26 @@ class AgentSession(AgentSessionPort):
         tap = self._tap
         process = tap.foreground_process(self._pty.master_fd, time.monotonic())
         key = (tap.generation, tap.title, tap.progress, process)
-        # The rules only run when the screen, title, progress or process changed.
-        if key != self._screen_key:
-            tail = tap.tail(self._detector.rules.tail_lines)
-            self._screen_verdict = self._detector.evaluate(tail, key[1], key[2], process)
-            self._screen_key = key
-        verdict = self._detector.settle(self._screen_verdict)
-        changed = self._state.apply_screen(verdict, self._detector.last_visible_blocker)
-        self._sync()
-        return changed
+        with self._detector_lock:
+            # The rules only run when the screen, title, progress or process changed.
+            if key != self._screen_key:
+                tail = tap.tail(self._detector.rules.tail_lines)
+                self._screen_verdict = self._detector.evaluate(tail, key[1], key[2], process)
+                self._screen_key = key
+            verdict = self._detector.settle(self._screen_verdict)
+            last = self._detector.last_classification
+            changed = self._state.apply_screen(verdict, last.visible_blocker, last.visible_idle)
+            self._sync()
+            return changed
 
     def apply_hook(self, body: dict) -> HookOutcome:
         """Applies one Claude Code hook report and keeps the detector in step with it."""
         if self.exit_code is not None:
             return HookOutcome(False)
-        outcome = self._state.apply_hook(body)
-        self._sync()
-        return outcome
+        with self._detector_lock:
+            outcome = self._state.apply_hook(body)
+            self._sync()
+            return outcome
 
     def _sync(self) -> None:
         """Once hooks report, the detector holds whatever status they set."""
@@ -196,7 +202,10 @@ class AgentSession(AgentSessionPort):
 
     def decide(self, request_id: str, decision: str) -> bool:
         """Answers a pending PermissionRequest; False when no such request waits."""
-        return self._state.decide(request_id, decision)
+        with self._detector_lock:
+            decided = self._state.decide(request_id, decision)
+            self._sync()
+            return decided
 
     def expire_permission(self, request_id: str) -> bool:
         """Drops an unanswered PermissionRequest; True when it was still pending."""

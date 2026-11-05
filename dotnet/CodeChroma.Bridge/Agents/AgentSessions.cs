@@ -31,6 +31,8 @@ public interface IAgentSessionPort
 public sealed class AgentSession : IAgentSessionPort, IDisposable
 {
     private readonly object _gate = new();
+    // the poll thread and hook requests both drive the detector, which is not thread-safe
+    private readonly object _detectorGate = new();
     private readonly object _injectGate = new();
     private Task _injectChain = Task.CompletedTask;
     private readonly List<AgentConsumer> _consumers = [];
@@ -105,25 +107,32 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     {
         if (!IsAlive) return false;
         var key = (Generation: _tap.Generation, Title: _tap.Title, Progress: _tap.Progress, Process: _foreground.Current());
-        // the rules only run when the screen, title, progress or process changed; the hysteresis still runs every poll
-        if (_screenKey != key)
+        lock (_detectorGate)
         {
-            _screenVerdict = _detector.Evaluate(_tap.Tail(_detector.Rules.TailLines), key.Title, key.Progress, key.Process);
-            _screenKey = key;
+            // the rules only run when the screen, title, progress or process changed; the hysteresis still runs every poll
+            if (_screenKey != key)
+            {
+                _screenVerdict = _detector.Evaluate(_tap.Tail(_detector.Rules.TailLines), key.Title, key.Progress, key.Process);
+                _screenKey = key;
+            }
+            var verdict = _detector.Settle(_screenVerdict);
+            var last = _detector.LastClassification;
+            var changed = _state.ApplyScreen(verdict, last.VisibleBlocker, last.VisibleIdle);
+            Sync();
+            return changed;
         }
-        var verdict = _detector.Settle(_screenVerdict);
-        var changed = _state.ApplyScreen(verdict, _detector.LastVisibleBlocker);
-        Sync();
-        return changed;
     }
 
     /// <summary>Applies one Claude Code hook report and keeps the detector in step with it.</summary>
     public HookOutcome ApplyHook(JsonObject body)
     {
         if (!IsAlive) return new HookOutcome(false);
-        var outcome = _state.ApplyHook(body);
-        Sync();
-        return outcome;
+        lock (_detectorGate)
+        {
+            var outcome = _state.ApplyHook(body);
+            Sync();
+            return outcome;
+        }
     }
 
     /// <summary>Once hooks report, the detector holds whatever status they set.</summary>
@@ -136,7 +145,15 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     public bool MarkSeen() => _state.MarkSeen();
 
     /// <summary>Answers a pending PermissionRequest; false when no such request waits.</summary>
-    public bool Decide(string requestId, string decision) => _state.Decide(requestId, decision);
+    public bool Decide(string requestId, string decision)
+    {
+        lock (_detectorGate)
+        {
+            var decided = _state.Decide(requestId, decision);
+            Sync();
+            return decided;
+        }
+    }
 
     /// <summary>Drops an unanswered PermissionRequest; true when it was still pending.</summary>
     public bool ExpirePermission(string requestId) => _state.Expire(requestId);

@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Http.Features;
 using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Context;
 using CodeChroma.Bridge.Http;
@@ -17,6 +18,12 @@ public static class AgentRoutes
 {
     /// <summary>How long a PermissionRequest hook call waits for a canvas decision before the terminal dialog takes over.</summary>
     public const int PermissionWaitMs = AgentHook.PermissionWaitMs;
+
+    /// <summary>The largest hook report the bridge reads; the hook already slims its payload far below this.</summary>
+    public const int HookBodyLimit = 256 * 1024;
+
+    // one status read-and-send at a time, so a stale snapshot is never broadcast after a newer one
+    private static readonly object StatusGate = new();
 
     public static void Map(WebApplication app, string repoRoot)
     {
@@ -127,6 +134,8 @@ public static class AgentRoutes
         app.MapPost("/agents/{agentId}/hook", (string agentId, HttpRequest request, QuestionMcp mcp, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             if (!mcp.Authorizes(request.Headers.Authorization.ToString(), agentId)) return Reply.Error(401, "invalid or missing workspace token");
+            if (request.ContentLength > HookBodyLimit) return Reply.Error(413, "hook report too large");
+            if (request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } cap) cap.MaxRequestBodySize = HookBodyLimit;
             var record = OrNotFound(agents, agentId);
             var body = await Reply.LenientBody(request);
             var session = sessions.Get(agentId);
@@ -135,7 +144,12 @@ public static class AgentRoutes
             if (outcome.Changed) await BroadcastStatus(connections, sessions, record);
             if (outcome.Decision is not { } waiting) return Reply.Json(new JsonObject { ["ok"] = true });
             var decision = await WaitForDecision(waiting, request.HttpContext.RequestAborted);
-            if (decision is null && session.ExpirePermission(outcome.RequestId!)) await BroadcastStatus(connections, sessions, record);
+            if (decision is null)
+            {
+                if (session.ExpirePermission(outcome.RequestId!)) await BroadcastStatus(connections, sessions, record);
+                // a decision that landed between the timeout and the expiry still reaches the hook
+                else if (waiting.IsCompletedSuccessfully) decision = waiting.Result;
+            }
             return Reply.Json(new JsonObject { ["decision"] = decision });
         }));
 
@@ -253,6 +267,11 @@ public static class AgentRoutes
     /// <summary>The five status fields: a failed start wins, else the live session, else stopped since it was last seen running.</summary>
     public static JsonObject StatusJson(AgentSession? session, AgentRecord record)
     {
+        lock (StatusGate) return StatusJsonLocked(session, record);
+    }
+
+    private static JsonObject StatusJsonLocked(AgentSession? session, AgentRecord record)
+    {
         var live = record.StartError is { } failed
             ? new AgentStatusSnapshot(AgentStatus.Error, failed.At, null, null, failed)
             : session?.Snapshot();
@@ -276,9 +295,12 @@ public static class AgentRoutes
     /// <summary>The LED's only input: one agent-status event per real change, over the existing socket.</summary>
     public static Task BroadcastStatus(ConnectionManager connections, AgentSessionRegistry sessions, AgentRecord record)
     {
-        var message = new JsonObject { ["type"] = "agent-status", ["id"] = record.Id };
-        foreach (var (field, value) in StatusJson(sessions.Get(record.Id), record)) message[field] = value?.DeepClone();
-        return connections.Broadcast(message);
+        lock (StatusGate)
+        {
+            var message = new JsonObject { ["type"] = "agent-status", ["id"] = record.Id };
+            foreach (var (field, value) in StatusJsonLocked(sessions.Get(record.Id), record)) message[field] = value?.DeepClone();
+            return connections.Broadcast(message);
+        }
     }
 
     /// <summary>Clears a failed start and a session's exit error, so the agent reads as stopped; true when either was set.</summary>

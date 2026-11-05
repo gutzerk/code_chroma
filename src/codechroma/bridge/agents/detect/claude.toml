@@ -1,4 +1,4 @@
-# Ported from herdr (Apache-2.0) src/detect/manifests/claude.toml 2026.09.11.1; regexes use \uXXXX so .NET and Python read them alike.
+# Ported from herdr (Apache-2.0) src/detect/manifests/claude.toml 2026.09.11.1; see LICENSE-herdr.txt. Regexes use literal characters, which .NET and Python read alike.
 id = "claude"
 version = "2026.09.11.1"
 aliases = ["claude-code"]

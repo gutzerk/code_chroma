@@ -1,8 +1,9 @@
 """One live agent session's status: screen verdicts, hook reports, done/unread and permissions.
 
 Mirrors `dotnet/CodeChroma.Bridge/Agents/AgentStatusState.cs`. Until the first hook report the
-screen detector decides idle/working/blocked; from then on hooks own working and idle and the
-screen may only raise `blocked` for a visible dialog. `done` is idle nobody has looked at since.
+screen detector decides idle/working/blocked; from then on hooks own working and idle, and the
+screen may only raise `blocked` for a visible dialog or settle a visible idle prompt. `done` is
+idle nobody has looked at since.
 """
 
 from __future__ import annotations
@@ -144,13 +145,21 @@ class AgentStatusState:
                 self._since = self._clock()
             return StatusSnapshot(self._effective(), self._since, self._activity, self._pending)
 
-    def apply_screen(self, verdict: str | None, visible_blocker: bool) -> bool:
+    def apply_screen(
+        self, verdict: str | None, visible_blocker: bool, visible_idle: bool = False
+    ) -> bool:
         """One screen observation (new detector verdict or None); True if the payload changed."""
         with self._lock:
             before = self._fingerprint()
             if not self._hooked:
                 if verdict is not None and verdict != self._live:
                     self._set_live(verdict, unread_on_idle=True)
+            elif (
+                verdict == STATUS_IDLE and visible_idle
+                and self._pending is None and self._live != STATUS_IDLE
+            ):
+                # An interrupt or a terminal "No" ends the turn without Stop; a settled prompt does.
+                self._set_live(STATUS_IDLE, unread_on_idle=True)
             elif visible_blocker and not self._screen_blocker and self._live != STATUS_BLOCKED:
                 self._live = STATUS_BLOCKED
             elif not visible_blocker and self._screen_blocker and self._live == STATUS_BLOCKED:
@@ -173,15 +182,16 @@ class AgentStatusState:
                 self._activity = AgentActivity(None, None, now)
                 self._set_live(STATUS_WORKING)
             elif name == "PreToolUse":
-                self._clear_pending()
+                # A parallel tool call must not cancel another tool's pending canvas request.
                 started = self._activity.turn_started_at if self._activity else now
                 self._activity = AgentActivity(tool, hook_target(body.get("tool_input")), started)
-                self._set_live(STATUS_WORKING)
+                if self._pending is None:
+                    self._set_live(STATUS_WORKING)
             elif name == "PostToolUse":
-                self._clear_pending()
                 if self._activity is None:
                     self._activity = AgentActivity(None, None, now)
-                self._set_live(STATUS_WORKING)
+                if self._pending is None:
+                    self._set_live(STATUS_WORKING)
             elif name == "Notification":
                 kind = body.get("notification_type")
                 kind = kind if isinstance(kind, str) else ""
@@ -217,14 +227,17 @@ class AgentStatusState:
             return self._commit(before)
 
     def decide(self, request_id: str, decision: str) -> bool:
-        """Hands the canvas's decision to the waiting hook; False if no such request is pending."""
+        """Hands the decision to the waiting hook, which resumes the turn; False if none pending."""
         with self._lock:
             if self._pending is None or self._pending.request_id != request_id:
                 return False
+            before = self._fingerprint()
             if self._waiter is not None and not self._waiter.done():
                 self._waiter.set_result(decision)
             self._waiter = None
             self._pending = None
+            self._set_live(STATUS_WORKING)
+            self._commit(before)
             return True
 
     def expire(self, request_id: str) -> bool:

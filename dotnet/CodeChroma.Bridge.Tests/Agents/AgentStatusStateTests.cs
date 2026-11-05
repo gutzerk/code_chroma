@@ -110,7 +110,7 @@ public class AgentStatusStateTests
 
         var accepted = state.Decide(outcome.RequestId!, "allow");
 
-        Assert.Equal(("blocked", "Bash", "Bash(npm run e2e)"), (state.Snapshot().Status, pending.Tool, pending.Summary));
+        Assert.Equal(("working", "Bash", "Bash(npm run e2e)"), (state.Snapshot().Status, pending.Tool, pending.Summary));
         Assert.Matches("^p_[0-9a-f]{6}$", pending.RequestId);
         Assert.True(accepted);
         Assert.Equal("allow", await outcome.Decision!);
@@ -130,15 +130,40 @@ public class AgentStatusStateTests
     }
 
     [Fact]
-    public async Task The_terminal_answering_first_clears_the_pending_request()
+    public void A_parallel_tools_hooks_leave_another_tools_pending_request_waiting()
     {
         var (state, _) = Make();
         var outcome = state.ApplyHook(Hook("PermissionRequest", "Bash"));
 
-        state.ApplyHook(Hook("PostToolUse", "Bash"));
+        state.ApplyHook(Hook("PreToolUse", "Read"));
+        state.ApplyHook(Hook("PostToolUse", "Read"));
 
-        Assert.Equal(("working", null), (state.Snapshot().Status, state.Snapshot().Pending));
-        Assert.Null(await outcome.Decision!);
+        Assert.Equal(("blocked", outcome.RequestId), (state.Snapshot().Status, state.Snapshot().Pending?.RequestId));
+        Assert.False(outcome.Decision!.IsCompleted);
+    }
+
+    [Fact]
+    public void A_settled_visible_idle_prompt_ends_a_turn_that_never_sent_stop()
+    {
+        var (state, _) = Make();
+        state.ApplyHook(Hook("PreToolUse", "Bash"));
+
+        var changed = state.ApplyScreen("idle", visibleBlocker: false, visibleIdle: true);
+
+        Assert.True(changed);
+        Assert.Equal(("done", null), (state.Snapshot().Status, state.Snapshot().Activity));
+    }
+
+    [Fact]
+    public void A_visible_idle_prompt_does_not_end_a_turn_while_a_canvas_request_waits()
+    {
+        var (state, _) = Make();
+        state.ApplyHook(Hook("PermissionRequest", "Bash"));
+
+        var changed = state.ApplyScreen("idle", visibleBlocker: false, visibleIdle: true);
+
+        Assert.False(changed);
+        Assert.Equal("blocked", state.Snapshot().Status);
     }
 
     [Fact]

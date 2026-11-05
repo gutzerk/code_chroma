@@ -40,7 +40,7 @@ public sealed record AgentStatusSnapshot(string Status, DateTimeOffset Since, Ag
 /// <summary>What one hook report did: whether the payload changed, and for PermissionRequest the decision to wait on.</summary>
 public sealed record HookOutcome(bool Changed, string? RequestId = null, Task<string?>? Decision = null);
 
-/// <summary>One live session's status: screen verdicts until the first hook report, then hooks own working/idle and the screen may only raise blocked.</summary>
+/// <summary>One live session's status: screen verdicts until the first hook report, then hooks own working/idle; the screen may still raise blocked or settle a visible idle prompt.</summary>
 public sealed class AgentStatusState(TimeProvider? time = null)
 {
     public const int TargetLimit = 120;
@@ -77,8 +77,8 @@ public sealed class AgentStatusState(TimeProvider? time = null)
         }
     }
 
-    /// <summary>Applies one screen observation (the detector's new verdict or null) plus its visible-blocker flag; true when the payload changed.</summary>
-    public bool ApplyScreen(string? verdict, bool visibleBlocker)
+    /// <summary>Applies one screen observation (the detector's new verdict or null) plus its visible flags; true when the payload changed.</summary>
+    public bool ApplyScreen(string? verdict, bool visibleBlocker, bool visibleIdle = false)
     {
         lock (_gate)
         {
@@ -86,6 +86,11 @@ public sealed class AgentStatusState(TimeProvider? time = null)
             if (!_hooked)
             {
                 if (verdict is not null && verdict != _live) SetLive(verdict, unreadOnIdle: true);
+            }
+            else if (verdict == AgentStatus.Idle && visibleIdle && _pending is null && _live != AgentStatus.Idle)
+            {
+                // an interrupt or a terminal "No" ends the turn without a Stop hook; a settled idle prompt ends it instead
+                SetLive(AgentStatus.Idle, unreadOnIdle: true);
             }
             else if (visibleBlocker && !_screenBlocker && _live != AgentStatus.Blocked)
             {
@@ -119,14 +124,13 @@ public sealed class AgentStatusState(TimeProvider? time = null)
                     SetLive(AgentStatus.Working);
                     break;
                 case "PreToolUse":
-                    ClearPending();
+                    // a parallel tool call must not cancel another tool's pending canvas request
                     _activity = new AgentActivity(tool, Target(body["tool_input"]), _activity?.TurnStartedAt ?? now);
-                    SetLive(AgentStatus.Working);
+                    if (_pending is null) SetLive(AgentStatus.Working);
                     break;
                 case "PostToolUse":
-                    ClearPending();
                     _activity ??= new AgentActivity(null, null, now);
-                    SetLive(AgentStatus.Working);
+                    if (_pending is null) SetLive(AgentStatus.Working);
                     break;
                 case "Notification":
                     var kind = Json.Str(body["notification_type"]) ?? "";
@@ -166,15 +170,18 @@ public sealed class AgentStatusState(TimeProvider? time = null)
         }
     }
 
-    /// <summary>Hands the canvas's decision to the waiting hook; false when no such request is pending.</summary>
+    /// <summary>Hands the canvas's decision to the waiting hook, which resumes the turn; false when no such request is pending.</summary>
     public bool Decide(string requestId, string decision)
     {
         lock (_gate)
         {
             if (_pending?.RequestId != requestId) return false;
+            var before = Fingerprint();
             _waiter?.TrySetResult(decision);
             _waiter = null;
             _pending = null;
+            SetLive(AgentStatus.Working);
+            Commit(before);
             return true;
         }
     }

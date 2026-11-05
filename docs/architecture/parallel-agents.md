@@ -59,28 +59,43 @@ report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `wo
   the `file_path`/`command`/`pattern`/`url` keys of `tool_input`, never `tool_response`) to
   `POST /agents/{id}/hook` with the bearer token and exits 0 silently on any error. The env wiring is
   read by `Http/HookEnv.cs`, shared with the AskUserQuestion hook; the route checks the token with
-  `QuestionMcp.Authorizes` (Python `QuestionMcp.authorizes`), as `/questions/ask` does.
+  `QuestionMcp.Authorizes` (Python `QuestionMcp.authorizes`), as `/questions/ask` does, and refuses
+  a report over `HookBodyLimit` / `HOOK_BODY_LIMIT` (256 KB) with 413.
+- ⚠ Cost: every hook event starts the hook process once (the bridge binary in the desktop app,
+  `dotnet <dll>` in dev), and Claude waits for it, up to `PostTimeoutMs` (2 s) when the bridge is slow.
 - Mapping (`Agents/AgentStatusState.cs`, Python `bridge/agents/live_status.py`):
 
   | Hook | Status | Also |
   |---|---|---|
   | `UserPromptSubmit` | working | `activity = {tool: null, target: null, turn_started_at: now}` |
   | `PreToolUse` | working | `activity.tool`/`target` (`file_path`, `command`, `pattern` or `url`, one line, ≤120 chars); turn start kept |
-  | `PostToolUse` | working | clears `pending_permission` |
+  | `PostToolUse` | working | — |
   | `Notification` `permission_prompt` / `elicitation*` | blocked | other types (`idle_prompt`, ...) ignored |
   | `PermissionRequest` | blocked | registers `pending_permission {request_id, tool, summary, at}` |
   | `Stop` | done | `done` = idle not yet seen; `POST /agents/{id}/seen` makes it idle |
 
+  While a `pending_permission` waits, `PreToolUse`/`PostToolUse` (a parallel tool call) keep the
+  status `blocked` and leave the request alone.
+
 - Arbitration: before the first hook report the screen decides, and a screen working→idle also
   yields `done`. After it, hooks own working/idle (the session calls `StatusDetector.Force`); the
   screen can still raise `blocked` when `LastVisibleBlocker` / `last_visible_blocker` turns on, and
-  its turning off resumes `working` and clears a pending permission.
+  its turning off resumes `working` and clears a pending permission. A settled `idle` verdict with
+  `visible_idle` (Claude's `live_prompt_box`) also ends a working or blocked turn with no pending
+  request, because an Esc interrupt, a terminal "No" or an API error sends no `Stop`. `Force` with
+  the status the detector already holds is a no-op, so that verdict can settle while hooks report.
+  The session serializes detector access (`_detectorGate` / `_detector_lock`) between the poll thread
+  and hook requests.
 - ⚠ Permission button: the hook call long-polls for at most `AgentHook.PermissionWaitMs` (1 s;
   Python `PERMISSION_WAIT_SECONDS`). Claude shows its terminal dialog only after the hook returns, so
   the wait stays short. `POST /agents/{id}/permission {request_id, decision}` answers a waiting hook,
-  which prints `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":...}}}`.
-  On timeout the bridge drops `pending_permission` (the status stays `blocked`) and the hook prints
-  nothing, so the terminal dialog takes over.
+  which prints `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":...}}}`,
+  and sets the status back to `working`. On timeout the bridge drops `pending_permission` (the status
+  stays `blocked`) and the hook prints nothing, so the terminal dialog takes over; a decision that
+  lands between the timeout and that drop still reaches the hook.
+- ⚠ `/permission`, `/seen` and `/dismiss-error` take no token, like the other agent routes: the
+  origin guard stops browsers, but any local process of the same user can answer a pending request
+  during its 1 s window. Accepted, since such a process can already type into the agent's terminal.
 - `error {message, at}` is runtime-only (`ToPayload`, never `ToJson`): a failed start or auto-start
   (`AgentRecord.StartError` / `start_error`: CLI not found, missing worktree, unknown kind) wins,
   else a session's non-zero exit not caused by Stop (carried on its `Snapshot().Error`). A successful
@@ -88,6 +103,7 @@ report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `wo
   `stopped`.
 - Exit is broadcast at once: `AgentSessionRegistry.Exited` (Python `on_exit`) fires from the PTY
   exit callback for the still-registered session. The poller broadcasts only real payload changes.
+  C# reads and sends each status under one `StatusGate`, so a stale snapshot never goes out last.
 - Every payload and `agent-status` event carries `status`, `status_since` (ISO UTC, seconds),
   `activity` (only while working), `pending_permission` and `error` (only while error), built by
   `AgentRoutes.StatusJson(session, record)` (Python `routes/agents.status_json`); a payload is
@@ -431,7 +447,10 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   screen (`tail_lines = 200`, `terminal/screen_tap.py` / `ScreenTap.cs`), so a dialog is read by
   its structure (prompt box between two `─` rules, footer after the last rule) rather than by a
   phrase anywhere in the tail: "Esc to cancel" quoted in scrollback no longer reads as blocked.
-  Regexes use `\uXXXX` so .NET and Python read them alike; shared screens and expected verdicts live
+  Regexes use literal characters, which .NET and Python read alike; a counted region names at most
+  `MaxRegionLines` / `MAX_REGION_LINES` (10 000) ASCII-digit lines. The manifests are ported from
+  herdr under Apache-2.0: `detect/LICENSE-herdr.txt` ships beside them (embedded in the C# bridge).
+  Shared screens and expected verdicts live
   in `tests/fixtures/agent_screens/` (`cases.json`, `regions.json`), run by `test_agent_status.py`
   and `StatusDetectorTests.cs`. A working→idle change without visible idle chrome (`visible_idle`)
   waits for 3 more sightings or 700 ms (herdr's `PendingIdleConfirmation`), then the 250 ms

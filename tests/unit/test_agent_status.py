@@ -9,6 +9,7 @@ from codechroma.bridge.agents.status import (
     STATUS_BLOCKED,
     STATUS_IDLE,
     STATUS_WORKING,
+    Classification,
     DetectScreen,
     StatusDetector,
     StatusRules,
@@ -80,6 +81,38 @@ def test_a_foreign_foreground_process_holds_and_clears_the_visible_blocker():
 
     assert held is None
     assert not detector.last_visible_blocker
+
+
+def test_forcing_the_same_status_keeps_a_pending_verdict_settling():
+    detector = StatusDetector(load_manifest_for("claude"), initial=STATUS_WORKING)
+    idle = Classification(state=STATUS_IDLE, visible_idle=True)
+    detector.settle(idle, now=0)
+
+    detector.force(STATUS_WORKING)
+    settled = detector.settle(idle, now=1)
+
+    assert settled == STATUS_IDLE
+
+
+@pytest.mark.parametrize(
+    ("region", "valid"),
+    [
+        ("bottom_lines(10000)", True),
+        ("bottom_lines(10001)", False),
+        ("bottom_lines(99999999999)", False),
+        ("bottom_lines(\u0663)", False),
+    ],
+)
+def test_a_counted_region_names_at_most_ten_thousand_ascii_digit_lines(region, valid):
+    manifest = f'[[rules]]\nid = "r"\nstate = "idle"\nregion = "{region}"\ncontains = ["x"]\n'
+
+    try:
+        parse_manifest(manifest)
+        accepted = True
+    except ValueError:
+        accepted = False
+
+    assert accepted == valid
 
 
 def test_the_highest_priority_wins_and_file_order_breaks_ties():

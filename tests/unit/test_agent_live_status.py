@@ -119,7 +119,7 @@ def test_a_permission_request_blocks_and_hands_the_decision_to_the_waiting_hook(
     accepted = state.decide(outcome.request_id, "allow")
 
     assert (state.snapshot().status, pending.tool, pending.summary) == (
-        "blocked", "Bash", "Bash(npm run e2e)",
+        "working", "Bash", "Bash(npm run e2e)",
     )
     assert re.fullmatch(r"p_[0-9a-f]{6}", pending.request_id)
     assert accepted
@@ -137,14 +137,38 @@ def test_an_unknown_request_id_is_not_decided():
     assert state.snapshot().pending is not None
 
 
-def test_the_terminal_answering_first_clears_the_pending_request():
+def test_a_parallel_tools_hooks_leave_another_tools_pending_request_waiting():
     state, _ = _state()
     outcome = state.apply_hook(_hook("PermissionRequest", "Bash"))
 
-    state.apply_hook(_hook("PostToolUse", "Bash"))
+    state.apply_hook(_hook("PreToolUse", "Read"))
+    state.apply_hook(_hook("PostToolUse", "Read"))
 
-    assert (state.snapshot().status, state.snapshot().pending) == ("working", None)
-    assert outcome.decision.result(timeout=1) is None
+    pending = state.snapshot().pending
+    assert (state.snapshot().status, pending and pending.request_id) == (
+        "blocked", outcome.request_id,
+    )
+    assert not outcome.decision.done()
+
+
+def test_a_settled_visible_idle_prompt_ends_a_turn_that_never_sent_stop():
+    state, _ = _state()
+    state.apply_hook(_hook("PreToolUse", "Bash"))
+
+    changed = state.apply_screen("idle", visible_blocker=False, visible_idle=True)
+
+    assert changed
+    assert (state.snapshot().status, state.snapshot().activity) == ("done", None)
+
+
+def test_a_visible_idle_prompt_does_not_end_a_turn_while_a_canvas_request_waits():
+    state, _ = _state()
+    state.apply_hook(_hook("PermissionRequest", "Bash"))
+
+    changed = state.apply_screen("idle", visible_blocker=False, visible_idle=True)
+
+    assert not changed
+    assert state.snapshot().status == "blocked"
 
 
 def test_an_expired_request_leaves_the_agent_blocked_without_a_pending_request():

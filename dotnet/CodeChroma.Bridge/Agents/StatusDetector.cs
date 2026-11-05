@@ -86,7 +86,7 @@ public sealed class StatusRules
     {
         if (ReadShipped($"detect/{kind}.toml") is { } direct) return Parse(direct, kind);
         var assembly = typeof(StatusRules).Assembly;
-        foreach (var name in assembly.GetManifestResourceNames().Where(n => n.StartsWith("detect/", StringComparison.Ordinal)).Order(StringComparer.Ordinal))
+        foreach (var name in assembly.GetManifestResourceNames().Where(n => n.StartsWith("detect/", StringComparison.Ordinal) && n.EndsWith(".toml", StringComparison.Ordinal)).Order(StringComparer.Ordinal))
         {
             var rules = Parse(ReadShipped(name) ?? "", Path.GetFileNameWithoutExtension(name));
             if (rules.Aliases.Contains(kind)) return rules;
@@ -202,7 +202,10 @@ public sealed class StatusRules
 /// <summary>The tail as one text (trailing blank rows dropped) plus herdr's region slicers over it (src/detect/manifest.rs `fn region`).</summary>
 public sealed class DetectScreen
 {
-    private static readonly Regex Counted = new(@"^(bottom_lines|bottom_non_empty_lines|top_non_empty_lines)\((\d+)\)$", RegexOptions.CultureInvariant);
+    /// <summary>The largest line count a counted region may name; a screen never holds more.</summary>
+    public const int MaxRegionLines = 10_000;
+
+    private static readonly Regex Counted = new(@"^(bottom_lines|bottom_non_empty_lines|top_non_empty_lines)\(([0-9]+)\)$", RegexOptions.CultureInvariant);
     private static readonly HashSet<string> Plain =
     [
         "whole_recent", "after_last_prompt_marker", "before_current_prompt_marker", "whole_recent_without_current_prompt_marker",
@@ -224,7 +227,8 @@ public sealed class DetectScreen
     }
 
     public static bool IsValidRegion(string spec) =>
-        Plain.Contains(spec) || (Counted.Match(spec) is { Success: true } m && !m.Groups[2].Value.StartsWith('0'));
+        Plain.Contains(spec) || (Counted.Match(spec) is { Success: true } m && !m.Groups[2].Value.StartsWith('0')
+            && int.TryParse(m.Groups[2].Value, out var count) && count <= MaxRegionLines);
 
     /// <summary>Rust's str::lines: split on \n, drop one trailing empty piece, strip a trailing \r.</summary>
     public static List<string> Lines(string text)
@@ -422,9 +426,10 @@ public sealed class StatusDetector
             ? DetectClassification.Hold
             : Rules.Evaluate(tail, title, progress);
 
-    /// <summary>Sets the status from outside the rules: hooks, once reporting, own working and idle.</summary>
+    /// <summary>Sets the status from outside the rules: hooks, once reporting, own working and idle; the same status keeps a pending verdict settling.</summary>
     public void Force(string status)
     {
+        if (Status == status) return;
         Status = status;
         _pending = null;
         ClearIdleGate();

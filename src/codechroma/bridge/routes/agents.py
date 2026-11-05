@@ -342,11 +342,18 @@ async def broadcast_agent(services: BridgeServices, agent_id: str) -> None:
     await broadcast_agent_status(services, record)
 
 
+# The largest hook report the bridge reads; the hook already slims its payload far below this.
+HOOK_BODY_LIMIT = 256 * 1024
+
+
 @router.post("/agents/{agent_id}/hook")
 async def post_agent_hook(agent_id: str, request: Request, services: Services) -> dict:
     """One Claude Code hook report; a PermissionRequest waits briefly for the canvas's decision."""
     if not request.app.state.question_mcp.authorizes(request.headers, agent_id):
         raise HTTPException(status_code=401, detail="invalid or missing workspace token")
+    length = request.headers.get("content-length", "")
+    if length.isdigit() and int(length) > HOOK_BODY_LIMIT:
+        raise HTTPException(status_code=413, detail="hook report too large")
     record = _agent_or_404(services, agent_id)
     body = await json_body(request)
     session = services.agent_sessions.get(agent_id)
@@ -363,8 +370,12 @@ async def post_agent_hook(agent_id: str, request: Request, services: Services) -
         )
     except TimeoutError:
         decision = None
-    if decision is None and session.expire_permission(outcome.request_id or ""):
-        await broadcast_agent_status(services, record)
+    if decision is None:
+        if session.expire_permission(outcome.request_id or ""):
+            await broadcast_agent_status(services, record)
+        elif outcome.decision.done():
+            # A decision that landed between the timeout and the expiry still reaches the hook.
+            decision = outcome.decision.result()
     return {"decision": decision}
 
 

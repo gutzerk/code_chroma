@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.14.0](https://github.com/gutzerk/code_chroma/compare/v1.13.0...v1.14.0) (2026-11-05)
+
+
+### Features
+
+* **agents:** drive agent status from Claude hooks, add done/error and broadcast exits ([3cf8669](https://github.com/gutzerk/code_chroma/commit/3cf866922f146f12391ae591b1d2bb2ab35e193a))
+* **agents:** herdr-style status rule engine in both bridges ([301494a](https://github.com/gutzerk/code_chroma/commit/301494a619a5188d61a9a872ae0a78a77fa10c31))
+* **impact:** restyle the Impact board to the change-at-a-glance design ([fce6661](https://github.com/gutzerk/code_chroma/commit/fce6661d1d8216bbf01a921f85b37f1de70d2ad0))
+* **shell:** agent status dots, waiting pill and hover popover on project tabs ([469bdb8](https://github.com/gutzerk/code_chroma/commit/469bdb8d12a6c8d8bc9774fae458db6d7f1e5a4b))
+* **web:** agent status indicators, worktree roll-ups, toasts and desktop summary ([7837e32](https://github.com/gutzerk/code_chroma/commit/7837e3257399209dd06021abc652fee02652046b))
+
+
+### Bug Fixes
+
+* **agents:** clear the claude session id on a CLI switch and tidy the MCP settings ([0be91b3](https://github.com/gutzerk/code_chroma/commit/0be91b3cc8c2ac393f08c26503401ccf36a658e4))
+* **agents:** drop the claude session link when an agent window relaunches under another CLI ([ff57e4e](https://github.com/gutzerk/code_chroma/commit/ff57e4e2c3fdcfa1838fa3abca1a4434d1661df5))
+* **agents:** end interrupted turns, resume after Allow and harden the hook route in both bridges ([6748952](https://github.com/gutzerk/code_chroma/commit/674895281e5e3f1b8025103abe26679129696df2))
+* **agents:** keep replayed terminal history reflowable and never size a hidden terminal ([1683c39](https://github.com/gutzerk/code_chroma/commit/1683c39b3979f473dc090aaf1c9a84212aa63ae6))
+* **agents:** prompt history in agent windows, reflowable terminal history, terminal toolbar ([6db88e4](https://github.com/gutzerk/code_chroma/commit/6db88e4ee40be7ad7b662954accb2c8113b0fce6))
+* **agents:** show prompt history for agent windows and match echoes with hook output ([29a71d2](https://github.com/gutzerk/code_chroma/commit/29a71d23a9119afecd0a46076388994f99f19e03))
+* **canvas:** make the rendered Markdown preview scroll ([335e043](https://github.com/gutzerk/code_chroma/commit/335e04331801fadf3f2e9983d0a5f10af431ad93))
+* **impact:** keep the review card in the side column and dragged cards in place ([1cb300b](https://github.com/gutzerk/code_chroma/commit/1cb300bbea57680f1c88de6ed99913b549600cca))
+* **impact:** list each changed file once per block ([aa28281](https://github.com/gutzerk/code_chroma/commit/aa28281eaab53b8222f9a5fb52df999e6c4d9a51))
+* **perf:** analyze the active worktree tab at boot alongside main ([11a8015](https://github.com/gutzerk/code_chroma/commit/11a8015eff8cc87cf7dfa6834d8d97161a32f127))
+* **questions:** allow every codechroma MCP tool and treat a 0px terminal as unmeasured ([ee4583d](https://github.com/gutzerk/code_chroma/commit/ee4583d28a7fc8e20e91fa18bb631254956e0179))
+* **questions:** pre-approve the codechroma MCP tools so agent windows stop asking ([7bbceb8](https://github.com/gutzerk/code_chroma/commit/7bbceb83a4b904d0e824cbd8733d94e1deaf06a3))
+* **shell:** drop stale agent summaries and harden the agent popover ([b8c2c27](https://github.com/gutzerk/code_chroma/commit/b8c2c27d29dcd1143715bf75b2feacd5dae552b5))
+* **shell:** use English agent-status text on project tabs to match the canvas ([2697c72](https://github.com/gutzerk/code_chroma/commit/2697c72042d630adf4890d8354fcfa70447b87f2))
+* **terminal:** put New terminal next to the tabs and make toolbar hover visible ([bb17d82](https://github.com/gutzerk/code_chroma/commit/bb17d82851018250c7920ac451fa3c5d80c1f411))
+* **terminal:** redraw a stale WebGL glyph atlas so agent windows stop dropping characters ([a803003](https://github.com/gutzerk/code_chroma/commit/a803003da8894deb71645ae82caac4fca234aef1))
+* **web:** announce agents by effective status and order HTTP replies after status events ([1c26ee9](https://github.com/gutzerk/code_chroma/commit/1c26ee92737d3643088899f0e6d5c9fe0f9862be))
+* **web:** make agent toasts and the agent switcher accessible ([b8d36c8](https://github.com/gutzerk/code_chroma/commit/b8d36c84d91e20bb3f0825ef8e1d78037e88d938))
+
 ## [1.13.0](https://github.com/gutzerk/code_chroma/compare/v1.12.0...v1.13.0) (2026-11-03)
 
 

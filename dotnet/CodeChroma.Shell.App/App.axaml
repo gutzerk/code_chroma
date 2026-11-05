@@ -1,5 +1,5 @@
 <Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="CodeChroma.Shell.App.App" RequestedThemeVariant="Dark">
-  <!-- Project tab strip and agent status tokens (design: "Вкладки проектов и worktree", shared agent-status contract). -->
+  <!-- Project tab strip and agent status tokens (design: "Project tabs and worktree", shared agent-status contract). -->
   <Application.Resources>
     <SolidColorBrush x:Key="TabBarBrush" Color="#0a0c0f" />
     <SolidColorBrush x:Key="TabBarLineBrush" Color="#22262e" />

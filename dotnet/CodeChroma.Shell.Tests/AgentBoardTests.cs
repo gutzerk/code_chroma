@@ -44,22 +44,20 @@ public class AgentRollupTests
     }
 
     [Fact]
-    public void The_popover_counts_agents_and_distinct_worktrees_in_russian()
+    public void The_popover_counts_agents_and_distinct_worktrees()
     {
         var summary = Summary(Agent("a1", "blocked", "br_wt-1"), Agent("a2", "working", "br_wt-2"), Agent("a3", "idle", "br_wt-2"));
 
-        Assert.Equal("3 агента · 2 worktree", AgentRollup.Counts(summary));
+        Assert.Equal("3 agents · 2 worktrees", AgentRollup.Counts(summary));
     }
 
     [Theory]
-    [InlineData(1, "агент")]
-    [InlineData(3, "агента")]
-    [InlineData(5, "агентов")]
-    [InlineData(11, "агентов")]
-    [InlineData(21, "агент")]
-    public void Russian_plurals_follow_the_last_digits(int n, string word)
+    [InlineData(1, "agent")]
+    [InlineData(0, "agents")]
+    [InlineData(3, "agents")]
+    public void Only_one_is_singular(int n, string word)
     {
-        Assert.Equal(word, AgentRollup.Plural(n, "агент", "агента", "агентов"));
+        Assert.Equal(word, AgentRollup.Plural(n, "agent", "agents"));
     }
 
     [Theory]
@@ -73,9 +71,9 @@ public class AgentRollupTests
     }
 
     [Theory]
-    [InlineData(20, "<1 мин")]
-    [InlineData(180, "3 мин")]
-    [InlineData(7300, "2 ч")]
+    [InlineData(20, "<1 min")]
+    [InlineData(180, "3 min")]
+    [InlineData(7300, "2 h")]
     public void The_waiting_time_is_coarse(int seconds, string text)
     {
         Assert.Equal(text, AgentRollup.Waiting(TimeSpan.FromSeconds(seconds)));

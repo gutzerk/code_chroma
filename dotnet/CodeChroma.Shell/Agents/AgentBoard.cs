@@ -34,16 +34,10 @@ public static class AgentRollup
     {
         var agents = summary.Agents.Count(a => a.Status != "stopped");
         var worktrees = summary.Agents.Select(a => a.Worktree).Where(w => w is not null).Distinct().Count();
-        return $"{agents} {Plural(agents, "агент", "агента", "агентов")} · {worktrees} worktree";
+        return $"{agents} {Plural(agents, "agent", "agents")} · {worktrees} {Plural(worktrees, "worktree", "worktrees")}";
     }
 
-    public static string Plural(int n, string one, string few, string many)
-    {
-        var tens = n % 100;
-        var units = n % 10;
-        if (tens is >= 11 and <= 14) return many;
-        return units switch { 1 => one, >= 2 and <= 4 => few, _ => many };
-    }
+    public static string Plural(int n, string one, string many) => n == 1 ? one : many;
 
     public static string Clock(TimeSpan elapsed)
     {
@@ -52,7 +46,7 @@ public static class AgentRollup
     }
 
     public static string Waiting(TimeSpan elapsed) =>
-        elapsed.TotalMinutes < 1 ? "<1 мин" : elapsed.TotalHours < 1 ? $"{(int)elapsed.TotalMinutes} мин" : $"{(int)elapsed.TotalHours} ч";
+        elapsed.TotalMinutes < 1 ? "<1 min" : elapsed.TotalHours < 1 ? $"{(int)elapsed.TotalMinutes} min" : $"{(int)elapsed.TotalHours} h";
 }
 
 /// <summary>The JSON commands the shell sends to a page through window.__ccAgentCommand.</summary>

@@ -266,7 +266,7 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
             TabStrip.Children.Add(add);
         }
         WaitingPill.IsVisible = snapshot.Waiting > 0;
-        WaitingText.Text = $"{snapshot.Waiting} {AgentRollup.Plural(snapshot.Waiting, "ждёт", "ждут", "ждут")} вас";
+        WaitingText.Text = $"{snapshot.Waiting} waiting";
         popover.Refresh(chips);
     }
 

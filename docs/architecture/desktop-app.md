@@ -73,7 +73,7 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   menu) posts `save-file` (`id`=file name, `method`=mime, `arg`=base64); `MainWindow.SaveFileAsync` runs
   `CodeChroma.Shell/FileSaver` over Avalonia's `SaveFilePickerAsync` and replies `{saved}` (`false` = cancelled).
 - Chrome: no native menu bar on Windows/Linux; the tab strip (`#0a0c0f` bar, active tab `#14171c` with a `#2c313b`
-  outline, per the "Вкладки проектов" mockup) ends in a "⋯" flyout (Open Repo, New Tab, Close Tab, Next Waiting Agent,
+  outline, per the "Project tabs" mockup) ends in a "⋯" flyout (Open Repo, New Tab, Close Tab, Next Waiting Agent,
   Check for Updates, About; Ctrl+O/T/W and Ctrl+Shift+J work). macOS gets a native menu (Cmd+Shift+J).
   `App.axaml` carries the shared styles and the tab/agent-status colour tokens (`Application.Resources`); code reads them
   through `AgentChrome.Brush`, never hard-coded. The icon art is `Assets/icon.png`; `Assets/icon.ico` is generated from it by
@@ -116,14 +116,14 @@ Each canvas page reports its agents to the shell; the tab strip shows the most u
   working: `#7ea3ff` spinner on `#26365a`; idle: nothing) and a badge counting blocked + error + done (solid yellow for
   blocked, tinted for error/done). The active tab drops `done` from the count, so a done-only active tab shows the dot
   without a number. There is no Avalonia reduced-motion setting, so the spinner (0.9 s) and pulse (1.6 s) always run.
-- Pill "N ждут вас ⌘⇧J" (right of the strip) shows when any tab has blocked agents; N counts each (project, agent) once,
+- Pill "N waiting ⌘⇧J" (right of the strip) shows when any tab has blocked agents; N counts each (project, agent) once,
   so a PR tab sharing its owner's bridge doesn't double-count. Click, Cmd/Ctrl+Shift+J (window key handler, native menu
   item, and a page-side keydown listener that posts `next-waiting-agent` because a focused WebView swallows keys) call
   `ShellController.FocusNextBlocked`: `AgentBoard.Next` walks blocked agents oldest `status_since` first, round-robin
   from the last one visited, then the shell focuses that tab and sends `select-agent`. Repeats within 150 ms count once.
 - Hover popover (`AgentPopover`, an Avalonia `Popup` so it floats above the native WebView): header
-  "<project> · N агента · M worktree", blocked agents first with "Просит разрешение: <summary>", "Разрешить" (only when
-  `pending_permission` is set; sends `permission` to that tab's page without switching) and "Открыть агента" (focus tab +
+  "<project> · N agents · M worktrees", blocked agents first with "Asking permission: <summary>", "Allow" (only when
+  `pending_permission` is set; sends `permission` to that tab's page without switching) and "Open agent" (focus tab +
   `select-agent`), then error/done rows, working rows "Tool · target" with an m:ss timer from `activity.turn_started_at`
   (ticks every second while open), idle rows.
 - ⚠ Background tabs: hidden tab WebViews are only `IsVisible=false`, not suspended, so their pages keep running and keep

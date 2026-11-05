@@ -123,16 +123,16 @@ public sealed class AgentPopover
         var ask = new TextBlock { FontSize = 13, LineHeight = 19, TextWrapping = TextWrapping.Wrap, Foreground = AgentChrome.Brush("PermissionTextBrush") };
         if (permission is not null)
         {
-            ask.Inlines!.Add(new Run("Просит разрешение: "));
-            ask.Inlines.Add(new Run(permission.Summary ?? permission.Tool ?? "инструмент") { FontFamily = (FontFamily)Application.Current!.FindResource("MonoFont")!, FontSize = 12, Foreground = AgentChrome.Brush("PermissionCodeBrush") });
+            ask.Inlines!.Add(new Run("Asking permission: "));
+            ask.Inlines.Add(new Run(permission.Summary ?? permission.Tool ?? "a tool") { FontFamily = (FontFamily)Application.Current!.FindResource("MonoFont")!, FontSize = 12, Foreground = AgentChrome.Brush("PermissionCodeBrush") });
         }
-        else ask.Text = "Ждёт вашего ответа в агенте";
+        else ask.Text = "Waiting for your answer";
         block.Children.Add(ask);
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         if (permission is not null)
         {
-            var allow = new Button { Content = "Разрешить", Classes = { "chip", "allow" } };
+            var allow = new Button { Content = "Allow", Classes = { "chip", "allow" } };
             allow.Click += (_, _) =>
             {
                 allow.IsEnabled = false;
@@ -140,7 +140,7 @@ public sealed class AgentPopover
             };
             buttons.Children.Add(allow);
         }
-        var open = new Button { Content = "Открыть агента", Classes = { "chip", "open" } };
+        var open = new Button { Content = "Open agent", Classes = { "chip", "open" } };
         open.Click += (_, _) =>
         {
             Close();
@@ -177,8 +177,8 @@ public sealed class AgentPopover
         var detail = agent.Status switch
         {
             "working" => Activity(agent.Activity),
-            "error" => "Ошибка",
-            "done" => "Готово",
+            "error" => "Failed",
+            "done" => "Done",
             _ => "Idle",
         };
         var line = Text(detail, 12, agent.Status == "error" ? "StatusErrorBrush" : "PopoverMutedBrush");
@@ -191,7 +191,7 @@ public sealed class AgentPopover
     {
         { Tool: { } tool, Target: { } target } => $"{tool} · {target}",
         { Tool: { } tool } => tool,
-        _ => "Работает",
+        _ => "Working",
     };
 
     private void Tick()

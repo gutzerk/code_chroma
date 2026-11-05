@@ -13,21 +13,21 @@ into herdr's idle fallback with `no_match = "idle"`. `stopped` and `exited` come
 
 from __future__ import annotations
 
+import functools
 import logging
 import re
 import time
 import tomllib
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 
+from codechroma.bridge.agents.live_status import STATUS_BLOCKED, STATUS_IDLE, STATUS_WORKING
 from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
 
 logger = logging.getLogger("uvicorn.error")
 
-STATUS_IDLE = "idle"
-STATUS_BLOCKED = "blocked"
-STATUS_WORKING = "working"
 STATE_UNKNOWN = "unknown"
 
 _STATES = frozenset({STATUS_IDLE, STATUS_BLOCKED, STATUS_WORKING, STATE_UNKNOWN})
@@ -95,20 +95,35 @@ class Gate:
     any: tuple[Gate, ...] = ()
     not_: tuple[Gate, ...] = ()
 
-    def matches(self, text: str, lower: str) -> bool:
-        if not all(needle in lower for needle in self.contains):
+    def matches(self, region: RegionText) -> bool:
+        if not all(needle in region.lower for needle in self.contains):
             return False
-        if not all(pattern.search(text) for pattern in self.regex):
+        if not all(pattern.search(region.text) for pattern in self.regex):
             return False
-        if self.line_regex:
-            lines = _lines(text)
-            if not all(any(p.search(line) for line in lines) for p in self.line_regex):
-                return False
-        if not all(nested.matches(text, lower) for nested in self.all):
+        if self.line_regex and not all(
+            any(p.search(line) for line in region.lines) for p in self.line_regex
+        ):
             return False
-        if self.any and not any(nested.matches(text, lower) for nested in self.any):
+        if not all(nested.matches(region) for nested in self.all):
             return False
-        return not any(nested.matches(text, lower) for nested in self.not_)
+        if self.any and not any(nested.matches(region) for nested in self.any):
+            return False
+        return not any(nested.matches(region) for nested in self.not_)
+
+
+class RegionText:
+    """One region's text plus its lower-cased form and lines, each computed at most once."""
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+    @cached_property
+    def lower(self) -> str:
+        return self.text.lower()
+
+    @cached_property
+    def lines(self) -> list[str]:
+        return _lines(self.text)
 
 
 @dataclass(frozen=True)
@@ -122,7 +137,6 @@ class Rule:
     gate: Gate
     visible_idle: bool = False
     visible_blocker: bool = False
-    visible_working: bool = False
     skip_state_update: bool = False
 
 
@@ -133,7 +147,6 @@ class Classification:
     state: str | None = None
     visible_idle: bool = False
     visible_blocker: bool = False
-    visible_working: bool = False
     rule_id: str | None = None
 
 
@@ -147,6 +160,7 @@ class StatusRules:
     name: str = "unknown"
     process: tuple[str, ...] = ()
     tail_lines: int = field(default_factory=default_tail_lines)
+    # Highest priority first, file order breaking ties, so the first match is the winner.
     rules: tuple[Rule, ...] = ()
     aliases: tuple[str, ...] = ()
     no_match: str | None = None
@@ -161,13 +175,10 @@ class StatusRules:
         if not self.rules:
             return _HOLD
         screen = DetectScreen(tail)
-        best: Rule | None = None
-        for rule in self.rules:
-            text = screen.region(rule.region, title, progress)
-            if (best is None or rule.priority > best.priority) and rule.gate.matches(
-                text, text.lower()
-            ):
-                best = rule
+        best = next(
+            (r for r in self.rules if r.gate.matches(screen.slice(r.region, title, progress))),
+            None,
+        )
         if best is None:
             return Classification(state=self.no_match)
         if best.skip_state_update or best.state == STATE_UNKNOWN:
@@ -176,7 +187,6 @@ class StatusRules:
             state=best.state,
             visible_idle=best.visible_idle and best.state == STATUS_IDLE,
             visible_blocker=best.visible_blocker and best.state == STATUS_BLOCKED,
-            visible_working=best.visible_working and best.state == STATUS_WORKING,
             rule_id=best.id,
         )
 
@@ -205,12 +215,13 @@ def parse_manifest(text: str, fallback_name: str = "unknown") -> StatusRules:
         name=str(raw.get("id", raw.get("name", fallback_name))),
         process=tuple(str(entry) for entry in raw.get("process", []) or []),
         tail_lines=_positive_int(raw.get("tail_lines"), default_tail_lines()),
-        rules=tuple(_rule(entry) for entry in rules),
+        rules=tuple(sorted((_rule(entry) for entry in rules), key=lambda r: -r.priority)),
         aliases=tuple(str(entry) for entry in raw.get("aliases", []) or []),
         no_match=STATUS_IDLE if no_match == STATUS_IDLE else None,
     )
 
 
+@functools.cache
 def load_manifest_for(kind: str) -> StatusRules:
     """The shipped manifest for an agent kind or alias; an unknown kind never classifies."""
     direct = MANIFEST_DIR / f"{kind}.toml"
@@ -246,7 +257,6 @@ def _rule(raw: object) -> Rule:
         gate=_gate(raw, rule=True),
         visible_idle=bool(raw.get("visible_idle", False)),
         visible_blocker=bool(raw.get("visible_blocker", False)),
-        visible_working=bool(raw.get("visible_working", False)),
         skip_state_update=bool(raw.get("skip_state_update", False)),
     )
 
@@ -327,6 +337,15 @@ class DetectScreen:
             lines.pop()
         self.lines = lines
         self.content = "\n".join(lines)
+        self._slices: dict[str, RegionText] = {}
+
+    def slice(self, spec: str, title: str, progress: str) -> RegionText:
+        """The region as a memoized RegionText; OSC regions pass straight through."""
+        if spec in ("osc_title", "osc_progress"):
+            return RegionText(self.region(spec, title, progress))
+        if spec not in self._slices:
+            self._slices[spec] = RegionText(self.region(spec, title, progress))
+        return self._slices[spec]
 
     def region(self, spec: str, title: str, progress: str) -> str:
         if spec == "osc_title":
@@ -356,6 +375,7 @@ class DetectScreen:
             return self._suffix(non_empty[-count:][0])
         return self._prefix(non_empty[:count][-1] + 1)
 
+    @cached_property
     def _current_prompt_index(self) -> int | None:
         prompts = [i for i, line in enumerate(self.lines) if _codex_prompt_line(line)]
         if not prompts:
@@ -370,14 +390,14 @@ class DetectScreen:
         return self._suffix(prompts[-1] + 1) if prompts else self.content
 
     def _before_current_prompt_marker(self) -> str:
-        index = self._current_prompt_index()
+        index = self._current_prompt_index
         return self.content if index is None else self._prefix(index)
 
     def _whole_recent_without_current_prompt_marker(self) -> str:
-        return "" if self._current_prompt_index() is not None else self.content
+        return "" if self._current_prompt_index is not None else self.content
 
     def _block_index(self) -> int | None:
-        prompt = self._current_prompt_index()
+        prompt = self._current_prompt_index
         if prompt is None:
             return None
         blocks = [i for i in range(prompt) if _codex_block_marker_line(self.lines[i])]
@@ -391,12 +411,13 @@ class DetectScreen:
         index = self._block_index()
         return "" if index is None else self._suffix(index)
 
+    @cached_property
     def _prompt_box_top(self) -> int | None:
         rules = [i for i, line in enumerate(self.lines) if _is_horizontal_rule(line)]
         return rules[-2] if len(rules) >= 2 else None
 
     def _prompt_box_body(self) -> str:
-        top = self._prompt_box_top()
+        top = self._prompt_box_top
         if top is None:
             return ""
         end = next(
@@ -406,7 +427,7 @@ class DetectScreen:
         return "".join(line + "\n" for line in self.lines[top + 1 : end])
 
     def _above_prompt_box(self) -> str:
-        top = self._prompt_box_top()
+        top = self._prompt_box_top
         return self.content if top is None else self._prefix(top)
 
     def _last_non_empty_above_prompt_box(self) -> str:
@@ -460,14 +481,13 @@ class StatusDetector:
         now: float | None = None,
     ) -> str | None:
         """The new status once it held for the hysteresis window, else None (nothing changed)."""
+        return self.settle(self.evaluate(tail, title, progress, process), now)
+
+    def settle(self, verdict: Classification, now: float | None = None) -> str | None:
+        """Runs one verdict through the hysteresis; a cached verdict may be settled again."""
         moment = time.monotonic() if now is None else now
-        try:
-            candidate = self.classify(tail, title, progress, process)
-        except Exception:
-            # A detector exception must never reach the socket, let alone block terminal input.
-            logger.exception("agent status: classification failed — holding %s", self.status)
-            self._last = _HOLD
-            candidate = None
+        self._last = verdict
+        candidate = verdict.state
         if candidate is None or candidate == self.status:
             self._pending = None
             self._clear_idle_gate()
@@ -490,14 +510,29 @@ class StatusDetector:
         self, tail: list[str], title: str, progress: str, process: str | None
     ) -> str | None:
         """The status this observation implies, or None meaning "hold whatever is current"."""
-        if self.rules.process and process is not None and process not in self.rules.process:
-            self._last = _HOLD
-            return None
-        self._last = self.rules.evaluate(tail, title, progress)
+        self._last = self._judge(tail, title, progress, process)
         return self._last.state
 
+    def evaluate(
+        self, tail: list[str], title: str, progress: str, process: str | None
+    ) -> Classification:
+        """This observation's verdict without touching the detector; a failing rule holds."""
+        try:
+            return self._judge(tail, title, progress, process)
+        except Exception:
+            # A detector exception must never reach the socket, let alone block terminal input.
+            logger.exception("agent status: classification failed — holding %s", self.status)
+            return _HOLD
+
+    def _judge(
+        self, tail: list[str], title: str, progress: str, process: str | None
+    ) -> Classification:
+        if self.rules.process and process is not None and process not in self.rules.process:
+            return _HOLD
+        return self.rules.evaluate(tail, title, progress)
+
     def force(self, status: str) -> None:
-        """Sets the status from outside the rules — AgentManager owns stopped/exited/running."""
+        """Sets the status from outside the rules: hooks, once reporting, own working and idle."""
         self.status = status
         self._pending = None
         self._clear_idle_gate()

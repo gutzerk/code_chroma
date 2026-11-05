@@ -7,10 +7,6 @@ namespace CodeChroma.Bridge.Agents;
 public sealed class AgentRecord
 {
     public const string DefaultKind = "claude";
-    public const string StatusStopped = "stopped";
-    public const string StatusRunning = "running";
-    public const string StatusExited = "exited";
-    public const string StatusError = "error";
     public static readonly string[] ContextKinds = ["view", "task"];
 
     public required string Id { get; set; }
@@ -61,18 +57,16 @@ public sealed class AgentRecord
     /// <summary>Binary that launched this window; empty for legacy claude records.</summary>
     public string ResolvedCli { get; set; } = "";
 
-    public string Status { get; set; } = StatusStopped;
+    /// <summary>Runtime only: the status last reported, so a stopped agent keeps its stopped-since time.</summary>
+    public string Status { get; set; } = AgentStatus.Stopped;
     public int? ExitCode { get; set; }
     public bool WorktreeLost { get; set; }
 
-    /// <summary>Runtime only: why the agent failed to start or its process failed; cleared on start or dismiss-error.</summary>
-    public AgentError? Error { get; set; }
+    /// <summary>Runtime only: why the agent failed to start; cleared on a successful start or dismiss-error.</summary>
+    public AgentError? StartError { get; set; }
 
-    /// <summary>Runtime only: when Status last changed.</summary>
+    /// <summary>Runtime only: when the reported Status last changed.</summary>
     public DateTimeOffset? StatusSince { get; set; }
-
-    public AgentActivity? Activity { get; set; }
-    public PendingPermission? PendingPermission { get; set; }
 
     public static JsonObject DefaultWindow() => new()
     {
@@ -91,7 +85,7 @@ public sealed class AgentRecord
         ["diagram_request"] = DiagramRequest,
     };
 
-    /// <summary>What GET /agents reports: the record plus its live status and worktree health.</summary>
+    /// <summary>The record plus its last reported status and worktree health; AgentRoutes.Payload overlays the live status fields.</summary>
     public JsonObject ToPayload() => new()
     {
         ["id"] = Id, ["title"] = Title, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["created_at"] = CreatedAt,
@@ -101,10 +95,8 @@ public sealed class AgentRecord
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli,
         ["diagram_type"] = DiagramType, ["diagram_request"] = DiagramRequest,
         ["status"] = Status, ["exit_code"] = ExitCode, ["worktree_lost"] = WorktreeLost,
-        ["status_since"] = StatusSince is { } since ? AgentStatusState.Iso(since) : null,
-        ["activity"] = Status == StatusDetector.Working ? Activity?.ToJson() : null,
-        ["pending_permission"] = PendingPermission?.ToJson(),
-        ["error"] = Status == StatusError ? Error?.ToJson() : null,
+        ["status_since"] = StatusSince is { } since ? Json.Iso(since) : null,
+        ["activity"] = null, ["pending_permission"] = null, ["error"] = null,
     };
 
     /// <summary>One record from disk, or null when the entry is missing the fields that identify it.</summary>

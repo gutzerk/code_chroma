@@ -108,11 +108,11 @@ public static class AgentRoutes
             try { session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths, banner)); }
             catch (AgentStartException error)
             {
-                record.Error = new AgentError(error.Message, DateTimeOffset.UtcNow);
+                record.StartError = new AgentError(error.Message, DateTimeOffset.UtcNow);
                 await BroadcastStatus(connections, sessions, record);
                 throw;
             }
-            record.Error = null;
+            record.StartError = null;
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
             if (pending is { Kind: not "task" } view)
                 _ = session.InjectWhenIdle(
@@ -126,7 +126,7 @@ public static class AgentRoutes
 
         app.MapPost("/agents/{agentId}/hook", (string agentId, HttpRequest request, QuestionMcp mcp, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
-            if (!HookAuthorized(mcp, request, agentId)) return Reply.Error(401, "invalid or missing workspace token");
+            if (!mcp.Authorizes(request.Headers.Authorization.ToString(), agentId)) return Reply.Error(401, "invalid or missing workspace token");
             var record = OrNotFound(agents, agentId);
             var body = await Reply.LenientBody(request);
             var session = sessions.Get(agentId);
@@ -149,9 +149,7 @@ public static class AgentRoutes
         app.MapPost("/agents/{agentId}/dismiss-error", (string agentId, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
         {
             var record = OrNotFound(agents, agentId);
-            var hadError = record.Error is not null;
-            record.Error = null;
-            if ((sessions.Get(agentId)?.DismissError() ?? false) | hadError) await BroadcastStatus(connections, sessions, record);
+            if (DismissError(sessions, record)) await BroadcastStatus(connections, sessions, record);
             return Reply.Json(Payload(sessions, record));
         }));
 
@@ -246,48 +244,49 @@ public static class AgentRoutes
         var session = sessions.Get(record.Id);
         record.Pid = session?.Pid;
         record.ExitCode = session?.ExitCode;
-        var previous = record.Status;
-        if (record.Error is { } failed)
-        {
-            record.Status = AgentRecord.StatusError;
-            record.StatusSince = failed.At;
-            (record.Activity, record.PendingPermission) = (null, null);
-        }
-        else if (session is not null)
-        {
-            var live = session.Snapshot();
-            record.Status = live.Status;
-            record.StatusSince = live.Since;
-            (record.Activity, record.PendingPermission) = (live.Activity, live.Pending);
-        }
-        else
-        {
-            record.Status = AgentRecord.StatusStopped;
-            if (previous != AgentRecord.StatusStopped || record.StatusSince is null) record.StatusSince = DateTimeOffset.UtcNow;
-            (record.Activity, record.PendingPermission) = (null, null);
-        }
+        var status = StatusJson(session, record);
         var payload = record.ToPayload();
-        if (session?.Error is { } exitError && record.Status == AgentRecord.StatusError) payload["error"] = exitError.ToJson();
+        foreach (var (field, value) in status) payload[field] = value?.DeepClone();
         return payload;
     }
 
-    /// <summary>The status fields every agent payload and agent-status event carry.</summary>
-    public static readonly string[] StatusFields = ["status", "status_since", "activity", "pending_permission", "error"];
+    /// <summary>The five status fields: a failed start wins, else the live session, else stopped since it was last seen running.</summary>
+    public static JsonObject StatusJson(AgentSession? session, AgentRecord record)
+    {
+        var live = record.StartError is { } failed
+            ? new AgentStatusSnapshot(AgentStatus.Error, failed.At, null, null, failed)
+            : session?.Snapshot();
+        if (live is null)
+        {
+            if (record.Status != AgentStatus.Stopped || record.StatusSince is null) record.StatusSince = DateTimeOffset.UtcNow;
+            live = new AgentStatusSnapshot(AgentStatus.Stopped, record.StatusSince.Value, null, null);
+        }
+        record.Status = live.Status;
+        record.StatusSince = live.Since;
+        return new JsonObject
+        {
+            ["status"] = live.Status,
+            ["status_since"] = Json.Iso(live.Since),
+            ["activity"] = live.Status == AgentStatus.Working ? live.Activity?.ToJson() : null,
+            ["pending_permission"] = live.Pending?.ToJson(),
+            ["error"] = live.Error?.ToJson(),
+        };
+    }
 
     /// <summary>The LED's only input: one agent-status event per real change, over the existing socket.</summary>
     public static Task BroadcastStatus(ConnectionManager connections, AgentSessionRegistry sessions, AgentRecord record)
     {
-        var payload = Payload(sessions, record);
         var message = new JsonObject { ["type"] = "agent-status", ["id"] = record.Id };
-        foreach (var field in StatusFields) message[field] = payload[field]?.DeepClone();
+        foreach (var (field, value) in StatusJson(sessions.Get(record.Id), record)) message[field] = value?.DeepClone();
         return connections.Broadcast(message);
     }
 
-    /// <summary>Whether the bearer token is the hook token of exactly this agent's workspace.</summary>
-    private static bool HookAuthorized(QuestionMcp mcp, HttpRequest request, string agentId)
+    /// <summary>Clears a failed start and a session's exit error, so the agent reads as stopped; true when either was set.</summary>
+    private static bool DismissError(AgentSessionRegistry sessions, AgentRecord record)
     {
-        try { return mcp.WorkspaceIdFor(QuestionMcp.BearerToken(request.Headers.Authorization.ToString())) == agentId; }
-        catch (QuestionAuthException) { return false; }
+        var hadStartError = record.StartError is not null;
+        record.StartError = null;
+        return (sessions.Get(record.Id)?.DismissError() ?? false) | hadStartError;
     }
 
     /// <summary>The canvas's decision, or null once the wait times out or the hook hangs up.</summary>

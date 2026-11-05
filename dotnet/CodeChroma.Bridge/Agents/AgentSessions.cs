@@ -30,9 +30,6 @@ public interface IAgentSessionPort
 /// </summary>
 public sealed class AgentSession : IAgentSessionPort, IDisposable
 {
-    public const string StatusStopped = "stopped";
-    public const string StatusError = "error";
-
     private readonly object _gate = new();
     private readonly object _injectGate = new();
     private Task _injectChain = Task.CompletedTask;
@@ -46,6 +43,8 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private int? _exitCode;
     private bool _closing;
     private AgentError? _error;
+    private (long Generation, string Title, string Progress, string? Process)? _screenKey;
+    private DetectClassification _screenVerdict = DetectClassification.Hold;
 
     public AgentSession(string agentId, PtyLaunch launch, string kind = "claude", string? banner = null, Action<AgentSession>? onExit = null)
     {
@@ -88,20 +87,16 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     /// <summary>While it runs: idle, working, blocked or done; once gone: error after a non-zero exit, else stopped.</summary>
     public string Status => Snapshot().Status;
 
-    /// <summary>Why the process failed, or null; cleared by dismiss-error.</summary>
-    public AgentError? Error
-    {
-        get { lock (_gate) return _error; }
-    }
-
-    /// <summary>The live status fields; an exited session reports stopped or error since its exit.</summary>
+    /// <summary>The live status fields; an exited session reports stopped, or error with its exit error, since its exit.</summary>
     public AgentStatusSnapshot Snapshot()
     {
         var live = _state.Snapshot();
         lock (_gate)
         {
             if (_exitCode is null) return live;
-            return new AgentStatusSnapshot(_error is null ? StatusStopped : StatusError, live.Since, null, null);
+            return _error is null
+                ? new AgentStatusSnapshot(AgentStatus.Stopped, live.Since, null, null)
+                : new AgentStatusSnapshot(AgentStatus.Error, live.Since, null, null, _error);
         }
     }
 
@@ -109,9 +104,16 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     public bool PollStatus()
     {
         if (!IsAlive) return false;
-        var verdict = _detector.Observe(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, process: _foreground.Current());
+        var key = (Generation: _tap.Generation, Title: _tap.Title, Progress: _tap.Progress, Process: _foreground.Current());
+        // the rules only run when the screen, title, progress or process changed; the hysteresis still runs every poll
+        if (_screenKey != key)
+        {
+            _screenVerdict = _detector.Evaluate(_tap.Tail(_detector.Rules.TailLines), key.Title, key.Progress, key.Process);
+            _screenKey = key;
+        }
+        var verdict = _detector.Settle(_screenVerdict);
         var changed = _state.ApplyScreen(verdict, _detector.LastVisibleBlocker);
-        if (_state.Hooked) _detector.Force(_state.Live);
+        Sync();
         return changed;
     }
 
@@ -120,8 +122,14 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     {
         if (!IsAlive) return new HookOutcome(false);
         var outcome = _state.ApplyHook(body);
-        if (_state.Hooked) _detector.Force(_state.Live);
+        Sync();
         return outcome;
+    }
+
+    /// <summary>Once hooks report, the detector holds whatever status they set.</summary>
+    private void Sync()
+    {
+        if (_state.Hooked) _detector.Force(_state.Live);
     }
 
     /// <summary>Done becomes idle; true when that changed the status.</summary>
@@ -217,7 +225,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         {
             if (ExitCode is not null) return false;
             var verdict = _detector.Classify(_tap.Tail(_detector.Rules.TailLines), _tap.Title, _tap.Progress, null);
-            if (verdict == StatusDetector.Idle)
+            if (verdict == AgentStatus.Idle)
             {
                 if (BuildText(text) is not { } body) return false;
                 await TypeAndSubmit(Write, body, SubmitDelay);

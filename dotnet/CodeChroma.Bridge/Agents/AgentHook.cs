@@ -37,21 +37,34 @@ public static class AgentHook
     /// <summary>Posts stdin to the bridge; prints a decision only for an answered PermissionRequest; every error exits 0 silently.</summary>
     public static int Run(TextReader input, TextWriter output, Func<string, string, string, int, string?>? post = null)
     {
-        var baseUrl = Env(BridgeAddress.BridgeUrlEnv).TrimEnd('/');
-        var token = Env(McpEndpoint.TokenEnv);
-        var agentId = Env(BridgeAddress.WorkspaceIdEnv);
-        if (baseUrl.Length == 0 || token.Length == 0 || agentId.Length == 0) return 0;
+        if (HookEnv.Wired() is not { } wiring) return 0;
         try
         {
-            var text = input.ReadToEnd();
-            var permission = Json.Str((JsonNode.Parse(text) as JsonObject)?["hook_event_name"]) == "PermissionRequest";
-            var url = $"{baseUrl}/agents/{Uri.EscapeDataString(agentId)}/hook";
-            var reply = (post ?? Post)(url, token, text, permission ? PermissionWaitMs + PostTimeoutMs : PostTimeoutMs);
+            var report = Slim(JsonNode.Parse(input.ReadToEnd()) as JsonObject ?? new JsonObject());
+            var permission = Json.Str(report["hook_event_name"]) == "PermissionRequest";
+            var url = $"{wiring.BaseUrl}/agents/{Uri.EscapeDataString(wiring.WorkspaceId)}/hook";
+            var reply = (post ?? Post)(url, wiring.Token, report.ToJsonString(), permission ? PermissionWaitMs + PostTimeoutMs : PostTimeoutMs);
             var decision = permission && reply is not null ? Json.Str(JsonNode.Parse(reply)?["decision"]) : null;
             if (decision is "allow" or "deny") output.Write(DecisionOutput(decision));
         }
         catch (Exception) { }
         return 0;
+    }
+
+    /// <summary>Only what the bridge reads off a report (never tool_response, which can be a whole file): the event, the tool, its target keys and the notification type.</summary>
+    public static JsonObject Slim(JsonObject report)
+    {
+        var slim = new JsonObject();
+        foreach (var key in new[] { "hook_event_name", "tool_name", "notification_type" })
+            if (report.TryGetPropertyValue(key, out var value)) slim[key] = value?.DeepClone();
+        if (report["tool_input"] is JsonObject input)
+        {
+            var kept = new JsonObject();
+            foreach (var key in AgentStatusState.TargetKeys)
+                if (input.TryGetPropertyValue(key, out var value)) kept[key] = value?.DeepClone();
+            slim["tool_input"] = kept;
+        }
+        return slim;
     }
 
     /// <summary>The reply body of a 2xx POST, or null on any other outcome.</summary>
@@ -72,9 +85,4 @@ public static class AgentHook
             return null;
         }
     }
-
-    /// <summary>The CODECHROMA_* variable, falling back to the lower-cased spelling older builds used.</summary>
-    private static string Env(string name) =>
-        Environment.GetEnvironmentVariable(name) is { Length: > 0 } value ? value
-        : Environment.GetEnvironmentVariable(string.Concat("codechroma_", name.AsSpan("CODECHROMA_".Length))) ?? "";
 }

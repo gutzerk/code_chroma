@@ -8,15 +8,17 @@ public class AgentStatusStateTests
 {
     private static readonly DateTimeOffset T0 = new(2026, 11, 5, 10, 0, 0, TimeSpan.Zero);
 
-    private sealed class Clock
+    private sealed class Clock : TimeProvider
     {
         public DateTimeOffset Now { get; set; } = T0;
+
+        public override DateTimeOffset GetUtcNow() => Now;
     }
 
     private static (AgentStatusState State, Clock Clock) Make()
     {
         var clock = new Clock();
-        return (new AgentStatusState(() => clock.Now), clock);
+        return (new AgentStatusState(clock), clock);
     }
 
     private static JsonObject Hook(string name, string? tool = null, JsonObject? input = null, string? notification = null) => new()

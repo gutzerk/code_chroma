@@ -18,6 +18,8 @@ TOOL_EVENTS = ("PreToolUse", "PostToolUse", "PermissionRequest")
 PERMISSION_WAIT_SECONDS = 1.0
 POST_TIMEOUT_SECONDS = 2.0
 HOOK_TIMEOUT_SECONDS = 10
+# Stdlib-only, so a copy of live_status.TARGET_KEYS: the tool_input keys the bridge reads.
+TARGET_KEYS = ("file_path", "command", "pattern", "url")
 
 
 def env(name: str) -> str:
@@ -31,6 +33,16 @@ def decision_output(behavior: str) -> dict:
     return {"hookSpecificOutput": {
         "hookEventName": "PermissionRequest", "decision": {"behavior": behavior},
     }}
+
+
+def slim(report: dict) -> dict:
+    """Only what the bridge reads off a report, never `tool_response` (it can be a whole file)."""
+    keys = ("hook_event_name", "tool_name", "notification_type")
+    kept = {k: report[k] for k in keys if k in report}
+    tool_input = report.get("tool_input")
+    if isinstance(tool_input, dict):
+        kept["tool_input"] = {k: tool_input[k] for k in TARGET_KEYS if k in tool_input}
+    return kept
 
 
 def post(url: str, token: str, body: str, timeout: float) -> str | None:
@@ -53,13 +65,13 @@ def run(input_stream: TextIO, output: TextIO, sender=post) -> int:
     if not (base_url and token and agent_id):
         return 0
     try:
-        text = input_stream.read()
-        payload = json.loads(text)
-        event = payload.get("hook_event_name") if isinstance(payload, dict) else None
-        permission = event == "PermissionRequest"
+        payload = json.loads(input_stream.read())
+        report = slim(payload if isinstance(payload, dict) else {})
+        permission = report.get("hook_event_name") == "PermissionRequest"
         url = f"{base_url}/agents/{urllib.parse.quote(agent_id, safe='')}/hook"
         timeout = POST_TIMEOUT_SECONDS + (PERMISSION_WAIT_SECONDS if permission else 0.0)
-        reply = sender(url, token, text, timeout)
+        body = json.dumps(report, ensure_ascii=False, separators=(",", ":"))
+        reply = sender(url, token, body, timeout)
         decision = json.loads(reply).get("decision") if permission and reply else None
         if decision in ("allow", "deny"):
             output.write(json.dumps(decision_output(decision)))

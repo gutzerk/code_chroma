@@ -14,8 +14,9 @@ import pytest
 
 from codechroma.bridge.agents import publish, worktree
 from codechroma.bridge.agents import session_ownership as ownership
-from codechroma.bridge.agents.live_status import StatusSnapshot, utc_now
+from codechroma.bridge.agents.live_status import StatusSnapshot
 from codechroma.bridge.agents.manager import AgentManager, max_agents
+from codechroma.io import utc_now
 from codechroma.terminal import server as terminal_server
 from tests.conftest import TabClient as TestClient
 from tests.conftest import copy_sample_repo, diagram_json_path, pr_record

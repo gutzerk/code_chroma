@@ -41,7 +41,7 @@ public sealed class WorkflowCleanupRouteTests
         Assert.Equal(operation == "clear" ? HttpStatusCode.OK : HttpStatusCode.Conflict, response.StatusCode);
         Assert.NotNull(store.GetRun("run1"));
         Assert.Equal("keep this edit", File.ReadAllText(edit));
-        Assert.Equal(AgentRecord.StatusRunning, agents.Get(agent.Id).Status);
+        Assert.Equal(123, agents.Get(agent.Id).Pid);
         if (operation == "clear")
         {
             Assert.Equal("run2", (string?)JsonNode.Parse(body)!["deleted"]![0]);

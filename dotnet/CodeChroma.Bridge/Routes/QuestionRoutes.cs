@@ -23,15 +23,10 @@ public static class QuestionRoutes
         app.MapPost("/repos/{repoId}/questions/ask", async (string repoId, HttpRequest request, QuestionMcp questions) =>
         {
             var body = await Reply.LenientBody(request);
+            if (!questions.Authorizes(request.Headers.Authorization.ToString(), repoId)) return Reply.Error(401, "invalid or missing workspace token");
             try
             {
-                if (questions.WorkspaceIdFor(QuestionMcp.BearerToken(request.Headers.Authorization.ToString())) != repoId)
-                    throw new QuestionAuthException("invalid or missing workspace token");
                 return Reply.Json(await questions.Ask(repoId, AskRequest.FromJson(body), cancellation: request.HttpContext.RequestAborted));
-            }
-            catch (QuestionAuthException)
-            {
-                return Reply.Error(401, "invalid or missing workspace token");
             }
             catch (QuestionRejected rejected)
             {

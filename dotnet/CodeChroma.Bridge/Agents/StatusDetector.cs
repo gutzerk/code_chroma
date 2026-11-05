@@ -13,19 +13,28 @@ public sealed record DetectGate(
     IReadOnlyList<string> Contains, IReadOnlyList<Regex> Regex, IReadOnlyList<Regex> LineRegex,
     IReadOnlyList<DetectGate> All, IReadOnlyList<DetectGate> Any, IReadOnlyList<DetectGate> Not)
 {
-    public bool Matches(string text, string lower)
+    public bool Matches(RegionText region)
     {
-        if (!Contains.All(lower.Contains)) return false;
-        if (!Regex.All(pattern => pattern.IsMatch(text))) return false;
-        if (LineRegex.Count > 0)
-        {
-            var lines = DetectScreen.Lines(text);
-            if (!LineRegex.All(pattern => lines.Any(pattern.IsMatch))) return false;
-        }
-        if (!All.All(nested => nested.Matches(text, lower))) return false;
-        if (Any.Count > 0 && !Any.Any(nested => nested.Matches(text, lower))) return false;
-        return !Not.Any(nested => nested.Matches(text, lower));
+        if (!Contains.All(region.Lower.Contains)) return false;
+        if (!Regex.All(pattern => pattern.IsMatch(region.Text))) return false;
+        if (LineRegex.Count > 0 && !LineRegex.All(pattern => region.Lines.Any(pattern.IsMatch))) return false;
+        if (!All.All(nested => nested.Matches(region))) return false;
+        if (Any.Count > 0 && !Any.Any(nested => nested.Matches(region))) return false;
+        return !Not.Any(nested => nested.Matches(region));
     }
+}
+
+/// <summary>One region's text plus its lower-cased form and lines, each computed at most once.</summary>
+public sealed class RegionText(string text)
+{
+    private string? _lower;
+    private List<string>? _lines;
+
+    public string Text { get; } = text;
+
+    public string Lower => _lower ??= Text.ToLowerInvariant();
+
+    public IReadOnlyList<string> Lines => _lines ??= DetectScreen.Lines(Text);
 }
 
 internal static class TomlValues
@@ -37,10 +46,10 @@ internal static class TomlValues
 /// <summary>One [[rules]] entry of a detect manifest.</summary>
 public sealed record DetectRule(
     string Id, string State, int Priority, string Region, DetectGate Gate,
-    bool VisibleIdle = false, bool VisibleBlocker = false, bool VisibleWorking = false, bool SkipStateUpdate = false);
+    bool VisibleIdle = false, bool VisibleBlocker = false, bool SkipStateUpdate = false);
 
 /// <summary>One verdict: the state (null = hold) plus herdr's visible-chrome flags and the rule that won.</summary>
-public sealed record DetectClassification(string? State, bool VisibleIdle = false, bool VisibleBlocker = false, bool VisibleWorking = false, string? RuleId = null)
+public sealed record DetectClassification(string? State, bool VisibleIdle = false, bool VisibleBlocker = false, string? RuleId = null)
 {
     public static readonly DetectClassification Hold = new((string?)null);
 }
@@ -50,7 +59,7 @@ public sealed class StatusRules
 {
     public const int DefaultTailLines = 8;
     public const string StateUnknown = "unknown";
-    private static readonly HashSet<string> States = [StatusDetector.Idle, StatusDetector.Blocked, StatusDetector.Working, StateUnknown];
+    private static readonly HashSet<string> States = [AgentStatus.Idle, AgentStatus.Blocked, AgentStatus.Working, StateUnknown];
     private static readonly HashSet<string> GateKeys = ["all", "any", "not", "contains", "regex", "line_regex"];
     private static readonly HashSet<string> RuleKeys =
         [.. GateKeys, "id", "state", "priority", "region", "visible_idle", "visible_blocker", "visible_working", "skip_state_update"];
@@ -60,6 +69,7 @@ public sealed class StatusRules
     public string Name { get; init; } = "unknown";
     public IReadOnlyList<string> Process { get; init; } = [];
     public int TailLines { get; init; } = DefaultTailLines;
+    /// <summary>Highest priority first, file order breaking ties, so the first match is the winner.</summary>
     public IReadOnlyList<DetectRule> Rules { get; init; } = [];
     public IReadOnlyList<string> Aliases { get; init; } = [];
 
@@ -107,8 +117,8 @@ public sealed class StatusRules
     {
         var root = TomlSerializer.Deserialize<TomlTable>(toml) ?? throw new FormatException("empty manifest");
         var noMatch = root.TryGetValue("no_match", out var nm) ? nm as string ?? throw new FormatException("no_match must be a string") : "hold";
-        if (noMatch is not ("hold" or StatusDetector.Idle)) throw new FormatException($"no_match must be 'hold' or 'idle', not '{noMatch}'");
-        var rules = Tables(root.Value("rules")).Select(ToRule).ToList();
+        if (noMatch is not ("hold" or AgentStatus.Idle)) throw new FormatException($"no_match must be 'hold' or 'idle', not '{noMatch}'");
+        var rules = Tables(root.Value("rules")).Select(ToRule).OrderByDescending(rule => rule.Priority).ToList();
         if (rules.Count == 0) throw new FormatException("a manifest needs at least one [[rules]] entry");
         return new StatusRules
         {
@@ -117,7 +127,7 @@ public sealed class StatusRules
             TailLines = root.Value("tail_lines") is long tail && tail > 0 ? (int)tail : DefaultTailLines,
             Rules = rules,
             Aliases = Strings(root.Value("aliases")),
-            NoMatch = noMatch == StatusDetector.Idle ? StatusDetector.Idle : null,
+            NoMatch = noMatch == AgentStatus.Idle ? AgentStatus.Idle : null,
         };
     }
 
@@ -129,9 +139,11 @@ public sealed class StatusRules
         var region = (raw.Value("region") as string ?? "whole_recent").Trim();
         if (!DetectScreen.IsValidRegion(region)) throw new FormatException($"unknown region '{region}'");
         var priority = raw.Value("priority") switch { null => 0L, long p => p, _ => throw new FormatException("priority must be an integer") };
+        // herdr's visible_working is accepted and type-checked but unused here
+        Flag(raw, "visible_working");
         return new DetectRule(
             raw.Value("id") as string ?? throw new FormatException("a rule needs an id"), state, checked((int)priority), region, ToGate(raw, rule: true),
-            Flag(raw, "visible_idle"), Flag(raw, "visible_blocker"), Flag(raw, "visible_working"), Flag(raw, "skip_state_update"));
+            Flag(raw, "visible_idle"), Flag(raw, "visible_blocker"), Flag(raw, "skip_state_update"));
     }
 
     private static DetectGate ToGate(TomlTable raw, bool rule = false)
@@ -177,19 +189,12 @@ public sealed class StatusRules
     {
         if (Rules.Count == 0) return DetectClassification.Hold;
         var screen = new DetectScreen(tail);
-        DetectRule? best = null;
-        foreach (var rule in Rules)
-        {
-            if (best is not null && rule.Priority <= best.Priority) continue;
-            var text = screen.Region(rule.Region, title, progress);
-            if (rule.Gate.Matches(text, text.ToLowerInvariant())) best = rule;
-        }
+        var best = Rules.FirstOrDefault(rule => rule.Gate.Matches(screen.Slice(rule.Region, title, progress)));
         if (best is null) return new DetectClassification(NoMatch);
         if (best.SkipStateUpdate || best.State == StateUnknown) return new DetectClassification(null, RuleId: best.Id);
         return new DetectClassification(best.State,
-            VisibleIdle: best.VisibleIdle && best.State == StatusDetector.Idle,
-            VisibleBlocker: best.VisibleBlocker && best.State == StatusDetector.Blocked,
-            VisibleWorking: best.VisibleWorking && best.State == StatusDetector.Working,
+            VisibleIdle: best.VisibleIdle && best.State == AgentStatus.Idle,
+            VisibleBlocker: best.VisibleBlocker && best.State == AgentStatus.Blocked,
             RuleId: best.Id);
     }
 }
@@ -207,6 +212,9 @@ public sealed class DetectScreen
 
     private readonly List<string> _lines;
     private readonly string _content;
+    private readonly Dictionary<string, RegionText> _slices = [];
+    private (bool Known, int? Index) _currentPrompt;
+    private (bool Known, int? Index) _promptBoxTop;
 
     public DetectScreen(IReadOnlyList<string> tail)
     {
@@ -225,6 +233,14 @@ public sealed class DetectScreen
         var pieces = text.Split('\n').ToList();
         if (text.EndsWith('\n')) pieces.RemoveAt(pieces.Count - 1);
         return pieces.Select(p => p.EndsWith('\r') ? p[..^1] : p).ToList();
+    }
+
+    /// <summary>The region as a memoized RegionText: each screen region is sliced once per screen, OSC regions pass straight through.</summary>
+    public RegionText Slice(string spec, string title, string progress)
+    {
+        if (spec is "osc_title" or "osc_progress") return new RegionText(Region(spec, title, progress));
+        if (!_slices.TryGetValue(spec, out var slice)) _slices[spec] = slice = new RegionText(Region(spec, title, progress));
+        return slice;
     }
 
     public string Region(string spec, string title, string progress)
@@ -268,6 +284,12 @@ public sealed class DetectScreen
 
     private int? CurrentPromptIndex()
     {
+        if (!_currentPrompt.Known) _currentPrompt = (true, FindCurrentPrompt());
+        return _currentPrompt.Index;
+    }
+
+    private int? FindCurrentPrompt()
+    {
         if (LastIndex(IsCodexPrompt) is not { } prompt) return null;
         return _lines.Skip(prompt + 1).Any(IsCodexBlockMarker) ? null : prompt;
     }
@@ -281,6 +303,12 @@ public sealed class DetectScreen
     }
 
     private int? PromptBoxTop()
+    {
+        if (!_promptBoxTop.Known) _promptBoxTop = (true, FindPromptBoxTop());
+        return _promptBoxTop.Index;
+    }
+
+    private int? FindPromptBoxTop()
     {
         var seen = 0;
         for (var i = _lines.Count - 1; i >= 0; i--)
@@ -316,9 +344,6 @@ public sealed class DetectScreen
 /// <summary>Holds one agent's status across observations: herdr's working-to-idle confirmation, hysteresis and a send debounce.</summary>
 public sealed class StatusDetector
 {
-    public const string Idle = "idle";
-    public const string Blocked = "blocked";
-    public const string Working = "working";
     public const int IdleConfirmations = 3;
     public const double IdleConfirmationCapSeconds = 0.7;
 
@@ -330,7 +355,7 @@ public sealed class StatusDetector
     private int _idleConfirmations;
     private volatile DetectClassification _last = DetectClassification.Hold;
 
-    public StatusDetector(StatusRules rules, string initial = Idle, double hysteresisSeconds = 0.25, double minEmitIntervalSeconds = 0.25)
+    public StatusDetector(StatusRules rules, string initial = AgentStatus.Idle, double hysteresisSeconds = 0.25, double minEmitIntervalSeconds = 0.25)
     {
         Rules = rules;
         Status = initial;
@@ -348,16 +373,15 @@ public sealed class StatusDetector
     public DetectClassification LastClassification => _last;
 
     /// <summary>The new status once it held for the hysteresis window, else null (nothing changed).</summary>
-    public string? Observe(IReadOnlyList<string> tail, string title = "", string progress = "", string? process = null, double? now = null)
+    public string? Observe(IReadOnlyList<string> tail, string title = "", string progress = "", string? process = null, double? now = null) =>
+        Settle(Evaluate(tail, title, progress, process), now);
+
+    /// <summary>Runs one verdict through the hysteresis: the new status once it held long enough, else null; a cached verdict may be settled again.</summary>
+    public string? Settle(DetectClassification verdict, double? now = null)
     {
         var moment = now ?? Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
-        string? candidate;
-        try { candidate = Classify(tail, title, progress, process); }
-        catch (Exception)
-        {
-            _last = DetectClassification.Hold;
-            candidate = null;
-        }
+        _last = verdict;
+        var candidate = verdict.State;
         if (candidate is null || candidate == Status)
         {
             _pending = null;
@@ -382,16 +406,23 @@ public sealed class StatusDetector
     /// <summary>The status this observation implies, or null meaning "hold whatever is current".</summary>
     public string? Classify(IReadOnlyList<string> tail, string title, string progress, string? process)
     {
-        if (Rules.Process.Count > 0 && process is not null && !Rules.Process.Contains(process))
-        {
-            _last = DetectClassification.Hold;
-            return null;
-        }
-        _last = Rules.Evaluate(tail, title, progress);
+        _last = Judge(tail, title, progress, process);
         return _last.State;
     }
 
-    /// <summary>Sets the status from outside the rules: the manager owns stopped/exited/running.</summary>
+    /// <summary>This observation's verdict without touching the detector; a foreign process or a failing rule holds.</summary>
+    public DetectClassification Evaluate(IReadOnlyList<string> tail, string title, string progress, string? process)
+    {
+        try { return Judge(tail, title, progress, process); }
+        catch (Exception) { return DetectClassification.Hold; }
+    }
+
+    private DetectClassification Judge(IReadOnlyList<string> tail, string title, string progress, string? process) =>
+        Rules.Process.Count > 0 && process is not null && !Rules.Process.Contains(process)
+            ? DetectClassification.Hold
+            : Rules.Evaluate(tail, title, progress);
+
+    /// <summary>Sets the status from outside the rules: hooks, once reporting, own working and idle.</summary>
     public void Force(string status)
     {
         Status = status;
@@ -403,7 +434,7 @@ public sealed class StatusDetector
     private bool HoldWorkingToIdle(string candidate, double moment)
     {
         var last = _last;
-        if (!(Status == Working && candidate == Idle && !last.VisibleIdle && !last.VisibleBlocker))
+        if (!(Status == AgentStatus.Working && candidate == AgentStatus.Idle && !last.VisibleIdle && !last.VisibleBlocker))
         {
             ClearIdleGate();
             return false;

@@ -105,12 +105,15 @@ class ScreenTap:
         # Non-strict: an agent TUI emits sequences pyte doesn't model, and none of them are fatal.
         self._stream = pyte.Stream(self._screen, strict=False)
         self._progress = PROGRESS_UNKNOWN
+        # Bumped on every feed and resize, so a reader can tell the screen has not changed.
+        self.generation = 0
         self._process_name: str | None = None
         self._process_checked_at = 0.0
         self._process_probe: threading.Thread | None = None
 
     def feed(self, chunk: str) -> None:
         """Never raises: a detector input must not be able to break the terminal it is watching."""
+        self.generation += 1
         # The last progress sequence in the chunk is the current one; earlier ones are superseded.
         matches = _OSC_PROGRESS.findall(chunk)
         if matches:
@@ -121,6 +124,7 @@ class ScreenTap:
     def resize(self, rows: int, cols: int) -> None:
         """Kept in step with the PTY's own resize, so the screen matches what is displayed."""
         if rows > 0 and cols > 0:
+            self.generation += 1
             self._screen.resize(rows, cols)
 
     def tail(self, lines: int) -> list[str]:

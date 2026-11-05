@@ -59,6 +59,7 @@ public sealed class ScreenTap
     private Mode _mode = Mode.Ground;
     private readonly StringBuilder _sequence = new();
     private string _progress = ProgressUnknown;
+    private long _generation;
 
     public ScreenTap(int rows = DefaultRows, int cols = DefaultCols)
     {
@@ -77,11 +78,18 @@ public sealed class ScreenTap
 
     public string Progress => _progress;
 
+    /// <summary>Bumped on every Feed and Resize, so a reader can tell the screen has not changed since it last looked.</summary>
+    public long Generation
+    {
+        get { lock (_gate) return _generation; }
+    }
+
     /// <summary>Never throws: a detector input must not be able to break the terminal it is watching.</summary>
     public void Feed(string chunk)
     {
         lock (_gate)
         {
+            _generation++;
             try
             {
                 foreach (var ch in chunk) Step(ch);
@@ -99,6 +107,7 @@ public sealed class ScreenTap
         if (rows <= 0 || cols <= 0) return;
         lock (_gate)
         {
+            _generation++;
             var next = NewBuffer(rows, cols);
             // Like xterm, a shrink that would push the cursor off the bottom scrolls the top rows into the history instead.
             var shift = Math.Max(0, _y - (rows - 1));

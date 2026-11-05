@@ -38,7 +38,12 @@ public static class DesktopScript
           document.addEventListener("keydown", function (e) {
             if (!e.isTrusted || !(e.ctrlKey || e.metaKey) || e.altKey || e.isComposing) return;
             var key = e.key.toLowerCase();
-            if (key === "j" && e.shiftKey) { e.preventDefault(); post({ type: "next-waiting-agent" }); return; }
+            if (key === "j" && e.shiftKey) {
+              var focused = document.activeElement;
+              if (focused && focused.closest && focused.closest(".xterm, .xterm-helper-textarea")) return;
+              if (/Mac/.test(navigator.platform) ? !e.metaKey : !e.ctrlKey) return;
+              e.preventDefault(); post({ type: "next-waiting-agent" }); return;
+            }
             if (key !== "c" && key !== "x" && key !== "v" && key !== "a") return;
             var target = document.activeElement;
             if (!target) return;

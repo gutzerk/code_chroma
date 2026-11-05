@@ -64,6 +64,25 @@ public class AgentRollupTests
         Assert.Equal("3 agents · 2 worktrees", AgentRollup.Counts(summary));
     }
 
+    [Fact]
+    public void The_popover_counts_skip_stopped_and_unknown_statuses()
+    {
+        var summary = Summary(Agent("a1", "working", "br_wt-1"), Agent("a2", "running", "br_wt-2"), Agent("a3", "stopped", "br_wt-3"));
+
+        Assert.Equal("1 agent · 1 worktree", AgentRollup.Counts(summary));
+    }
+
+    [Theory]
+    [InlineData("blocked", "Needs you")]
+    [InlineData("error", "Error")]
+    [InlineData("done", "Done")]
+    [InlineData("working", "Working")]
+    [InlineData("idle", "Idle")]
+    public void Status_labels_match_the_web_wording(string status, string label)
+    {
+        Assert.Equal(label, AgentRollup.Label(status));
+    }
+
     [Theory]
     [InlineData(1, "agent")]
     [InlineData(0, "agents")]
@@ -277,6 +296,63 @@ public class AgentControllerTests
         h.Controller.ReportAgents(waiting.Id, BlockedSummary("a1"));
 
         await h.Controller.CloseTabAsync(waiting.Id);
+
+        Assert.Equal(0, h.Ui.Last.Waiting);
+    }
+
+    [Fact]
+    public void A_page_reset_drops_the_tab_summary_and_redraws_the_tabs()
+    {
+        using var h = new ShellHarness();
+        var waiting = h.Tabs.ActiveTab!;
+        h.Controller.ReportAgents(waiting.Id, BlockedSummary("a1"));
+
+        h.Controller.PageReset(waiting.Id);
+
+        Assert.Equal(0, h.Ui.Last.Waiting);
+        Assert.Null(h.Ui.Last.Tabs.Single().Agents);
+        Assert.Null(h.Controller.FocusNextBlocked());
+    }
+
+    [Fact]
+    public async Task A_crashed_bridge_drops_the_summaries_of_its_tab()
+    {
+        using var h = new ShellHarness();
+        var tab = h.Tabs.ActiveTab!;
+        await h.Controller.OpenRepoAsync("/repos/atlas", tab.Id);
+        h.Controller.ReportAgents(tab.Id, BlockedSummary("a1"));
+
+        h.Launcher.Started[0].Exit("bridge exited (code 1)");
+
+        await ShellHarness.Eventually(() => h.Launcher.Started.Count == 2);
+        Assert.Equal(0, h.Ui.Last.Waiting);
+        Assert.Null(h.Ui.Last.Tabs.Single().Agents);
+    }
+
+    [Fact]
+    public async Task A_bridge_that_cannot_be_respawned_shows_the_error_without_a_stale_waiting_pill()
+    {
+        using var h = new ShellHarness();
+        var tab = h.Tabs.ActiveTab!;
+        await h.Controller.OpenRepoAsync("/repos/atlas", tab.Id);
+        h.Controller.ReportAgents(tab.Id, BlockedSummary("a1"));
+        h.Launcher.OnStart = p => p.Exit("bridge exited (code 3)");
+
+        h.Launcher.Started[0].Exit("bridge exited (code 1)");
+
+        await ShellHarness.Eventually(() => h.Ui.TabErrors.Count == 1);
+        Assert.Equal(0, h.Ui.Last.Waiting);
+    }
+
+    [Fact]
+    public async Task Navigating_an_open_project_to_a_worktree_drops_its_old_summary()
+    {
+        using var h = new ShellHarness();
+        var first = h.Tabs.ActiveTab!;
+        await h.Controller.OpenRepoAsync("/repos/atlas", first.Id);
+        h.Controller.ReportAgents(first.Id, BlockedSummary("a1"));
+
+        await h.Controller.OpenRepoAsync("/repos/atlas", null, "br_feature");
 
         Assert.Equal(0, h.Ui.Last.Waiting);
     }

@@ -37,10 +37,22 @@ public static class AgentRollup
 
     public static string Counts(AgentSummary summary)
     {
-        var agents = summary.Agents.Count(a => a.Status != "stopped");
-        var worktrees = summary.Agents.Select(a => a.Worktree).Where(w => w is not null).Distinct().Count();
+        var shown = summary.Agents.Where(a => Rank(a.Status) >= 0).ToList();
+        var agents = shown.Count;
+        var worktrees = shown.Select(a => a.Worktree).Where(w => w is not null).Distinct().Count();
         return $"{agents} {Plural(agents, "agent", "agents")} · {worktrees} {Plural(worktrees, "worktree", "worktrees")}";
     }
+
+    /// <summary>Spoken wording per status, matching the web's STATUS_LABELS so colour is never the only carrier.</summary>
+    public static string Label(string status) => status switch
+    {
+        "blocked" => "Needs you",
+        "error" => "Error",
+        "done" => "Done",
+        "working" => "Working",
+        "idle" => "Idle",
+        _ => "Stopped",
+    };
 
     public static string Plural(int n, string one, string many) => n == 1 ? one : many;
 

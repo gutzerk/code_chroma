@@ -103,7 +103,7 @@ class WidenResume:
         if launch is None or FILE_ENV not in launch.env:
             return None
         env = agent_run_env(agent_id, extra=launch.env)
-        if not self._sessions.respawn(agent_id, launch.argv, Path(record.worktree), env):
+        if not self._sessions.respawn(session, launch.argv, Path(record.worktree), env):
             return None
         return launch
 

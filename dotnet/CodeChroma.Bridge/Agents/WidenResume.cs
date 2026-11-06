@@ -63,7 +63,7 @@ public sealed class WidenResume(AgentManager agents, AgentSessionRegistry sessio
         if (launch is null || !launch.Env.ContainsKey(AgentSessionOwnership.FileEnv)) return null;
         var env = new Dictionary<string, string>(launch.Env);
         BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
-        return sessions.Respawn(agentId, launch.Argv, record.Worktree, env, paths) ? launch : null;
+        return sessions.Respawn(session, launch.Argv, record.Worktree, env, paths) ? launch : null;
     }
 
     /// <summary>Whether the agent still has an ask_user question on the canvas; an unreadable canvas counts as asking.</summary>

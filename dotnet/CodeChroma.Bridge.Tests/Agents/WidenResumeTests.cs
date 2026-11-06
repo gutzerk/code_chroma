@@ -166,6 +166,74 @@ public sealed class WidenResumeTests : IDisposable
         Assert.Equal((30, 160), (session.Screen.Rows, session.Screen.Cols));
     }
 
+    [Fact]
+    public async Task A_respawn_while_an_injection_is_queued_is_refused_and_keeps_the_old_process()
+    {
+        var session = PrintedAt120ThenIdle();
+        session.Resize(30, 160);
+        var pid = session.Pid;
+        var injection = session.InjectWhenIdle("answer", attempts: 3, interval: TimeSpan.FromMilliseconds(20));
+
+        var respawned = session.Respawn([_cli.ExePath, "--resume", "abc"], _repo.Root, null);
+        await injection;
+
+        Assert.False(respawned);
+        Assert.Equal(pid, session.Pid);
+        Assert.Single(_cli.Invocations());
+    }
+
+    [Theory]
+    [InlineData("half typed")]
+    [InlineData("sent\r")]
+    public void A_respawn_right_after_typing_is_refused(string typed)
+    {
+        var session = PrintedAt120ThenIdle();
+        session.Write(typed);
+
+        var respawned = session.Respawn([_cli.ExePath, "--resume", "abc"], _repo.Root, null);
+
+        Assert.False(respawned);
+        Assert.Single(_cli.Invocations());
+    }
+
+    [Theory]
+    [InlineData(true, "abc")]
+    [InlineData(true, "abc\u007f")]
+    [InlineData(false, "abc\u007f\u007f\u007f")]
+    [InlineData(false, "abc\r")]
+    [InlineData(false, "abc", "\u0015")]
+    [InlineData(true, "\u001b[A")]
+    [InlineData(false, "\u001b[A", "\r")]
+    [InlineData(true, "\u001b[200~line\r\u001b[201~")]
+    [InlineData(false, "\u001b[I", "\u001b[O", "\u001b")]
+    public void The_draft_follows_text_backspace_submit_and_history_recall(bool draft, params string[] writes)
+    {
+        var session = PrintedAt120ThenIdle();
+
+        foreach (var data in writes) session.Write(data);
+
+        Assert.Equal(draft, session.HasDraft);
+    }
+
+    [Fact]
+    public void A_session_replaced_during_the_sweep_is_not_respawned()
+    {
+        _cli.Script(Stdout("printed"), Hang());
+        var h = Coordinator();
+        var stale = h.Sessions.Get(h.Record.Id)!;
+        WaitFor(() => Shows(stale, "printed"));
+        h.Sessions.Stop(h.Record.Id);
+        var fresh = h.Sessions.Start(h.Record.Id, [_cli.ExePath], h.Record.Worktree);
+        WaitFor(() => Shows(fresh, "printed"));
+        var freshPid = fresh.Pid;
+
+        var respawned = h.Sessions.Respawn(stale, [_cli.ExePath, "--resume", "abc"], h.Record.Worktree, null);
+
+        Assert.False(respawned);
+        Assert.Same(fresh, h.Sessions.Get(h.Record.Id));
+        Assert.Equal(freshPid, fresh.Pid);
+    }
+
     private sealed record Harness(WidenResume Widen, AgentManager Agents, AgentSessionRegistry Sessions, AgentRecord Record, string Projects);
 
     private Harness Coordinator(bool asking = false, bool transcript = true)

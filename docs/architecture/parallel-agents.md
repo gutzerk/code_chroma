@@ -42,13 +42,23 @@ A Python-only change does not fix the production desktop runtime.
   permission, no queued `InjectWhenIdle`, no unsent draft and no keystroke for `TypingQuiet` (3 s),
   the status poller restarts it in place: `AgentSession.Respawn` starts `claude --resume <its own
   session id>` (with a new tracking file, via `TerminalAgents.Resolve`) on a new PTY at the current
-  size, writes `ESC[3J` and friends (`ClearScrollback`) to the screen tap and every attached window,
-  then kills the old process; its late output and exit are ignored, so agent identity, status,
-  consumers and the prompt outline survive and no window reconnects. Busy agents simply wait for a
-  later idle poll, if still wider. An agent with an `ask_user` question on its canvas is rechecked
-  every 5 s. Skipped (the width is taken as printed, no error shown) when the launch is untracked,
-  bare (`--system-prompt`), not claude, has no session id or no transcript yet, or the new PTY
-  fails to start (the old one keeps running). Tests: `Agents/WidenResumeTests.cs`,
+  size, writes `ResetScreen` (SGR reset, home, `ESC[2J` and `ESC[3J`) to the screen tap and every
+  attached window, then kills the old process; its late output and exit are ignored, so agent
+  identity, status, consumers and the prompt outline survive and no window reconnects. Busy agents
+  simply wait for a later idle poll, if still wider. An agent with an `ask_user` question on its
+  canvas is rechecked every 5 s. Skipped (the width is taken as printed, no error shown) when the
+  launch is untracked, bare (`--system-prompt`), not claude, has no session id or no transcript yet,
+  or the new PTY fails to start (the old one keeps running).
+  - 🔴 `Respawn` re-checks the input under `_gate` and refuses (old process untouched) while an
+    injection is queued or typing, a draft exists or a key came within `TypingQuiet`.
+    `InjectWhenIdle` counts itself in under the same `_gate`, so its text and the Enter
+    `TypeAndSubmit` sends 300 ms later never straddle the PTY swap.
+  - The registry's `Respawn` takes the `AgentSession` itself and only restarts it while it is
+    still the one registered for the agent, so a stop/restart during the sweep is left alone.
+  - Draft tracking (both bridges): printable text adds, backspace removes one, Enter/^C/^U
+    clears, any other key (e.g. Up-arrow history recall) makes the draft unknown (= present) until
+    the next Enter/^C/^U; a bracketed paste counts its line breaks as text; a lone Escape and focus
+    or mouse reports are not typing. Tests: `Agents/WidenResumeTests.cs`,
   `tests/unit/test_agent_widen_resume.py`.
 - Regression coverage: `Agents/SessionOwnershipTests.cs`, `Agents/OpenStepAgentTests.cs`, and
   `Terminal/TerminalAgentsBareTests.cs`. Run

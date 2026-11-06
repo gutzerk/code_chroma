@@ -72,6 +72,10 @@ WIDEN_MIN_GAIN_COLS = 8
 WIDEN_SETTLE = timedelta(seconds=1.5)
 # Quiet time after the last keystroke, so a restart never lands mid-typing.
 WIDEN_TYPING_QUIET = timedelta(seconds=3)
+# Bracketed-paste end marker (after ESC), the pair of history_clear.PASTE_START.
+PASTE_END = "[201~"
+# Focus (ESC [ I / O) and mouse (ESC [ M, ESC [ <) reports the terminal sends on its own.
+_TERMINAL_REPORTS = ("\x1b[I", "\x1b[O", "\x1b[M", "\x1b[<")
 _NEVER = datetime.min.replace(tzinfo=UTC)
 
 def context_inject_attempts() -> int:
@@ -174,7 +178,9 @@ class AgentSession(AgentSessionPort):
         self._resized_at = _NEVER
         self._typed_at = _NEVER
         self._widen_not_before = _NEVER
-        self._draft = False
+        # The prompt draft a restart would lose: typed characters, or unknown after history recall.
+        self._draft_chars = 0
+        self._draft_unknown = False
         self._injecting = 0
         self._pty = self._spawn_pty(argv, cwd, env)
 
@@ -335,12 +341,33 @@ class AgentSession(AgentSessionPort):
             self._pty.write(keys)
 
     def _note_typing(self, data: str) -> None:
-        """Text without Enter is a draft a restart would lose; escape sequences are not typing."""
-        if not data or (data[0] == "\x1b" and not data.startswith("\x1b" + PASTE_START)):
+        """Text adds, backspace drops one, Enter/^C/^U clears, other keys make the draft unknown."""
+        if data in ("", "\x1b") or data.startswith(_TERMINAL_REPORTS):
             return
+        text = data.replace("\x1b" + PASTE_START, "").replace("\x1b" + PASTE_END, "")
+        # A pasted line break is part of the draft, not a submit.
+        pasted = len(text) != len(data)
         self._typed_at = utc_now()
-        cleared = max(data.rfind(c) for c in ("\r", "\x03", "\x15"))
-        self._draft = any(c.isprintable() for c in data[cleared + 1:])
+        for c in text:
+            if pasted and c == "\r":
+                self._draft_chars += 1
+            elif c in ("\r", "\x03", "\x15"):
+                self._draft_chars, self._draft_unknown = 0, False
+            elif c in ("\x7f", "\b"):
+                self._draft_chars = max(0, self._draft_chars - 1)
+            elif c == "\x1b":
+                self._draft_unknown = True
+            elif c.isprintable():
+                self._draft_chars += 1
+
+    @property
+    def has_draft(self) -> bool:
+        """Whether the prompt holds a draft a restart would lose."""
+        return self._draft_unknown or self._draft_chars > 0
+
+    def _input_busy(self, now: datetime) -> bool:
+        """A restart now would lose input: an injection in flight, a draft, or a recent key."""
+        return bool(self._injecting) or self.has_draft or now - self._typed_at < WIDEN_TYPING_QUIET
 
     @property
     def resumes_on_widen(self) -> bool:
@@ -349,17 +376,16 @@ class AgentSession(AgentSessionPort):
 
     def widen_due(self, now: datetime) -> bool:
         """True once the window settled wider than the narrowest printed width, idle and untyped."""
-        if not self.resumes_on_widen or self._injecting or self.exit_code is not None:
+        if not self.resumes_on_widen or self._input_busy(now) or self.exit_code is not None:
             return False
         live = self._state.snapshot()
         if live.status not in (STATUS_IDLE, STATUS_DONE) or live.pending is not None:
             return False
         narrowest = self._narrowest_printed
         return (
-            not self._draft and narrowest is not None
+            narrowest is not None
             and self._cols >= narrowest + WIDEN_MIN_GAIN_COLS
-            and now - self._resized_at >= WIDEN_SETTLE
-            and now - self._typed_at >= WIDEN_TYPING_QUIET and now >= self._widen_not_before
+            and now - self._resized_at >= WIDEN_SETTLE and now >= self._widen_not_before
         )
 
     def settle_width(self) -> None:
@@ -372,7 +398,8 @@ class AgentSession(AgentSessionPort):
 
     def respawn(self, argv: list[str], cwd: str, env: dict[str, str] | None) -> bool:
         """Runs `argv` on a new PTY at the current size in place of the old; False keeps the old."""
-        if self.exit_code is not None or self._closing:
+        # Re-checked here, so an injection's text and Enter never straddle the swap.
+        if self.exit_code is not None or self._closing or self._input_busy(utc_now()):
             return False
         old = self._pty
         self._spawn += 1
@@ -386,7 +413,6 @@ class AgentSession(AgentSessionPort):
         self.session_tracking_file = (env or {}).get(FILE_ENV)
         self.initial_session_id = (env or {}).get(INITIAL_ID_ENV)
         self._narrowest_printed = None
-        self._draft = False
         self._pty.client_attached = bool(self._consumers)
         # Single-threaded loop: the clear goes out before any byte of the new process.
         self._emit(RESET_SCREEN)
@@ -574,11 +600,11 @@ class AgentSessionRegistry:
         return list(self._sessions.values())
 
     def respawn(
-        self, agent_id: str, argv: list[str], cwd: Path, env: dict[str, str] | None = None
+        self, session: AgentSession, argv: list[str], cwd: Path, env: dict[str, str] | None = None
     ) -> bool:
-        """Restarts a live agent's process in place; False leaves the old process running."""
-        session = self._sessions.get(agent_id)
-        if session is None or not session.is_alive:
+        """Restarts `session` in place while it is the live one registered; False keeps the old."""
+        # A session stopped (and maybe restarted) during the sweep is not this one any more.
+        if self._sessions.get(session.agent_id) is not session or not session.is_alive:
             return False
         try:
             runtime = _resolve_launch(argv, cwd, env)

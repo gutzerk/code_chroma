@@ -47,7 +47,9 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private DateTimeOffset _resizedAt = DateTimeOffset.MinValue;
     private DateTimeOffset _typedAt = DateTimeOffset.MinValue;
     private DateTimeOffset _widenNotBefore = DateTimeOffset.MinValue;
-    private bool _draft;
+    // the prompt draft a restart would lose: typed characters, or unknown after a key such as history recall
+    private int _draftChars;
+    private bool _draftUnknown;
     private int _injecting;
     private readonly AgentStatusState _state = new();
     private readonly Action<AgentSession>? _exited;
@@ -285,8 +287,18 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         var live = _state.Snapshot();
         if (live.Status is not (AgentStatus.Idle or AgentStatus.Done) || live.Pending is not null) return false;
         lock (_gate)
-            return _exitCode is null && !_draft && _narrowestPrinted != int.MaxValue && _cols >= _narrowestPrinted + WidenResume.MinGainCols
-                && now - _resizedAt >= WidenResume.Settle && now - _typedAt >= WidenResume.TypingQuiet && now >= _widenNotBefore;
+            return _exitCode is null && !InputBusy(now) && _narrowestPrinted != int.MaxValue && _cols >= _narrowestPrinted + WidenResume.MinGainCols
+                && now - _resizedAt >= WidenResume.Settle && now >= _widenNotBefore;
+    }
+
+    /// <summary>Whether a restart now would lose input: an injection queued or typing, a draft, or a recent keystroke; the caller holds _gate.</summary>
+    private bool InputBusy(DateTimeOffset now) =>
+        _injecting > 0 || _draftUnknown || _draftChars > 0 || now - _typedAt < WidenResume.TypingQuiet;
+
+    /// <summary>Whether the prompt holds a draft a restart would lose.</summary>
+    public bool HasDraft
+    {
+        get { lock (_gate) return _draftUnknown || _draftChars > 0; }
     }
 
     /// <summary>Takes the current width as printed, so a widen that cannot be resumed is not retried.</summary>
@@ -301,13 +313,14 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         lock (_gate) _widenNotBefore = until;
     }
 
-    /// <summary>Starts `argv` on a new PTY at the current size in place of the running one, keeping status and windows; false (old process untouched) when it cannot start.</summary>
+    /// <summary>Starts `argv` on a new PTY at the current size in place of the running one, keeping status and windows; false (old process untouched) when it cannot start or input is in flight.</summary>
     public bool Respawn(IReadOnlyList<string> argv, string? cwd, IReadOnlyDictionary<string, string>? env)
     {
         PtyHost old;
         lock (_gate)
         {
-            if (_exitCode is not null || _closing) return false;
+            // re-checked under _gate: an injection counts itself in under it too, so its text and Enter never straddle the swap
+            if (_exitCode is not null || _closing || InputBusy(DateTimeOffset.UtcNow)) return false;
             var next = _spawn + 1;
             PtyHost fresh;
             try { fresh = PtyHost.Start(new PtyLaunch(argv, cwd, env, _tap.Rows, _cols), chunk => OnOutput(next, chunk), () => OnExit(next)); }
@@ -324,7 +337,6 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
             SessionTrackingFile = env?.GetValueOrDefault(AgentSessionOwnership.FileEnv);
             InitialSessionId = env?.GetValueOrDefault(AgentSessionOwnership.InitialIdEnv);
             _narrowestPrinted = int.MaxValue;
-            _draft = false;
             // the clear goes out before any byte of the new process, which waits on _gate
             Emit(ResetScreen);
         }
@@ -333,17 +345,31 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         return true;
     }
 
-    /// <summary>Tracks typed input: text without Enter is a draft a restart would lose; escape sequences (keys, focus, mouse) are not typing.</summary>
+    /// <summary>Tracks the draft: text adds, backspace removes one, Enter/^C/^U clears, any other key (history recall) makes it unknown; a lone Escape and focus or mouse reports are not typing.</summary>
     private void NoteTyping(string data)
     {
-        if (data.Length == 0 || (data[0] == '\u001b' && !data.StartsWith("\u001b" + TypedClearDetector.PasteStart, StringComparison.Ordinal))) return;
+        if (data is "" or "\u001b" || IsTerminalReport(data)) return;
+        var text = data.Replace("\u001b" + TypedClearDetector.PasteStart, "", StringComparison.Ordinal).Replace("\u001b[201~", "", StringComparison.Ordinal);
+        // a pasted line break is part of the draft, not a submit
+        var pasted = text.Length != data.Length;
         lock (_gate)
         {
             _typedAt = DateTimeOffset.UtcNow;
-            var cleared = data.LastIndexOfAny(['\r', '\u0003', '\u0015']);
-            _draft = cleared < 0 ? true : data[(cleared + 1)..].Any(c => !char.IsControl(c));
+            foreach (var c in text)
+            {
+                if (pasted && c == '\r') _draftChars++;
+                else if (c is '\r' or '\u0003' or '\u0015') (_draftChars, _draftUnknown) = (0, false);
+                else if (c is '\u007f' or '\b') _draftChars = Math.Max(0, _draftChars - 1);
+                else if (c == '\u001b') _draftUnknown = true;
+                else if (!char.IsControl(c)) _draftChars++;
+            }
         }
     }
+
+    /// <summary>Focus (ESC [ I / O) and mouse (ESC [ M, ESC [ &lt;) reports the terminal sends on its own, not keys the user pressed.</summary>
+    private static bool IsTerminalReport(string data) =>
+        data.StartsWith("\u001b[I", StringComparison.Ordinal) || data.StartsWith("\u001b[O", StringComparison.Ordinal)
+        || data.StartsWith("\u001b[M", StringComparison.Ordinal) || data.StartsWith("\u001b[<", StringComparison.Ordinal);
 
     /// <summary>
     /// Types `text` once a fresh agent's TUI reaches its idle prompt (acknowledge-only context). Polls the same detector rules the
@@ -358,7 +384,8 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         var wait = interval ?? TimeSpan.FromMilliseconds(500);
         lock (_injectGate)
         {
-            Interlocked.Increment(ref _injecting);
+            // counted in under _gate, so Respawn either sees it or finishes the swap before any byte is typed
+            lock (_gate) _injecting++;
             var typed = _injectChain.ContinueWith(_ => InjectOnce(text, attempts, wait), TaskScheduler.Default).Unwrap();
             typed.ContinueWith(_ => Interlocked.Decrement(ref _injecting), TaskScheduler.Default);
             _injectChain = typed;
@@ -544,10 +571,11 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
         foreach (var id in ids) Stop(id);
     }
 
-    /// <summary>Restarts a live agent's process in place (WidenResume); false when it cannot start, leaving the old process running.</summary>
-    public bool Respawn(string agentId, IReadOnlyList<string> argv, string cwd, IReadOnlyDictionary<string, string>? env, Stores.UserPaths? paths = null)
+    /// <summary>Restarts `session`'s process in place (WidenResume) while it is still the live one registered for its agent; false leaves the old process running.</summary>
+    public bool Respawn(AgentSession session, IReadOnlyList<string> argv, string cwd, IReadOnlyDictionary<string, string>? env, Stores.UserPaths? paths = null)
     {
-        if (Get(agentId) is not { IsAlive: true } session || ResolveLaunch(argv, cwd, paths, out var launchArgv) is not null) return false;
+        // a session stopped (and maybe restarted) during the sweep is not this one any more
+        if (Get(session.AgentId) != session || !session.IsAlive || ResolveLaunch(argv, cwd, paths, out var launchArgv) is not null) return false;
         return session.Respawn(launchArgv, cwd, runtime.TerminalEnv(env));
     }
 

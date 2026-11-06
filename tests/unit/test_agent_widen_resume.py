@@ -125,6 +125,71 @@ def test_respawn_clears_the_old_screen_and_streams_the_new_process():
     assert text.index(RESET_SCREEN) < text.index("second run")
 
 
+def test_a_respawn_while_an_injection_is_queued_is_refused():
+    async def run():
+        session = await _idle_at_120()
+        pid = session.pid
+        injection = session.inject_when_idle("answer", attempts=1)
+        respawned = session.respawn(_printer("second run"), ".", None)
+        await injection
+        result = (respawned, session.pid == pid)
+        session.close()
+        return result
+
+    assert asyncio.run(run()) == (False, True)
+
+
+@pytest.mark.parametrize("typed", ["half typed", "sent\r"])
+def test_a_respawn_right_after_typing_is_refused(typed):
+    async def run():
+        session = await _idle_at_120()
+        session._note_typing(typed)
+        respawned = session.respawn(_printer("second run"), ".", None)
+        session.close()
+        return respawned
+
+    assert not asyncio.run(run())
+
+
+@pytest.mark.parametrize("draft, writes", [
+    (True, ["abc"]),
+    (True, ["abc\x7f"]),
+    (False, ["abc\x7f\x7f\x7f"]),
+    (False, ["abc\r"]),
+    (False, ["abc", "\x15"]),
+    (True, ["\x1b[A"]),
+    (False, ["\x1b[A", "\r"]),
+    (True, ["\x1b[200~line\r\x1b[201~"]),
+    (False, ["\x1b[I", "\x1b[O", "\x1b"]),
+])
+def test_the_draft_follows_text_backspace_submit_and_history_recall(draft, writes):
+    async def run():
+        session = AgentSession("agent", _printer("printed"), cwd=".", env=dict(TRACKED))
+        for data in writes:
+            session._note_typing(data)
+        has_draft = session.has_draft
+        session.close()
+        return has_draft
+
+    assert asyncio.run(run()) is draft
+
+
+def test_a_session_replaced_during_the_sweep_is_not_respawned():
+    async def run():
+        sessions = AgentSessionRegistry()
+        stale = sessions.start("agent", _printer("printed"), Path("."), env=dict(TRACKED))
+        await _wait_for(stale, "printed")
+        sessions.stop("agent")
+        fresh = sessions.start("agent", _printer("printed"), Path("."), env=dict(TRACKED))
+        fresh_pid = fresh.pid
+        respawned = sessions.respawn(stale, _printer("second run"), Path("."), None)
+        result = (respawned, sessions.get("agent") is fresh, fresh.pid == fresh_pid)
+        sessions.stop_all()
+        return result
+
+    assert asyncio.run(run()) == (False, True, True)
+
+
 class _Agents:
     """The slice of AgentManager the coordinator uses, recording each call."""
 

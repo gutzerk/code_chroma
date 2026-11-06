@@ -3,6 +3,7 @@ using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Tests.Support;
+using CodeChroma.Bridge.Workspaces;
 using static CodeChroma.Bridge.Tests.Support.FakeCliHarness;
 
 namespace CodeChroma.Bridge.Tests.Skills;
@@ -11,7 +12,7 @@ namespace CodeChroma.Bridge.Tests.Skills;
 public sealed class SkillAgentTests : IDisposable
 {
     private readonly FakeCliHarness _cli = new();
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "cc-skill-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Path.Combine(RealPaths.Resolve(Path.GetTempPath()), "cc-skill-" + Guid.NewGuid().ToString("N")[..8]);
     private readonly List<(string Key, JobState State)> _changes = [];
     private readonly List<string> _pushed = [];
 

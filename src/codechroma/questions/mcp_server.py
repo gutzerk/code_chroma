@@ -162,7 +162,7 @@ class QuestionMcp:
             return {"degraded": True}
         problems = validate_ask(request)
         if not problems and any(option.diagram_ref for option in request.options):
-            known = await asyncio.to_thread(store.known_element_ids, ws)
+            known = await asyncio.to_thread(store.option_diagram_ids, ws)
             problems = unknown_refs(request, known)
         tracker = self.rejections
         key = request.session_id or (f"conn:{connection}" if connection else None)

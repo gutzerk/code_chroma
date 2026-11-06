@@ -1340,6 +1340,101 @@
           }
         }
       ]
+    },
+    {
+      "id": "a_question_cannot_take_a_canvas_diagram_as_an_option_diagram",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "layer": "custom/plan",
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "plan",
+                  "render": "custom",
+                  "layer": "custom/plan",
+                  "label": "On canvas",
+                  "position": {
+                    "x": 0.0,
+                    "y": 0.0
+                  }
+                }
+              ]
+            }
+          },
+          "capture": {
+            "ref": "$.id_map.plan"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "token": "main",
+          "as": "tok"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ask",
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            },
+            "json": {
+              "question": "Which plan?",
+              "kind": "diagram",
+              "options": [
+                {
+                  "id": "a",
+                  "title": "A",
+                  "description": "d",
+                  "pro": "p",
+                  "con": "c",
+                  "why": "w",
+                  "rank": 1,
+                  "diagram_ref": "{{ref}}"
+                },
+                {
+                  "id": "b",
+                  "title": "B",
+                  "description": "d",
+                  "pro": "p",
+                  "con": "c",
+                  "why": "w",
+                  "rank": 2
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 422,
+            "checks": [
+              {
+                "path": "$.detail",
+                "contains": "is not an option diagram; draw it with draw_option_diagram"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

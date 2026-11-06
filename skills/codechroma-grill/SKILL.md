@@ -41,7 +41,7 @@ question as chat text, and do not use `AskUserQuestion` when `ask_user` is avail
   question: draw one per option with `codechroma-decision-diagram`, then call `ask_user` again with
   the same `session_id` and question text and each option's `diagram_ref`.
 - `ask_user_result` with a `question_id` reads an answer back; only use it if no message arrived.
-  Once the answers are typed in, their cards and option diagrams are removed from the canvas, so
+  Once the answers are typed in, their cards and option diagrams are deleted, so
   the message is the only record: keep what you need from it.
 
 Only if the `ask_user` tool is not available in this session, ask in chat instead.

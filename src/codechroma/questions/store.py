@@ -282,9 +282,10 @@ def reopen(ws: Workspace, element: Element) -> list[str]:
     return later
 
 
-def known_element_ids(ws: Workspace) -> set[str]:
-    """Every element id on the canvas, for checking `diagram_ref`."""
-    return set(CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root).elements)
+def option_diagram_ids(ws: Workspace) -> set[str]:
+    """Ids on a `decisions` layer: the only elements a `diagram_ref` may name."""
+    doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    return {e.id for e in doc.elements.values() if diagrams.is_decision_layer(e.layer)}
 
 
 def find_diagram_requested(

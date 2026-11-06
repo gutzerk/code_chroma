@@ -88,7 +88,7 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, int maxRej
         if (request.Degraded) return new JsonObject { ["degraded"] = true };
         var problems = QuestionValidation.Validate(request);
         if (problems.Count == 0 && request.Options.Any(o => !string.IsNullOrEmpty(o.DiagramRef)))
-            problems = QuestionValidation.UnknownRefs(request, await Task.Run(() => QuestionStore.KnownElementIds(ws)));
+            problems = QuestionValidation.UnknownRefs(request, await Task.Run(() => QuestionStore.OptionDiagramIds(ws)));
         var key = !string.IsNullOrEmpty(request.SessionId) ? request.SessionId : !string.IsNullOrEmpty(connection) ? "conn:" + connection : null;
         if (problems.Count == 0)
         {

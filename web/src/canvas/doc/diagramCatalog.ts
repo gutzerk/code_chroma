@@ -70,8 +70,9 @@ export function isDiagramLayer(layer: string): boolean {
 /** Per-question option-diagram layers (`decisions/<question_id>`): shown only in the agent window, never on the canvas. */
 export const DECISION_LAYER_PREFIX = "decisions/";
 
+/** The shared `decisions` layer or a per-question `decisions/<id>` one (mirrors the bridges' `is_decision_layer`). */
 export function isDecisionLayer(layer: string): boolean {
-  return layer.startsWith(DECISION_LAYER_PREFIX);
+  return layer === "decisions" || layer.startsWith(DECISION_LAYER_PREFIX);
 }
 
 /** Questions and their option diagrams: the agent window (AgentQuestionHost) shows them, the canvas never does. */

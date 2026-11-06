@@ -33,8 +33,11 @@ public sealed class SceneGraph
     public SceneGraph(CanvasDoc doc, ITextMeasurer? measurer = null)
     {
         _measurer = measurer;
-        foreach (var element in doc.Elements.Values) Insert(element);
+        foreach (var element in doc.Elements.Values.Where(e => !Catalog.DiagramCatalog.IsAgentWindowOnly(e))) Insert(element);
     }
+
+    /// <summary>Whether the element has a box on the canvas (question cards and option diagrams never do).</summary>
+    public bool Contains(string id) => _nodes.ContainsKey(id);
 
     public IEnumerable<SceneNode> Nodes => _order.Select(id => _nodes[id]);
 

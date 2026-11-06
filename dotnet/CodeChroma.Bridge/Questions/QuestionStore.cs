@@ -202,8 +202,8 @@ public static class QuestionStore
         return later;
     }
 
-    /// <summary>Every element id on the canvas, for checking `diagram_ref`.</summary>
-    public static HashSet<string> KnownElementIds(Workspace ws) => [.. Load(ws).Elements.Keys];
+    /// <summary>Every option-diagram element id (on a `decisions` layer), the only ids a `diagram_ref` may name.</summary>
+    public static HashSet<string> OptionDiagramIds(Workspace ws) => [.. Load(ws).Elements.Values.Where(e => QuestionDiagrams.IsDecisionLayer(e.Layer)).Select(e => e.Id)];
 
     /// <summary>The open diagram-requested card this re-ask continues, and its older duplicates.</summary>
     public static (CanvasElement Keep, List<CanvasElement> Stale)? FindDiagramRequested(Workspace ws, AskRequest request)

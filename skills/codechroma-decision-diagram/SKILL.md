@@ -18,6 +18,8 @@ C1, patterns or impact views use `codechroma-draw-diagram` instead.
    (what flows or who calls whom); the question view shows both, so a bare box gives the user nothing to
    decide on. The tool warns when more than half the nodes lack a description.
 3. The result is `{diagram_ref}`. Pass it as `diagram_ref` on that option in `ask_user`.
+   Only a ref from `draw_option_diagram` is accepted: never draw an option diagram on the canvas
+   (canvas PATCH, `codechroma-draw-diagram`) and pass its id; `ask_user` rejects it.
 4. Call `ask_user` with `kind: "diagram"` and the full option contract (see `codechroma-grill`).
 
 If a `[CodeChroma request ...]` message arrives, draw the diagrams, then call `ask_user` again with the same

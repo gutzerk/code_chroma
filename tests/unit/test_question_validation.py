@@ -226,6 +226,24 @@ def test_ask_with_an_unknown_diagram_ref_is_rejected(bridge):
     assert "ghost" in str(caught.value)
 
 
+def test_ask_whose_diagram_ref_is_a_canvas_diagram_is_rejected(bridge):
+    from fastapi.testclient import TestClient
+
+    add = {"op": "add_element", "render": "custom", "layer": "custom/plan", "label": "On canvas",
+           "position": {"x": 0.0, "y": 0.0}}
+    with TestClient(bridge.app) as client:
+        client.patch("/repos/main/canvas", json={"ops": [add], "layer": "custom/plan"})
+    doc = CanvasDoc.load(bridge.main.canvas_core_path, bridge.main.diagrams_root)
+    canvas_id = next(e.id for e in doc.elements.values() if e.label == "On canvas")
+    request = _request([_option("a", 1, diagram_ref=canvas_id), _option("b", 2)], kind="diagram")
+
+    with pytest.raises(QuestionRejected) as caught:
+        asyncio.run(_mcp(bridge).ask("main", request))
+
+    assert "draw_option_diagram" in str(caught.value)
+    assert store.list_questions(bridge.main) == []
+
+
 def test_draw_diagram_returns_a_ref_that_a_diagram_question_accepts(bridge, monkeypatch):
     _fast(monkeypatch, 0.05)
     nodes = [_node("api"), _node("q", status="new")]

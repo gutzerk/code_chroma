@@ -519,6 +519,22 @@ public sealed class QuestionRoutesTests
     }
 
     [Fact]
+    public async Task An_ask_whose_diagram_ref_is_a_canvas_diagram_is_rejected_and_the_canvas_is_untouched()
+    {
+        using var host = new BridgeHost();
+        var add = new JsonObject { ["op"] = "add_element", ["render"] = "custom", ["layer"] = "custom/plan", ["label"] = "On canvas", ["position"] = new JsonObject { ["x"] = 0.0, ["y"] = 0.0 } };
+        await host.Client.PatchAsync("/repos/main/canvas", JsonBody(new JsonObject { ["ops"] = new JsonArray(add), ["layer"] = "custom/plan" }));
+        var ws = Main(host);
+        var canvasId = CanvasDoc.Load(ws.CanvasCorePath(), ws.DiagramsRoot()).Elements.Values.Single(e => e.Label == "On canvas").Id;
+
+        var rejected = await Assert.ThrowsAsync<QuestionRejected>(() => Mcp(host).Ask("main", Request([Option("a", 1, diagramRef: canvasId), Option("b", 2)], kind: "diagram")));
+
+        Assert.Contains("draw_option_diagram", rejected.Message);
+        Assert.Empty(QuestionStore.ListQuestions(ws));
+        Assert.Equal("custom/plan", CanvasDoc.Load(ws.CanvasCorePath(), ws.DiagramsRoot()).Elements[canvasId].Layer);
+    }
+
+    [Fact]
     public async Task The_fourth_incomplete_ask_is_accepted_degraded()
     {
         using var host = new BridgeHost();

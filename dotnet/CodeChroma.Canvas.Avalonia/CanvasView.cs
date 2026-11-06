@@ -78,7 +78,7 @@ public sealed class CanvasView : Control
             var signature = string.Join("|", ids.OrderBy(i => i, StringComparer.Ordinal));
             if (_routed is not null && signature == _routedSignature) return _routed;
             var edges = _store.Doc.Edges.Values
-                .Where(e => (ids.Contains(e.From) || ids.Contains(e.To)) && _store.Doc.Elements.ContainsKey(e.From) && _store.Doc.Elements.ContainsKey(e.To))
+                .Where(e => (ids.Contains(e.From) || ids.Contains(e.To)) && _scene.Contains(e.From) && _scene.Contains(e.To))
                 .ToList();
             _routed = EdgeRouter.Route(
                 edges, e => OrthogonalRoute.PairKeyOf(e.From, e.To),
@@ -107,7 +107,7 @@ public sealed class CanvasView : Control
     private void ApplyStore()
     {
         _scene = new SceneGraph(_store.Doc, _measurer);
-        SelectionModel.Prune(id => _store.Doc.Elements.ContainsKey(id));
+        SelectionModel.Prune(_scene.Contains);
         _routed = null;
         InvalidateVisual();
     }

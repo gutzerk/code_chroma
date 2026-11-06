@@ -49,10 +49,11 @@ def validate_ask(request: AskRequest) -> list[str]:
 
 
 def unknown_refs(request: AskRequest, known_ids: Iterable[str]) -> list[str]:
-    """One line per `diagram_ref` that names no canvas element."""
+    """One line per `diagram_ref` that names no option diagram (a canvas diagram never counts)."""
     known = set(known_ids)
     return [
-        f'Option "{option.title or option.id}": diagram_ref {option.diagram_ref!r} is unknown'
+        f'Option "{option.title or option.id}": diagram_ref {option.diagram_ref!r} is not an option'
+        " diagram; draw it with draw_option_diagram and pass the returned diagram_ref"
         for option in request.options
         if option.diagram_ref and option.diagram_ref not in known
     ]

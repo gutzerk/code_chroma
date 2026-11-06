@@ -7,7 +7,7 @@ import { agentStore } from "./agentStore";
 import { worktreeStore } from "./worktreeStore";
 import { workspaceStore } from "./workspaceStore";
 import { prStore } from "../pr/prStore";
-import { ensureWorktrees } from "./worktreeActions";
+import { ensureWorktrees, recordShownWorkspace } from "./worktreeActions";
 
 const TAB = { id: "br_wt-1", name: "wt-1", branch: "wt-1", worktree: "/repo/.codechroma/worktrees/wt-1" };
 
@@ -122,5 +122,74 @@ describe("ensureWorktrees restoring the last-viewed PR review", () => {
 
     expect(agentStore.getActiveWorkspace()).toBe("pr-7");
     expect(api.activateWorkspace).toHaveBeenCalledWith("pr-7");
+  });
+
+  it("an explicit ?workspace tab wins over the remembered PR and is recorded in its place", async () => {
+    agentStore.setActiveWorkspace(TAB.id);
+    worktreeStore.setList([TAB], TAB.id);
+    const api = client({ listPrs: async () => ({ prs: [pr(7)], max_prs: 3, active_workspace: "pr-7" }) });
+
+    await ensureWorktrees(api);
+
+    expect(agentStore.getActiveWorkspace()).toBe(TAB.id);
+    expect(api.activateWorkspace).not.toHaveBeenCalledWith("pr-7");
+    expect(api.activateWorkspace).toHaveBeenCalledWith(TAB.id);
+  });
+});
+
+describe("recordShownWorkspace", () => {
+  function bridgeRemembering(initial: string): AgentClient {
+    let active = initial;
+    return client({
+      listPrs: async () => ({ prs: [pr(7)], max_prs: 3, active_workspace: active }),
+      activateWorkspace: vi.fn(async (id: string) => {
+        active = id;
+        return ready(id);
+      }),
+    });
+  }
+
+  it("re-records the project tab when it is shown again, so a closed desktop PR tab does not reopen", async () => {
+    const openWorkspaceWindow = vi.fn(async () => {});
+    window.codechromaDesktop = { openWorkspaceWindow } as unknown as DesktopWorkspaceApi;
+    const api = bridgeRemembering("pr-7");
+    await ensureWorktrees(api);
+    const stop = recordShownWorkspace(api);
+
+    window.dispatchEvent(new Event("focus"));
+    stop();
+
+    expect(openWorkspaceWindow).toHaveBeenCalledWith("pr-7");
+    expect((await api.listPrs()).active_workspace).toBe(TAB.id);
+  });
+
+  it("a page reload after the project tab was shown again does not re-front the PR tab", async () => {
+    const openWorkspaceWindow = vi.fn(async () => {});
+    window.codechromaDesktop = { openWorkspaceWindow } as unknown as DesktopWorkspaceApi;
+    const api = bridgeRemembering("pr-7");
+    await ensureWorktrees(api);
+    const stop = recordShownWorkspace(api);
+    window.dispatchEvent(new Event("focus"));
+    stop();
+    agentStore.reset();
+    openWorkspaceWindow.mockClear();
+
+    await ensureWorktrees(api);
+
+    expect(openWorkspaceWindow).not.toHaveBeenCalled();
+  });
+
+  it("ignores a visibility change to hidden and stops listening once stopped", () => {
+    const api = client();
+    agentStore.setActiveWorkspace(TAB.id);
+    const stop = recordShownWorkspace(api);
+    const hidden = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    hidden.mockRestore();
+    stop();
+
+    window.dispatchEvent(new Event("focus"));
+
+    expect(api.activateWorkspace).not.toHaveBeenCalled();
   });
 });

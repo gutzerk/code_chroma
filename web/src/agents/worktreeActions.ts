@@ -46,9 +46,14 @@ export async function ensureWorktrees(client: AgentClient): Promise<void> {
     });
     return;
   }
-  // An explicit known tab (?workspace=br_x) wins over the bridge's active one (and is PUT as active);
-  // anything else follows the tab list.
-  const target = worktreeStore.has(current) ? current : worktreeStore.getActiveId();
+  // An explicit known tab (?workspace=br_x) wins over the bridge's active one and the remembered PR.
+  if (worktreeStore.has(current)) {
+    await selectWorktree(client, current);
+    // selectWorktree skips a tab that is already shown, so record it here to forget the remembered PR.
+    if (rememberedPr) await activate(client, current).catch(() => {});
+    return;
+  }
+  const target = worktreeStore.getActiveId();
   const desktop = getDesktopWorkspaceApi();
   if (rememberedPr && !desktop) {
     await restorePr(client, rememberedPr, target);
@@ -61,6 +66,23 @@ export async function ensureWorktrees(client: AgentClient): Promise<void> {
       // Best effort: the review stays one click away in the PR dialog.
     });
   }
+}
+
+/** After boot: re-records this window's workspace as the last-viewed one whenever the window is shown or
+ * focused again, so closing a desktop PR tab (which fronts its project tab) forgets that PR. */
+export function recordShownWorkspace(client: AgentClient): () => void {
+  const record = (): void => {
+    if (document.visibilityState !== "visible") return;
+    client.activateWorkspace(agentStore.getActiveWorkspace()).catch(() => {
+      // Best effort: the record only matters for the next launch.
+    });
+  };
+  document.addEventListener("visibilitychange", record);
+  window.addEventListener("focus", record);
+  return () => {
+    document.removeEventListener("visibilitychange", record);
+    window.removeEventListener("focus", record);
+  };
 }
 
 /** The PR review the bridge last drew for this project, when it is still open; null otherwise. */

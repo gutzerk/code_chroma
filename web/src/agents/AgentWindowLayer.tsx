@@ -12,7 +12,7 @@ import { promptNavStore } from "./prompts/promptNavStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
 import { AgentToastLayer } from "./toasts/AgentToastLayer";
-import { ensureWorktrees, refreshWorktrees, settleRemovedWorktree } from "./worktreeActions";
+import { ensureWorktrees, recordShownWorkspace, refreshWorktrees, settleRemovedWorktree } from "./worktreeActions";
 import { worktreeStore } from "./worktreeStore";
 import { WorkspaceStatusBanner } from "./WorkspaceStatusBanner";
 import { confirmCloseAgentWindow } from "./windowActions";
@@ -46,10 +46,21 @@ export function AgentWindowLayer() {
   }, [agents]);
 
   // Boot: restore every worktree tab (creating wt-N only when there are none) and select the active one.
+  // Only after it, the window re-records its workspace when shown again (earlier would erase the remembered PR).
   useEffect(() => {
-    void ensureWorktrees(agentClient).catch(() => {
-      // A bridge without worktree tabs leaves the strip empty; the canvas still works.
-    });
+    let stop: (() => void) | undefined;
+    let cancelled = false;
+    void ensureWorktrees(agentClient)
+      .catch(() => {
+        // A bridge without worktree tabs leaves the strip empty; the canvas still works.
+      })
+      .finally(() => {
+        if (!cancelled) stop = recordShownWorkspace(agentClient);
+      });
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
   }, [agentClient]);
 
   useEffect(ensureNotificationPermission, []);

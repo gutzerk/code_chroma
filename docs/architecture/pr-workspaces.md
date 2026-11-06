@@ -139,6 +139,12 @@ this, so a PR was never remembered in the desktop app. At boot, `ensureWorktrees
 `active_workspace` names a PR in that list, the browser draws it in place (the tab strip keeps its
 tab), and the desktop app keeps the repo tab on its worktree tab and reopens the PR in its own tab via
 `openWorkspaceWindow`. A window opened on `?workspace=pr-N` activates it, which is what records it.
+An explicit `?workspace=br_x` tab wins over the remembered PR and is recorded in its place.
+⚠ After boot, `recordShownWorkspace` (started by `AgentWindowLayer` only once `ensureWorktrees`
+settles, so it can't erase the PR the boot is reading) re-activates the window's own workspace on
+`focus` and on `visibilitychange` to visible. That is what forgets a PR whose desktop tab was closed:
+the shell fronts the project tab, which re-records its worktree tab, so the PR tab neither reopens
+on the next launch nor re-fronts when the project page reloads. No shell or bridge change was needed.
 A PR that is gone falls back to the tab with no error: the bridge drops an unregistered id at
 `RevalidateActiveWorkspace`, the web skips an id missing from `GET /prs`, and a failed activate
 selects the tab silently. Tests: `web/src/agents/worktreeActions.test.ts`,

@@ -34,10 +34,9 @@ function workspaceFromUrl(): string | null {
  */
 class AgentStore extends Store {
   private agents: AgentRecord[] = EMPTY;
+  // The bridge's "last active" never moves it from here: the boot (worktreeActions.ensureWorktrees)
+  // decides once, so a list refresh can't race the tab selection or follow another window's pick.
   private activeWorkspace = initialWorkspace();
-  // Once this window has chosen its workspace (URL, a click, or the first load) the bridge's
-  // "last active" must never move it again: another window's pick is not ours to follow.
-  private workspaceChosen = workspaceFromUrl() !== null;
   private maxAgents = 5;
   private gitPreflight: GitPreflight | null = null;
   private launchError: string | null = null;
@@ -76,24 +75,18 @@ class AgentStore extends Store {
    * this closes the gap a fast double-click could otherwise slip through. */
   getIsLaunching = (): boolean => this.isLaunching;
 
-  setList = (list: {
-    agents: AgentRecord[];
-    active_workspace: string;
-    max_agents: number;
-  }): void => {
+  setList = (list: { agents: AgentRecord[]; max_agents: number }): void => {
     this.agents = list.agents.map((agent) => clampToViewport(normalized(agent)));
-    if (!this.workspaceChosen && list.active_workspace !== "main") {
-      this.activeWorkspace = list.active_workspace;
-      this.workspaceChosen = true;
-    }
     this.maxAgents = list.max_agents;
     this.emit();
   };
 
   /** Inserts or replaces one card — the `agent-added` event and every mutating call land here. */
   upsert = (agent: AgentRecord): void => {
-    const clamped = clampToViewport(normalized(agent));
     const index = this.agents.findIndex((candidate) => candidate.id === agent.id);
+    // Only GET /agents rows and `agent-questions` carry the count; other payloads keep the last one.
+    const openQuestions = agent.open_questions ?? this.agents[index]?.open_questions;
+    const clamped = clampToViewport(normalized(openQuestions === undefined ? agent : { ...agent, open_questions: openQuestions }));
     this.agents =
       index === -1
         ? [...this.agents, clamped]
@@ -136,6 +129,13 @@ class AgentStore extends Store {
 
   countInWorkspace = (workspace: string): number =>
     this.agents.reduce((total, agent) => total + (agent.workspace === workspace ? 1 : 0), 0);
+
+  /** Lands an `agent-questions` event: the bridge's open ask_user count for one agent. */
+  setOpenQuestions = (id: string, count: number): void => {
+    if (this.getAgent(id)?.open_questions === count) return;
+    this.agents = this.agents.map((agent) => (agent.id === id ? { ...agent, open_questions: count } : agent));
+    this.emit();
+  };
 
   setStatus = (id: string, status: AgentStatus): void => {
     this.applyStatus(id, status, {});
@@ -188,7 +188,6 @@ class AgentStore extends Store {
 
   setActiveWorkspace = (id: string): void => {
     this.activeWorkspace = id;
-    this.workspaceChosen = true;
     this.emit();
   };
 
@@ -244,7 +243,6 @@ class AgentStore extends Store {
   reset = (): void => {
     this.agents = EMPTY;
     this.activeWorkspace = initialWorkspace();
-    this.workspaceChosen = workspaceFromUrl() !== null;
     this.maxAgents = 5;
     this.gitPreflight = null;
     this.launchError = null;
@@ -306,6 +304,16 @@ export function useAgents(): AgentRecord[] {
 /** One agent's record; re-renders only when that record changes. */
 export function useAgent(id: string): AgentRecord | undefined {
   return useSyncExternalStore(agentStore.subscribe, () => agentStore.getAgent(id));
+}
+
+/** How many ask_user questions the bridge counts open for the agent (0 when unknown). */
+export function openQuestionCount(agent: Pick<AgentRecord, "open_questions"> | undefined): number {
+  return agent?.open_questions ?? 0;
+}
+
+/** The agent's open question count; re-renders only when that number changes. */
+export function useOpenQuestionCount(id: string): number {
+  return useSyncExternalStore(agentStore.subscribe, () => openQuestionCount(agentStore.getAgent(id)));
 }
 
 /** Whether the agent's terminal (and so its question host) is mounted: not stopped or failed. */

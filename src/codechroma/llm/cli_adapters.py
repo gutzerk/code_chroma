@@ -52,6 +52,11 @@ class CliAdapter(Protocol):
         ...
 
 
+def delivers_hidden_prompt_context(adapter: object) -> bool:
+    """Whether a window can get hidden context with the first prompt (UserPromptSubmit hook)."""
+    return getattr(adapter, "hidden_prompt_context", False) is True
+
+
 def supports_minimal_context_workers(adapter: CliAdapter) -> bool:
     """Whether `adapter` implements the zero-tool structured-output worker methods."""
     return hasattr(adapter, "build_worker_argv") and hasattr(adapter, "parse_structured_output")
@@ -73,6 +78,14 @@ def _parse_json_event(raw: bytes | str) -> dict | None:
 
 class ClaudeAdapter:
     """`claude -p ... --output-format stream-json` -- the shape skill_agent used to build inline."""
+
+    # `/clear` and its aliases; the SessionStart hook (source `clear`) reports them, menu picks too.
+    clear_commands = ("/clear", "/reset", "/new")
+    hook_reports_clear = True
+    # Ctrl+L: /clear leaves the old turns on screen, Ctrl+L wipes the visible rows and redraws.
+    repaint_input = "\f"
+    # Its UserPromptSubmit hook adds `additionalContext` to a prompt without showing it.
+    hidden_prompt_context = True
 
     def mcp_registration(
         self, endpoint: McpEndpoint, workdir: Path | None
@@ -156,6 +169,9 @@ _CODEX_ITEM_TOOL_TYPES = (
 class CodexAdapter:
     """`codex exec --json` -- workspace-write sandbox; exec has no interactive approval to skip."""
 
+    # `/new` starts a new chat; `/clear` also clears the terminal.
+    clear_commands = ("/clear", "/new")
+
     def mcp_registration(
         self, endpoint: McpEndpoint, workdir: Path | None
     ) -> tuple[list[str], dict[str, str]] | None:
@@ -214,6 +230,9 @@ def _render_codex_item(item: object) -> list[str]:
 class KimiAdapter:
     """`kimi --prompt ... --output-format stream-json` -- --prompt alone runs non-interactively."""
 
+    # Kimi Code's `/new` and its alias `/clear`.
+    clear_commands = ("/new", "/clear")
+
     def mcp_registration(
         self, endpoint: McpEndpoint, workdir: Path | None
     ) -> tuple[list[str], dict[str, str]] | None:
@@ -271,6 +290,9 @@ def _render_kimi_assistant(event: dict) -> list[str]:
 
 class GeminiAdapter:
     """`gemini --prompt ... --yolo --output-format stream-json` -- --yolo auto-approves tools."""
+
+    # `/clear` resets the chat and clears the screen.
+    clear_commands = ("/clear",)
 
     def mcp_registration(
         self, endpoint: McpEndpoint, workdir: Path | None

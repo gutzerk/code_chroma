@@ -1,5 +1,6 @@
 import type { CanvasOp } from "../../../state/types";
 import type { EngineClient } from "../../../engine-client/EngineClient";
+import { agentQuestionStore } from "../../../agents/agentQuestions";
 
 const TERMINAL_ID_PREFIX = "agent-terminal-";
 
@@ -9,7 +10,7 @@ const DEMO_OPTIONS = [
   { id: "c", title: "Events", description: "Async", pro: "Decoupled", con: "Complexity", rank: 3, why: "Too heavy", diagram_ref: null },
 ];
 
-/** Opt-in (VITE_DEV_ASK_QUESTION=1) mock-bridge preview only: Enter inside an agent terminal (or `askAgentQuestion()` in the console) asks a demo question as that agent. */
+/** Opt-in (VITE_DEV_ASK_QUESTION=1) mock-bridge preview only: Enter inside an agent terminal (or `askAgentQuestion()` in the console) asks a demo question as that agent on the mock agent client's question canvas. */
 export function installDevAskQuestion(client: EngineClient): () => void {
   const ask = (agentId?: string) => {
     const id =
@@ -21,7 +22,9 @@ export function installDevAskQuestion(client: EngineClient): () => void {
       position: { x: 760, y: 40 },
       meta: { session_id: "demo", step: 1, total: 2, state: "open", agent_id: id ?? "", options: DEMO_OPTIONS },
     } as CanvasOp;
-    return client.patchCanvas({ ops: [op], layer: "questions", explanation: "", confirm_mass_delete: false });
+    return client
+      .patchCanvas({ ops: [op], layer: "questions", explanation: "", confirm_mass_delete: false })
+      .finally(() => agentQuestionStore.refresh(id ?? ""));
   };
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== "Enter" || !(event.target instanceof Element)) return;

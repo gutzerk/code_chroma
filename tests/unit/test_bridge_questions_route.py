@@ -11,8 +11,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.questions import delivery, store
-from codechroma.questions.mcp_server import QuestionAuthError
+from codechroma.questions.mcp_server import NEXT_STEP, NO_WINDOW, QuestionAuthError, QuestionMcp
 from codechroma.questions.models import AskRequest, QuestionOption
+from codechroma.questions.validation import QuestionRejected
 
 OPTIONS = [
     QuestionOption(
@@ -24,6 +25,12 @@ OPTIONS = [
         con="ops cost", why="scales apart",
     ),
 ]
+
+
+@pytest.fixture
+def mcp(bridge) -> QuestionMcp:
+    """A QuestionMcp over the bridge's workspaces, with a window showing every agent."""
+    return QuestionMcp(bridge.registry.get, attached_windows=lambda _agent_id: 1)
 
 
 def _ask(bridge, **overrides) -> str:
@@ -205,15 +212,14 @@ def _ask_for(bridge, agent_id: str = "agent-1", **overrides) -> str:
     return question_id
 
 
-def test_ask_returns_at_once_and_tells_the_agent_to_end_its_turn(bridge):
-    mcp = bridge.app.state.question_mcp
-
+def test_ask_returns_at_once_and_tells_the_agent_to_end_its_turn(bridge, mcp):
     result = asyncio.run(mcp.ask("main", AskRequest(question="Pick", options=OPTIONS)))
 
     element = store.list_questions(bridge.main)[0]
     assert result["asked"] is True
     assert result["question_id"] == element.meta["question_id"]
-    assert result["next"].startswith("End your turn")
+    assert result["next"] == NEXT_STEP
+    assert "agent window above this terminal" in result["next"]
     assert element.meta["state"] == "open"
 
 
@@ -315,7 +321,7 @@ def test_a_completed_batch_leaves_no_question_or_option_diagram_on_the_canvas(br
     ws = bridge.main
     _live_agent(bridge)
     edge = [diagrams.DiagramEdge(**{"from": "n0", "to": "n1"})]
-    draft = store.draw_diagram(ws, "Draft", _nodes(), edge, None, None)
+    draft = store.draw_diagram(ws, "Draft", _nodes(), edge, None, None, "agent-1")
     options = [OPTIONS[0].model_copy(update={"diagram_ref": draft}), OPTIONS[1]]
     question_id = _ask_for(bridge, options=options)
     store.draw_diagram(ws, "Attached", _nodes(), edge, question_id, "b")
@@ -326,10 +332,29 @@ def test_a_completed_batch_leaves_no_question_or_option_diagram_on_the_canvas(br
         _eventually(lambda: not store.list_questions(ws))
 
     doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    assert draft not in doc.elements
     assert not [e for e in doc.elements.values() if e.render == "question"]
     assert not [e for e in doc.elements.values() if e.layer == f"decisions/{question_id}"]
     assert not [e for e in doc.edges.values() if e.layer == f"decisions/{question_id}"]
     assert unrelated in doc.elements
+
+
+def test_a_completed_batch_never_deletes_an_option_diagram_another_agent_drew(bridge):
+    from codechroma.canvas.document import CanvasDoc
+
+    ws = bridge.main
+    _live_agent(bridge)
+    theirs = store.draw_diagram(ws, "Theirs", _nodes(), [], None, None, "agent-2")
+    options = [OPTIONS[0].model_copy(update={"diagram_ref": theirs}), OPTIONS[1]]
+    question_id = _ask_for(bridge, options=options)
+
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
+        _eventually(lambda: not store.list_questions(ws))
+
+    doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    assert theirs in doc.elements
+    assert [e for e in doc.elements.values() if e.group_id == theirs]
 
 
 def test_a_session_keeps_counting_steps_after_its_answered_batch_is_cleared(bridge):
@@ -481,8 +506,7 @@ def test_answer_message_is_one_line_even_for_a_multiline_custom_answer(bridge):
     assert text.endswith("→ a b [31m c")
 
 
-def test_result_reads_a_settled_answer_from_the_element(bridge):
-    mcp = bridge.app.state.question_mcp
+def test_result_reads_a_settled_answer_from_the_element(bridge, mcp):
     question_id = _ask(bridge)
     with TestClient(bridge.app) as client:
         client.post(f"/repos/main/questions/{question_id}/skip")
@@ -492,8 +516,7 @@ def test_result_reads_a_settled_answer_from_the_element(bridge):
     assert result == {"answer": None, "option_id": None, "skipped": True}
 
 
-def test_result_is_pending_while_the_question_is_open(bridge):
-    mcp = bridge.app.state.question_mcp
+def test_result_is_pending_while_the_question_is_open(bridge, mcp):
     question_id = _ask(bridge)
 
     result = asyncio.run(mcp.result("main", question_id))
@@ -501,9 +524,7 @@ def test_result_is_pending_while_the_question_is_open(bridge):
     assert result == {"pending": True, "question_id": question_id}
 
 
-def test_token_names_its_workspace_and_a_forged_one_is_refused(bridge):
-    mcp = bridge.app.state.question_mcp
-
+def test_token_names_its_workspace_and_a_forged_one_is_refused(mcp):
     token = mcp.token_for("main")
 
     assert mcp.workspace_id_for(token) == "main"
@@ -616,16 +637,13 @@ def test_reask_skips_stale_duplicates_and_refreshes_label_and_meta(bridge):
     assert store.find_element(bridge.main, old).meta["state"] == "skipped"
 
 
-def test_ask_stamps_the_authenticated_workspace_as_agent_id(bridge):
-    mcp = bridge.app.state.question_mcp
-
+def test_ask_stamps_the_authenticated_workspace_as_agent_id(bridge, mcp):
     asyncio.run(mcp.ask("main", AskRequest(question="Pick", options=OPTIONS, agent_id="spoofed")))
 
     assert store.list_questions(bridge.main)[0].meta["agent_id"] == "main"
 
 
-def test_reask_keeps_the_question_id_and_returns_it(bridge):
-    mcp = bridge.app.state.question_mcp
+def test_reask_keeps_the_question_id_and_returns_it(bridge, mcp):
     question_id = _ask(bridge, session_id="s1")
     store.request_diagram(bridge.main, store.find_element(bridge.main, question_id), "now")
 
@@ -724,10 +742,9 @@ def test_draw_diagram_with_an_unknown_option_leaves_no_orphan_diagram(bridge):
     assert not [e for e in _doc(bridge).elements.values() if e.meta.get("diagram_root")]
 
 
-def test_draw_option_diagram_warns_when_most_nodes_lack_a_description(bridge):
+def test_draw_option_diagram_warns_when_most_nodes_lack_a_description(mcp):
     from codechroma.questions import diagrams
 
-    mcp = bridge.app.state.question_mcp
     plain = _nodes(3)
     described = [diagrams.DiagramNode(id=n.id, label=n.label, description="adds X") for n in plain]
 
@@ -791,3 +808,33 @@ def test_find_diagram_requested_ignores_a_different_text_without_session(bridge)
     store.request_diagram(bridge.main, store.find_element(bridge.main, question_id), "now")
 
     assert store.find_diagram_requested(bridge.main, AskRequest(question="Other?")) is None
+
+
+def test_ask_without_an_attached_window_is_refused_and_writes_nothing(bridge):
+    mcp = bridge.app.state.question_mcp
+
+    with pytest.raises(QuestionRejected) as refused:
+        asyncio.run(mcp.ask("main", AskRequest(question="Pick", options=OPTIONS)))
+
+    assert str(refused.value) == NO_WINDOW
+    assert store.list_questions(bridge.main) == []
+
+
+def test_ask_proceeds_only_for_an_agent_an_attached_window_shows(bridge):
+    windows = {"main": 1, "closed": 0}
+    mcp = QuestionMcp(lambda _id: bridge.main, attached_windows=lambda i: windows.get(i, 0))
+
+    asked = asyncio.run(mcp.ask("main", AskRequest(question="Seen?", options=OPTIONS)))
+    refused = [
+        _refusal(mcp, agent_id) for agent_id in ("closed", "no-session")
+    ]
+
+    assert asked["asked"] is True
+    assert refused == [NO_WINDOW, NO_WINDOW]
+    assert [e.label for e in store.list_questions(bridge.main)] == ["Seen?"]
+
+
+def _refusal(mcp, agent_id: str) -> str:
+    with pytest.raises(QuestionRejected) as refused:
+        asyncio.run(mcp.ask(agent_id, AskRequest(question="Unseen?", options=OPTIONS)))
+    return str(refused.value)

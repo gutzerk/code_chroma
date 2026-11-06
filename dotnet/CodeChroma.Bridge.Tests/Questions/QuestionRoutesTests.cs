@@ -147,7 +147,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Ask_returns_at_once_and_the_answer_route_reports_no_live_agent()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var mcp = Mcp(host);
 
         var asked = await mcp.Ask("main", Request(question: "Pick"));
@@ -163,7 +163,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Result_is_pending_while_open_and_returns_the_later_answer()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var mcp = Mcp(host);
         var asked = await mcp.Ask("main", Request(question: "Pick"));
         var questionId = (string)asked["question_id"]!;
@@ -319,7 +319,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Ask_stamps_the_authenticated_workspace_as_agent_id()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var mcp = Mcp(host);
         var request = Request(question: "Pick");
         request.AgentId = "spoofed";
@@ -405,7 +405,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task An_incomplete_ask_user_call_is_a_tool_error_and_creates_no_question()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var token = Mcp(host).TokenFor("main");
         var arguments = new JsonObject { ["question"] = "Q?", ["options"] = new JsonArray(new JsonObject { ["id"] = "a", ["title"] = "A" }) };
 
@@ -418,9 +418,39 @@ public sealed class QuestionRoutesTests
     }
 
     [Fact]
-    public async Task Ask_user_over_http_returns_at_once_and_the_answer_is_read_back()
+    public async Task Ask_user_without_an_attached_window_is_refused_and_writes_nothing()
     {
         using var host = new BridgeHost();
+        var arguments = new JsonObject { ["question"] = "Pick", ["options"] = new JsonArray(Two().Select(o => (JsonNode?)o.ToJson()).ToArray()) };
+
+        var response = await Body(await host.Client.SendAsync(Rpc(Mcp(host).TokenFor("main"), Call(6, "ask_user", arguments))));
+
+        Assert.True((bool)response["result"]!["isError"]!);
+        Assert.Equal(QuestionMcp.NoWindowText, (string?)response["result"]!["content"]![0]!["text"]);
+        Assert.Empty(QuestionStore.ListQuestions(Main(host)));
+    }
+
+    [Fact]
+    public async Task Ask_proceeds_only_for_an_agent_an_attached_window_shows()
+    {
+        using var host = new BridgeHost();
+        var windows = new Dictionary<string, int> { ["main"] = 1, ["closed"] = 0 };
+        var mcp = new QuestionMcp(_ => Main(host), attachedWindows: id => windows.GetValueOrDefault(id));
+
+        var asked = await mcp.Ask("main", Request(question: "Seen?"));
+        var closed = await Assert.ThrowsAsync<QuestionRejected>(() => mcp.Ask("closed", Request(question: "Unseen?")));
+        var unknown = await Assert.ThrowsAsync<QuestionRejected>(() => mcp.Ask("no-session", Request(question: "Nobody?")));
+
+        Assert.True((bool)asked["asked"]!);
+        Assert.Equal(QuestionMcp.NoWindowText, closed.Message);
+        Assert.Equal(QuestionMcp.NoWindowText, unknown.Message);
+        Assert.Equal(["Seen?"], QuestionStore.ListQuestions(Main(host)).Select(e => e.Label));
+    }
+
+    [Fact]
+    public async Task Ask_user_over_http_returns_at_once_and_the_answer_is_read_back()
+    {
+        using var host = Host();
         var mcp = Mcp(host);
         var arguments = new JsonObject { ["question"] = "Pick", ["options"] = new JsonArray(Two().Select(o => (JsonNode?)o.ToJson()).ToArray()) };
         var response = await Body(await host.Client.SendAsync(Rpc(mcp.TokenFor("main"), Call(4, "ask_user", arguments))));
@@ -440,7 +470,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Draw_option_diagram_over_http_returns_a_ref_that_a_diagram_question_accepts()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var mcp = Mcp(host);
         var token = mcp.TokenFor("main");
         var draw = new JsonObject
@@ -481,7 +511,9 @@ public sealed class QuestionRoutesTests
     public async Task Draw_diagram_attaches_the_ref_to_the_question_option()
     {
         using var host = new BridgeHost();
-        var questionId = Open(host, Request());
+        var request = Request();
+        request.AgentId = "main";
+        var questionId = Open(host, request);
 
         var root = await Mcp(host).DrawDiagram("main", "T", [new DiagramNode("a", "a")], [], questionId, "b");
 
@@ -492,7 +524,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task A_reask_after_a_diagram_request_updates_the_same_element()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var mcp = Mcp(host);
         await mcp.Ask("main", Request(sessionId: "s"));
         var element = QuestionStore.ListQuestions(Main(host)).Single();
@@ -511,7 +543,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task An_ask_with_an_unknown_diagram_ref_is_rejected()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
 
         var rejected = await Assert.ThrowsAsync<QuestionRejected>(() => Mcp(host).Ask("main", Request([Option("a", 1, diagramRef: "ghost"), Option("b", 2)])));
 
@@ -519,9 +551,70 @@ public sealed class QuestionRoutesTests
     }
 
     [Fact]
+    public async Task An_ask_whose_diagram_ref_is_a_canvas_diagram_is_rejected_and_the_canvas_is_untouched()
+    {
+        using var host = Host();
+        var add = new JsonObject { ["op"] = "add_element", ["render"] = "custom", ["layer"] = "custom/plan", ["label"] = "On canvas", ["position"] = new JsonObject { ["x"] = 0.0, ["y"] = 0.0 } };
+        await host.Client.PatchAsync("/repos/main/canvas", JsonBody(new JsonObject { ["ops"] = new JsonArray(add), ["layer"] = "custom/plan" }));
+        var ws = Main(host);
+        var canvasId = CanvasDoc.Load(ws.CanvasCorePath(), ws.DiagramsRoot()).Elements.Values.Single(e => e.Label == "On canvas").Id;
+
+        var rejected = await Assert.ThrowsAsync<QuestionRejected>(() => Mcp(host).Ask("main", Request([Option("a", 1, diagramRef: canvasId), Option("b", 2)], kind: "diagram")));
+
+        Assert.Contains("draw_option_diagram", rejected.Message);
+        Assert.Empty(QuestionStore.ListQuestions(ws));
+        Assert.Equal("custom/plan", CanvasDoc.Load(ws.CanvasCorePath(), ws.DiagramsRoot()).Elements[canvasId].Layer);
+    }
+
+    [Fact]
+    public async Task An_ask_cannot_take_an_option_diagram_another_agent_drew()
+    {
+        using var host = Host();
+        var mcp = new QuestionMcp(_ => Main(host), attachedWindows: _ => 1);
+        var theirs = (string)(await mcp.DrawDiagram("agent-2", "T", [new DiagramNode("a", "a")], [], null, null))["diagram_ref"]!;
+
+        var rejected = await Assert.ThrowsAsync<QuestionRejected>(() => mcp.Ask("agent-1", Request([Option("a", 1, diagramRef: theirs), Option("b", 2)], kind: "diagram")));
+
+        Assert.Contains("draw_option_diagram", rejected.Message);
+        Assert.Empty(QuestionStore.ListQuestions(Main(host)));
+    }
+
+    [Fact]
+    public async Task An_agent_cannot_draw_onto_another_agents_question()
+    {
+        using var host = Host();
+        var mcp = new QuestionMcp(_ => Main(host), attachedWindows: _ => 1);
+        var asked = await mcp.Ask("agent-2", Request());
+
+        await Assert.ThrowsAsync<QuestionWriteException>(() => mcp.DrawDiagram("agent-1", "T", [new DiagramNode("a", "a")], [], (string)asked["question_id"]!, "a"));
+
+        Assert.Null(QuestionStore.ListQuestions(Main(host)).Single().Meta["options"]![0]!["diagram_ref"]);
+    }
+
+    [Fact]
+    public async Task A_degraded_ask_drops_a_diagram_ref_that_is_not_its_option_diagram()
+    {
+        using var host = Host();
+        var mcp = Mcp(host);
+        var add = new JsonObject { ["op"] = "add_element", ["render"] = "custom", ["layer"] = "custom/plan", ["label"] = "On canvas", ["position"] = new JsonObject { ["x"] = 0.0, ["y"] = 0.0 } };
+        await host.Client.PatchAsync("/repos/main/canvas", JsonBody(new JsonObject { ["ops"] = new JsonArray(add), ["layer"] = "custom/plan" }));
+        var ws = Main(host);
+        var canvasId = CanvasDoc.Load(ws.CanvasCorePath(), ws.DiagramsRoot()).Elements.Values.Single(e => e.Label == "On canvas").Id;
+        var own = (string)(await mcp.DrawDiagram("main", "T", [new DiagramNode("a", "a")], [], null, null))["diagram_ref"]!;
+        var bad = new AskRequest { Question = "Q?", SessionId = "s", Options = [new QuestionOption { Id = "a", Title = "A", DiagramRef = canvasId }, new QuestionOption { Id = "b", Title = "B", DiagramRef = own }] };
+
+        for (var i = 0; i < 3; i++) await Assert.ThrowsAsync<QuestionRejected>(() => mcp.Ask("main", bad));
+        await mcp.Ask("main", bad);
+
+        var options = QuestionStore.ListQuestions(ws).Single().Meta["options"]!.AsArray();
+        Assert.Null((string?)options[0]!["diagram_ref"]);
+        Assert.Equal(own, (string?)options[1]!["diagram_ref"]);
+    }
+
+    [Fact]
     public async Task The_fourth_incomplete_ask_is_accepted_degraded()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var mcp = Mcp(host);
         var bad = new AskRequest { Question = "Q?", SessionId = "s", Options = [new QuestionOption { Id = "a", Title = "A" }] };
 
@@ -536,7 +629,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task An_agent_supplied_degraded_flag_does_not_skip_validation()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var request = AskRequest.FromJson(new JsonObject { ["question"] = "Q?", ["options"] = new JsonArray(), ["degraded"] = true });
 
         await Assert.ThrowsAsync<QuestionRejected>(() => Mcp(host).Ask("main", request));
@@ -547,7 +640,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task A_degraded_pass_through_consumes_the_count()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var mcp = Mcp(host);
         var bad = new AskRequest { Question = "Q?", SessionId = "s", Options = [new QuestionOption { Id = "a", Title = "A" }] };
 
@@ -561,7 +654,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Sessionless_agents_on_different_connections_do_not_share_a_counter()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var mcp = Mcp(host);
         var bad = new AskRequest { Question = "Q?", Options = [new QuestionOption { Id = "a", Title = "A" }] };
 
@@ -575,7 +668,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task The_ask_route_rejects_a_missing_token_and_a_token_for_another_workspace()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var body = JsonBody(new JsonObject { ["question"] = "Q?" });
         var other = new HttpRequestMessage(HttpMethod.Post, "/repos/main/questions/ask") { Content = JsonBody(new JsonObject { ["question"] = "Q?" }) };
         other.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Mcp(host).TokenFor("other"));

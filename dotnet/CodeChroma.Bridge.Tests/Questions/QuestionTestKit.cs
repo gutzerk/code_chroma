@@ -22,6 +22,10 @@ internal static class QuestionTestKit
     public static AskRequest Request(List<QuestionOption>? options = null, string question = "How to structure checkout?", string? sessionId = null, string kind = "choices", bool allowCustom = true, bool allowSkip = true, int? total = null) =>
         new() { Question = question, Options = options ?? Two(), SessionId = sessionId, Kind = kind, AllowCustom = allowCustom, AllowSkip = allowSkip, Total = total };
 
+    /// <summary>A bridge whose ask_user sees one attached window for every agent id, so asking as "main" opens the question.</summary>
+    public static BridgeHost Host() => new(configure: services => services.AddSingleton(sp =>
+        new QuestionMcp(id => sp.GetRequiredService<WorkspaceRegistry>().Get(id), attachedWindows: _ => 1)));
+
     public static Workspace Main(BridgeHost host) => host.Factory.Services.GetRequiredService<WorkspaceRegistry>().Get("main");
 
     public static QuestionMcp Mcp(BridgeHost host) => host.Factory.Services.GetRequiredService<QuestionMcp>();

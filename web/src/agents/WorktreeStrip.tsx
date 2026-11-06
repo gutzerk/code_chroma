@@ -1,5 +1,4 @@
 import { memo, useCallback, useMemo, useState } from "react";
-import { useOpenQuestionCounts } from "../canvas/doc/question/useOpenAgentQuestions";
 import type { WorktreeRecord } from "../state/types";
 import { messageOf } from "../util/reportError";
 import { tabRollups } from "./agentAttention";
@@ -112,12 +111,8 @@ export function WorktreeStrip() {
   const [closing, setClosing] = useState<string | null>(null);
   const closingTab = tabs.find((tab) => tab.id === closing);
   const agents = useAgents();
-  const questionCounts = useOpenQuestionCounts();
   const selectedTab = activeTab ?? workspace;
-  const rollups = useMemo(
-    () => tabRollups(tabs, agents, questionCounts, selectedTab),
-    [tabs, agents, questionCounts, selectedTab],
-  );
+  const rollups = useMemo(() => tabRollups(tabs, agents, selectedTab), [tabs, agents, selectedTab]);
 
   const startRename = useCallback((id: string) => {
     setEditing(id);

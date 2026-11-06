@@ -25,6 +25,15 @@ public static class AgentRoutes
     // one status read-and-send at a time, so a stale snapshot is never broadcast after a newer one
     private static readonly object StatusGate = new();
 
+    /// <summary>The hidden context a canvas launch adds to the user's first prompt.</summary>
+    public static string ViewContext(string view) =>
+        $"This agent was launched from the CodeChroma canvas while the user was looking at: {view}. Use it as background for the user's message.";
+
+    /// <summary>The launch context typed as its own turn for a CLI without the hidden first-prompt hook.</summary>
+    public static string TypedViewContext(string view) =>
+        $"[Context] You were just launched from the CodeChroma canvas. The user is currently looking at: {view}. "
+        + "Please acknowledge you understand this context. Do not act on it or start any work — just confirm you've read it and say you're ready.";
+
     public static void Map(WebApplication app, string repoRoot)
     {
         app.MapGet("/agents/git-preflight", () => Reply.GuardBlocking(() => Reply.Json(AgentBootstrap.Preflight(repoRoot))));
@@ -36,9 +45,9 @@ public static class AgentRoutes
             return Reply.Json(await Task.Run(() => AgentBootstrap.Initialize(repoRoot, extra)));
         }));
 
-        app.MapGet("/agents", (AgentManager agents, AgentSessionRegistry sessions) => Reply.Guard(() => Reply.Json(new JsonObject
+        app.MapGet("/agents", (AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry) => Reply.GuardBlocking(() => Reply.Json(new JsonObject
         {
-            ["agents"] = new JsonArray(agents.List().Select(r => (JsonNode?)Payload(sessions, r)).ToArray()),
+            ["agents"] = new JsonArray(agents.List().Select(r => (JsonNode?)WithOpenQuestions(Payload(sessions, r), registry, r.Id)).ToArray()),
             ["active_workspace"] = agents.ActiveWorkspace,
             ["max_agents"] = AgentManager.MaxAgents,
         })));
@@ -112,7 +121,7 @@ public static class AgentRoutes
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
             AgentSession session;
-            try { session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths, banner)); }
+            try { session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths, banner, launch.Clear)); }
             catch (AgentStartException error)
             {
                 record.StartError = new AgentError(error.Message, DateTimeOffset.UtcNow);
@@ -121,10 +130,9 @@ public static class AgentRoutes
             }
             record.StartError = null;
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
-            if (pending is { Kind: not "task" } view)
-                _ = session.InjectWhenIdle(
-                    $"[Context] You were just launched from the CodeChroma canvas. The user is currently looking at: {view.Text}. "
-                    + "Please acknowledge you understand this context. Do not act on it or start any work — just confirm you've read it and say you're ready.");
+            // a view context rides hidden with the user's first prompt (UserPromptSubmit hook); a CLI without that hook gets it typed once idle
+            if (pending is { Kind: not "task" } view && launch.PromptContext == PromptContext.Hidden) session.HoldPromptContext(ViewContext(view.Text));
+            else if (pending is { Kind: not "task" } typed && launch.PromptContext == PromptContext.Typed) _ = session.InjectWhenIdle(TypedViewContext(typed.Text));
             agents.RecordSessionLaunch(agentId, session);
             var payload = Payload(sessions, updated);
             await BroadcastStatus(connections, sessions, updated);
@@ -141,8 +149,14 @@ public static class AgentRoutes
             var session = sessions.Get(agentId);
             if (session is null) return Reply.Json(new JsonObject { ["ok"] = true });
             var outcome = session.ApplyHook(body);
+            var context = AgentHook.IsPromptSubmit(body) ? session.TakePromptContext() : null;
             if (outcome.Changed) await BroadcastStatus(connections, sessions, record);
-            if (outcome.Decision is not { } waiting) return Reply.Json(new JsonObject { ["ok"] = true });
+            if (outcome.Decision is not { } waiting)
+            {
+                var reply = new JsonObject { ["ok"] = true };
+                if (context is not null) reply["additional_context"] = context;
+                return Reply.Json(reply);
+            }
             var decision = await WaitForDecision(waiting, request.HttpContext.RequestAborted);
             if (decision is null)
             {
@@ -261,6 +275,14 @@ public static class AgentRoutes
         var status = StatusJson(session, record);
         var payload = record.ToPayload();
         foreach (var (field, value) in status) payload[field] = value?.DeepClone();
+        return payload;
+    }
+
+    /// <summary>The list row also carries how many ask_user questions the agent has open; `agent-questions` events keep it current.</summary>
+    private static JsonObject WithOpenQuestions(JsonObject payload, WorkspaceRegistry registry, string agentId)
+    {
+        try { payload["open_questions"] = AgentQuestionView.OpenCount(registry, agentId); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { payload["open_questions"] = 0; }
         return payload;
     }
 

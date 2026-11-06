@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from codechroma.bridge.agents import bootstrap, publish
 from codechroma.bridge.agents import worktree as worktree_ops
-from codechroma.bridge.agents.agent_hook import PERMISSION_WAIT_SECONDS
+from codechroma.bridge.agents.agent_hook import PERMISSION_WAIT_SECONDS, is_prompt_submit
 from codechroma.bridge.agents.live_status import (
     STATUS_ERROR,
     STATUS_STOPPED,
@@ -33,7 +33,13 @@ from codechroma.bridge.services import BridgeServices
 from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID
 from codechroma.diagrams import kinds
 from codechroma.io import iso, utc_now
-from codechroma.terminal.agents import ALLOWED_AGENTS, agent_launch, resolved_cli_for
+from codechroma.questions import agent_view
+from codechroma.terminal.agents import (
+    ALLOWED_AGENTS,
+    PromptContext,
+    agent_launch,
+    resolved_cli_for,
+)
 
 router = APIRouter()
 
@@ -78,7 +84,10 @@ async def post_git_init(request: Request, services: Services) -> dict:
 def get_agents(services: Services) -> dict:
     """Every agent card plus which workspace the canvas should be drawing."""
     return {
-        "agents": [agent_payload(services, r) for r in services.agent_manager.list()],
+        "agents": [
+            {**agent_payload(services, r), "open_questions": _open_questions(services, r.id)}
+            for r in services.agent_manager.list()
+        ],
         "active_workspace": services.agent_manager.active_workspace,
         "max_agents": max_agents(),
     }
@@ -142,6 +151,24 @@ async def post_agent(request: Request, services: Services) -> dict:
     return payload
 
 
+def typed_view_context(view: str) -> str:
+    """The launch context typed as its own turn for a CLI without the hidden first-prompt hook."""
+    return (
+        f"[Context] You were just launched from the CodeChroma canvas. "
+        f"The user is currently looking at: {view}. "
+        f"Please acknowledge you understand this context. Do not act on it or "
+        f"start any work — just confirm you've read it and say you're ready."
+    )
+
+
+def view_context(view: str) -> str:
+    """The hidden context a canvas launch adds to the user's first prompt."""
+    return (
+        f"This agent was launched from the CodeChroma canvas while the user was looking at: "
+        f"{view}. Use it as background for the user's message."
+    )
+
+
 @router.post("/agents/{agent_id}/start")
 async def post_agent_start(agent_id: str, request: Request, services: Services) -> dict:
     """Brings up the agent's PTY in its worktree; `{resume: true}` continues its last chat."""
@@ -173,7 +200,8 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     # An AgentStartError becomes a 409 via the table in bridge/errors.py.
     try:
         session = services.agent_sessions.start(
-            agent_id, argv, Path(record.worktree), kind=launch.detector_kind, env=run_env
+            agent_id, argv, Path(record.worktree), kind=launch.detector_kind, env=run_env,
+            clear=launch.clear,
         )
     except AgentStartError as exc:
         record.start_error = AgentError(str(exc), utc_now())
@@ -185,14 +213,11 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
         agent_id, session.pid, resolved_cli=resolved_cli_for(record.kind, argv)
     )
     services.agent_manager.record_session_launch(agent_id, session)
-    if pending and pending[1] != "task":
-        text, _kind = pending
-        session.inject_when_idle(
-            f"[Context] You were just launched from the CodeChroma canvas. "
-            f"The user is currently looking at: {text}. "
-            f"Please acknowledge you understand this context. Do not act on it or "
-            f"start any work — just confirm you've read it and say you're ready.",
-        )
+    # A view context rides hidden with the first prompt; a CLI without that hook gets it typed.
+    if pending and pending[1] != "task" and launch.prompt_context == PromptContext.HIDDEN:
+        session.hold_prompt_context(view_context(pending[0]))
+    elif pending and pending[1] != "task" and launch.prompt_context == PromptContext.TYPED:
+        session.inject_when_idle(typed_view_context(pending[0]))
     payload = agent_payload(services, updated)
     await broadcast_agent_status(services, updated)
     return payload
@@ -293,6 +318,14 @@ async def patch_agent_window(agent_id: str, request: Request, services: Services
     return record.window
 
 
+def _open_questions(services: BridgeServices, agent_id: str) -> int:
+    """The list row's ask_user count; `agent-questions` events keep it current afterwards."""
+    try:
+        return agent_view.open_count(services.registry, agent_id)
+    except (OSError, ValueError):
+        return 0
+
+
 def _agent_or_404(services: BridgeServices, agent_id: str) -> AgentRecord:
     try:
         return services.agent_manager.get(agent_id)
@@ -360,10 +393,14 @@ async def post_agent_hook(agent_id: str, request: Request, services: Services) -
     if session is None:
         return {"ok": True}
     outcome = session.apply_hook(body)
+    context = session.take_prompt_context() if is_prompt_submit(body) else None
     if outcome.changed:
         await broadcast_agent_status(services, record)
     if outcome.decision is None:
-        return {"ok": True}
+        reply: dict = {"ok": True}
+        if context is not None:
+            reply["additional_context"] = context
+        return reply
     try:
         decision = await asyncio.wait_for(
             asyncio.shield(asyncio.wrap_future(outcome.decision)), PERMISSION_WAIT_SECONDS

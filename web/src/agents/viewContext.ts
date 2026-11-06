@@ -11,7 +11,7 @@ export interface EpicsContextPart {
 
 /** A short, human sentence describing what the user is currently looking at, built synchronously at
  *  launch time from state that is already loaded — never fetched on the launch path. Delivered to the
- *  fresh agent as acknowledge-only context (see parallel-agents.md). */
+ *  fresh agent as hidden context on its first prompt (see parallel-agents.md). */
 export interface ViewContext {
   workspace: string;
   description: string;

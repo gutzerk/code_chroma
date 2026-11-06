@@ -121,6 +121,12 @@ class ScreenTap:
         with contextlib.suppress(Exception):
             self._stream.feed(chunk)
 
+    @property
+    def in_ground(self) -> bool:
+        """True between escape sequences, so an inserted sequence cannot cut one left open."""
+        # pyte's parser yields True only from its ground state; it has no public accessor.
+        return bool(getattr(self._stream, "_taking_plain_text", True))
+
     def resize(self, rows: int, cols: int) -> None:
         """Kept in step with the PTY's own resize, so the screen matches what is displayed."""
         if rows > 0 and cols > 0:

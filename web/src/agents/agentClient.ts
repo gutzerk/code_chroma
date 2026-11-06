@@ -1,5 +1,6 @@
 import type {
   AgentList,
+  AgentQuestionsPayload,
   AgentRecord,
   AgentWindowGeometry,
   BuiltinDiagramKind,
@@ -15,6 +16,7 @@ import type {
   WorktreeList,
   RawPrompt,
 } from "../state/types";
+import type { QuestionAck, QuestionAnswerBody } from "../canvas/doc/question/questionAdapter";
 import { errorMessageFrom, jsonInit } from "../util/httpJson";
 
 /** Marks a task agent as drawing a diagram (`c1`, `patterns`, `impact`, `plan`, `sequence`, `custom`, or
@@ -50,8 +52,8 @@ export interface AgentClient {
   list(workspace?: string): Promise<AgentList>;
   /** Creates an agent in worktree tab `workspace` (`br_*`). `attachTo` (an agent id or a PR id like "pr-282";
    * "main" is refused) shares that agent's worktree, or forks a new one from the PR's head commit.
-   * `context` is the agent's first message: `contextKind` "view" (default) only acknowledges the current
-   * view, "task" is an actionable prompt; `diagram` names the diagram a task draws. */
+   * `context` with `contextKind` "view" (default) rides hidden with the first prompt (Claude only),
+   * "task" is the actionable first message; `diagram` names the diagram a task draws. */
   create(
     title: string,
     kind?: string,
@@ -87,6 +89,14 @@ export interface AgentClient {
   dismissError?(id: string): Promise<AgentRecord>;
   /** Answers a waiting PermissionRequest hook; rejects on 404 when it is no longer pending. */
   permission?(id: string, requestId: string, decision: PermissionDecision): Promise<AgentRecord>;
+  /** The agent window's questions, from the workspace the bridge maps this agent to (GET /agents/{id}/questions). */
+  questions?(id: string): Promise<AgentQuestionsPayload>;
+  /** Answers one of this agent's questions (POST /agents/{id}/questions/{qid}/answer). */
+  answerQuestion?(id: string, questionId: string, body: QuestionAnswerBody): Promise<QuestionAck>;
+  skipQuestion?(id: string, questionId: string): Promise<QuestionAck>;
+  reviseQuestion?(id: string, questionId: string): Promise<QuestionAck>;
+  /** The "Add diagram" button: asks the agent to draw one diagram per option. */
+  requestQuestionDiagram?(id: string, questionId: string): Promise<QuestionAck>;
   /** Makes a workspace the canvas's data source and kicks off its lazy bring-up. */
   activateWorkspace(id: string): Promise<WorkspaceStatus>;
   /** analyzing / ready / error plus a progress line, polled while a worktree's graph comes up. */
@@ -235,6 +245,26 @@ export class HttpAgentClient implements AgentClient {
       `/agents/${id}/permission`,
       this.json("POST", { request_id: requestId, decision }),
     );
+  }
+
+  questions(id: string): Promise<AgentQuestionsPayload> {
+    return this.request<AgentQuestionsPayload>(`/agents/${id}/questions`);
+  }
+
+  answerQuestion(id: string, questionId: string, body: QuestionAnswerBody): Promise<QuestionAck> {
+    return this.request<QuestionAck>(`/agents/${id}/questions/${encodeURIComponent(questionId)}/answer`, this.json("POST", body));
+  }
+
+  skipQuestion(id: string, questionId: string): Promise<QuestionAck> {
+    return this.request<QuestionAck>(`/agents/${id}/questions/${encodeURIComponent(questionId)}/skip`, this.json("POST"));
+  }
+
+  reviseQuestion(id: string, questionId: string): Promise<QuestionAck> {
+    return this.request<QuestionAck>(`/agents/${id}/questions/${encodeURIComponent(questionId)}/revise`, this.json("POST"));
+  }
+
+  requestQuestionDiagram(id: string, questionId: string): Promise<QuestionAck> {
+    return this.request<QuestionAck>(`/agents/${id}/questions/${encodeURIComponent(questionId)}/request-diagram`, this.json("POST"));
   }
 
   activateWorkspace(id: string): Promise<WorkspaceStatus> {

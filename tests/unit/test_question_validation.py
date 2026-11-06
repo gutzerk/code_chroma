@@ -41,8 +41,10 @@ def _node(node_id: str, **overrides) -> diagrams.DiagramNode:
     return diagrams.DiagramNode(id=node_id, label=overrides.pop("label", node_id), **overrides)
 
 
-def _mcp(bridge) -> QuestionMcp:
-    return bridge.app.state.question_mcp
+@pytest.fixture
+def mcp(bridge) -> QuestionMcp:
+    """A QuestionMcp over the bridge's workspaces, with a window showing every agent."""
+    return QuestionMcp(bridge.registry.get, attached_windows=lambda _agent_id: 1)
 
 
 def test_a_complete_question_has_no_problems():
@@ -171,9 +173,8 @@ def test_tracker_evicts_stale_entries_and_caps_size():
     assert tracker.count("w", "old") == 0
 
 
-def test_sessionless_agents_on_different_connections_do_not_share_a_counter(bridge, monkeypatch):
+def test_sessionless_agents_on_different_connections_do_not_share_a_counter(mcp, monkeypatch):
     _fast(monkeypatch, 0.05)
-    mcp = _mcp(bridge)
     bad = AskRequest(question="Q?", options=[QuestionOption(id="a", title="A")])
 
     async def run() -> None:
@@ -189,52 +190,70 @@ def test_sessionless_agents_on_different_connections_do_not_share_a_counter(brid
     assert mcp.rejections.count("main", "conn:B") == 1
 
 
-def test_incomplete_ask_is_rejected_with_the_tool_error(bridge):
+def test_incomplete_ask_is_rejected_with_the_tool_error(bridge, mcp):
     request = AskRequest(question="Q?", options=[QuestionOption(id="a", title="A")] * 2)
 
     with pytest.raises(QuestionRejected) as caught:
-        asyncio.run(_mcp(bridge).ask("main", request))
+        asyncio.run(mcp.ask("main", request))
 
     assert str(caught.value).startswith("CodeChroma rejected the question.")
     assert store.list_questions(bridge.main) == []
 
 
-def test_fourth_incomplete_ask_is_accepted_degraded(bridge, monkeypatch):
+def test_fourth_incomplete_ask_is_accepted_degraded(bridge, mcp, monkeypatch):
     _fast(monkeypatch, 0.05)
     request = AskRequest(question="Q?", session_id="s", options=[QuestionOption(id="a", title="A")])
 
     async def run() -> None:
         for _ in range(3):
             with pytest.raises(QuestionRejected):
-                await _mcp(bridge).ask("main", request)
-        await _mcp(bridge).ask("main", request)
+                await mcp.ask("main", request)
+        await mcp.ask("main", request)
 
     asyncio.run(run())
 
     element = store.list_questions(bridge.main)[0]
     assert element.meta["degraded"] is True
     assert element.meta["validation"].startswith("CodeChroma rejected the question.")
-    assert _mcp(bridge).rejections.count("main", "s") == 0
+    assert mcp.rejections.count("main", "s") == 0
 
 
-def test_ask_with_an_unknown_diagram_ref_is_rejected(bridge):
+def test_ask_with_an_unknown_diagram_ref_is_rejected(mcp):
     request = _request([_option("a", 1, diagram_ref="ghost"), _option("b", 2)])
 
     with pytest.raises(QuestionRejected) as caught:
-        asyncio.run(_mcp(bridge).ask("main", request))
+        asyncio.run(mcp.ask("main", request))
 
     assert "ghost" in str(caught.value)
 
 
-def test_draw_diagram_returns_a_ref_that_a_diagram_question_accepts(bridge, monkeypatch):
+def test_ask_whose_diagram_ref_is_a_canvas_diagram_is_rejected(bridge, mcp):
+    from fastapi.testclient import TestClient
+
+    add = {"op": "add_element", "render": "custom", "layer": "custom/plan", "label": "On canvas",
+           "position": {"x": 0.0, "y": 0.0}}
+    with TestClient(bridge.app) as client:
+        client.patch("/repos/main/canvas", json={"ops": [add], "layer": "custom/plan"})
+    doc = CanvasDoc.load(bridge.main.canvas_core_path, bridge.main.diagrams_root)
+    canvas_id = next(e.id for e in doc.elements.values() if e.label == "On canvas")
+    request = _request([_option("a", 1, diagram_ref=canvas_id), _option("b", 2)], kind="diagram")
+
+    with pytest.raises(QuestionRejected) as caught:
+        asyncio.run(mcp.ask("main", request))
+
+    assert "draw_option_diagram" in str(caught.value)
+    assert store.list_questions(bridge.main) == []
+
+
+def test_draw_diagram_returns_a_ref_that_a_diagram_question_accepts(bridge, mcp, monkeypatch):
     _fast(monkeypatch, 0.05)
     nodes = [_node("api"), _node("q", status="new")]
     edges = [diagrams.DiagramEdge(**{"from": "api", "to": "q"})]
 
     async def run() -> dict:
-        drawn = await _mcp(bridge).draw_diagram("main", "Option A", nodes, edges, None, None)
+        drawn = await mcp.draw_diagram("main", "Option A", nodes, edges, None, None)
         options = [_option("a", 1, diagram_ref=drawn["diagram_ref"]), _option("b", 2)]
-        return await _mcp(bridge).ask("main", _request(options, kind="diagram"))
+        return await mcp.ask("main", _request(options, kind="diagram"))
 
     result = asyncio.run(run())
 
@@ -243,11 +262,11 @@ def test_draw_diagram_returns_a_ref_that_a_diagram_question_accepts(bridge, monk
     assert layers == {"questions"}
 
 
-def test_draw_diagram_writes_nodes_on_a_decisions_layer_under_one_root(bridge):
+def test_draw_diagram_writes_nodes_on_a_decisions_layer_under_one_root(bridge, mcp):
     nodes = [_node("a", status="new"), _node("b")]
     edges = [diagrams.DiagramEdge(**{"from": "a", "to": "b"})]
 
-    root = asyncio.run(_mcp(bridge).draw_diagram("main", "T", nodes, edges, None, None))
+    root = asyncio.run(mcp.draw_diagram("main", "T", nodes, edges, None, None))
 
     doc = CanvasDoc.load(bridge.main.canvas_core_path, bridge.main.diagrams_root)
     members = [e for e in doc.elements.values() if e.group_id == root["diagram_ref"]]
@@ -259,32 +278,84 @@ def test_draw_diagram_writes_nodes_on_a_decisions_layer_under_one_root(bridge):
     assert len(doc.edges) == 1
 
 
-def test_draw_diagram_over_the_node_budget_is_rejected(bridge):
+def test_draw_diagram_over_the_node_budget_is_rejected(mcp):
     nodes = [_node(str(i)) for i in range(diagrams.MAX_NODES + 1)]
 
     with pytest.raises(QuestionRejected):
-        asyncio.run(_mcp(bridge).draw_diagram("main", "T", nodes, [], None, None))
+        asyncio.run(mcp.draw_diagram("main", "T", nodes, [], None, None))
 
 
-def test_draw_diagram_with_an_empty_title_is_rejected(bridge):
+def test_draw_diagram_with_an_empty_title_is_rejected(mcp):
     nodes = [_node("a")]
 
     with pytest.raises(QuestionRejected, match="title is empty"):
-        asyncio.run(_mcp(bridge).draw_diagram("main", "  ", nodes, [], None, None))
+        asyncio.run(mcp.draw_diagram("main", "  ", nodes, [], None, None))
 
 
-def test_draw_diagram_attaches_the_ref_to_the_question_option(bridge):
-    store.open_question(bridge.main, _request(), "q1")
+def test_an_ask_cannot_take_an_option_diagram_another_agent_drew(bridge):
+    mcp = QuestionMcp(lambda _agent_id: bridge.main, attached_windows=lambda _agent_id: 1)
+    theirs = asyncio.run(mcp.draw_diagram("agent-2", "T", [_node("a")], [], None, None))
+    options = [_option("a", 1, diagram_ref=theirs["diagram_ref"]), _option("b", 2)]
 
-    root = asyncio.run(_mcp(bridge).draw_diagram("main", "T", [_node("a")], [], "q1", "b"))
+    with pytest.raises(QuestionRejected) as caught:
+        asyncio.run(mcp.ask("agent-1", _request(options, kind="diagram")))
+
+    assert "draw_option_diagram" in str(caught.value)
+    assert store.list_questions(bridge.main) == []
+
+
+def test_an_agent_cannot_draw_onto_another_agents_question(bridge):
+    mcp = QuestionMcp(lambda _agent_id: bridge.main, attached_windows=lambda _agent_id: 1)
+    asked = asyncio.run(mcp.ask("agent-2", _request()))
+
+    with pytest.raises(store.QuestionWriteError):
+        asyncio.run(mcp.draw_diagram("agent-1", "T", [_node("a")], [], asked["question_id"], "a"))
+
+    assert store.list_questions(bridge.main)[0].meta["options"][0]["diagram_ref"] is None
+
+
+def test_a_degraded_ask_drops_a_diagram_ref_that_is_not_its_option_diagram(
+    bridge, mcp, monkeypatch
+):
+    from fastapi.testclient import TestClient
+
+    _fast(monkeypatch, 0.05)
+    add = {"op": "add_element", "render": "custom", "layer": "custom/plan", "label": "On canvas",
+           "position": {"x": 0.0, "y": 0.0}}
+
+    async def run(options: list[QuestionOption]) -> None:
+        for _ in range(3):
+            with pytest.raises(QuestionRejected):
+                await mcp.ask("main", AskRequest(question="Q?", session_id="s", options=options))
+        await mcp.ask("main", AskRequest(question="Q?", session_id="s", options=options))
+
+    # Canvas writes broadcast on the app's loop, so every write runs while the client is open.
+    with TestClient(bridge.app) as client:
+        client.patch("/repos/main/canvas", json={"ops": [add], "layer": "custom/plan"})
+        doc = CanvasDoc.load(bridge.main.canvas_core_path, bridge.main.diagrams_root)
+        canvas_id = next(e.id for e in doc.elements.values() if e.label == "On canvas")
+        draw = mcp.draw_diagram("main", "T", [_node("a")], [], None, None)
+        own = asyncio.run(draw)["diagram_ref"]
+        asyncio.run(run([
+            QuestionOption(id="a", title="A", diagram_ref=canvas_id),
+            QuestionOption(id="b", title="B", diagram_ref=own),
+        ]))
+
+    stored = store.list_questions(bridge.main)[0].meta["options"]
+    assert [o["diagram_ref"] for o in stored] == [None, own]
+
+
+def test_draw_diagram_attaches_the_ref_to_the_question_option(bridge, mcp):
+    store.open_question(bridge.main, _request(agent_id="main"), "q1")
+
+    root = asyncio.run(mcp.draw_diagram("main", "T", [_node("a")], [], "q1", "b"))
 
     options = store.find_element(bridge.main, "q1").meta["options"]
     assert [o["diagram_ref"] for o in options] == [None, root["diagram_ref"]]
 
 
-def test_reask_after_a_diagram_request_updates_the_same_element(bridge, monkeypatch):
+def test_reask_after_a_diagram_request_updates_the_same_element(bridge, mcp, monkeypatch):
     _fast(monkeypatch, 0.05)
-    mcp = _mcp(bridge)
     asyncio.run(mcp.ask("main", _request(session_id="s")))
     element = store.list_questions(bridge.main)[0]
     store.request_diagram(bridge.main, element, "now")
@@ -362,9 +433,8 @@ def test_server_diagram_validator_matches_the_skill_checker(name):
     assert bool(server) == (name != "clean")
 
 
-def test_degraded_pass_through_consumes_the_count(bridge, monkeypatch):
+def test_degraded_pass_through_consumes_the_count(mcp, monkeypatch):
     _fast(monkeypatch, 0.05)
-    mcp = _mcp(bridge)
     bad = AskRequest(question="Q?", session_id="s", options=[QuestionOption(id="a", title="A")])
 
     async def run() -> None:

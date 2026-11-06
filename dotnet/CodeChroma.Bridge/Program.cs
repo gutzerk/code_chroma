@@ -50,7 +50,11 @@ builder.Services.AddSingleton(_ => new ModelStore(ModelStore.DefaultDirectory(),
 builder.Services.AddSingleton<ProcessDiagram>();
 builder.Services.AddSingleton<DiagramContext>();
 builder.Services.AddSingleton<WorkflowRunners>();
-builder.Services.AddSingleton(sp => new CodeChroma.Bridge.Questions.QuestionMcp(id => sp.GetRequiredService<WorkspaceRegistry>().Get(id)));
+builder.Services.AddSingleton<CodeChroma.Bridge.Questions.AgentQuestionEvents>();
+builder.Services.AddSingleton(sp => new CodeChroma.Bridge.Questions.QuestionMcp(
+    id => sp.GetRequiredService<WorkspaceRegistry>().Get(id),
+    attachedWindows: id => sp.GetRequiredService<AgentSessionRegistry>().Get(id)?.AttachedWindows ?? 0,
+    questionsChanged: id => sp.GetRequiredService<CodeChroma.Bridge.Questions.AgentQuestionEvents>().Changed(id)));
 builder.Services.AddSingleton(new BranchManager(repoRoot));
 builder.Services.AddSingleton(sp =>
 {

@@ -65,7 +65,8 @@ def test_a_window_with_the_mcp_server_pre_approves_its_tools_so_no_worktree_asks
 
     settings = json.loads(argv[argv.index("--settings") + 1])
     assert settings["permissions"] == {"allow": ["mcp__codechroma"]}
-    assert "SessionStart" not in settings["hooks"]
+    # No session tracking without a file: SessionStart only carries the status hook's /clear report.
+    assert [e.get("matcher") for e in settings["hooks"]["SessionStart"]] == ["clear"]
 
 
 def test_claude_argv_is_unchanged_without_an_endpoint():
@@ -225,7 +226,7 @@ def test_loopback_url_needs_an_explicit_port(given, expected):
 
 def test_endpoint_for_signs_a_token_that_names_the_workspace(monkeypatch):
     monkeypatch.delenv("CODECHROMA_BRIDGE_URL", raising=False)
-    mcp = QuestionMcp(workspace_for=lambda _id: None)
+    mcp = QuestionMcp(workspace_for=lambda _id: None, attached_windows=lambda _id: 1)
     mcp.remember_base_url("http://localhost:8765/")
 
     endpoint = mcp.endpoint_for("agent-7")

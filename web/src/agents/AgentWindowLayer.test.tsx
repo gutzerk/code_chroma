@@ -15,6 +15,8 @@ import { agentStore } from "./agentStore";
 import { agentDockStore } from "./agentDockStore";
 import { flagDiagramsReady } from "./agentDiagramsReady";
 import { AgentWindowLayer } from "./AgentWindowLayer";
+import { promptNavStore } from "./prompts/promptNavStore";
+import { agentQuestionStore } from "./agentQuestions";
 
 // Its own behavior is covered in agentDiagramsReady.test.ts; here only the branch that calls it is.
 vi.mock("./agentDiagramsReady", () => ({ flagDiagramsReady: vi.fn(async () => {}) }));
@@ -219,6 +221,34 @@ describe("AgentWindowLayer", () => {
     ping({ type: "agent-status", id: "refund-flow", status: "idle" });
 
     await waitFor(() => expect(flagDiagramsReady).toHaveBeenCalledWith("refund-flow"));
+  });
+
+  it("drops the prompt list at once when the agent's conversation is cleared", async () => {
+    const idle = record({ status: "idle" });
+    agentStore.upsert(idle);
+    promptNavStore.setPrompts("refund-flow", [{ id: "p1", text: "fix the refund", createdAt: null, edits: 1, runs: 0 }]);
+    const ping = renderLayerWithPing([idle]);
+    await waitFor(() => expect(screen.getByTestId("agent-layer")).toBeInTheDocument());
+
+    ping({ type: "agent-history-cleared", id: "refund-flow" });
+
+    await waitFor(() => expect(promptNavStore.get("refund-flow").prompts).toEqual([]));
+  });
+
+  it("takes the open question count from an agent-questions ping and refetches that agent's shown questions", async () => {
+    const idle = record({ status: "idle" });
+    agentStore.upsert(idle);
+    const questions = vi.fn(async () => ({ agent_id: "refund-flow", workspace: "main", open_questions: 2, elements: {}, edges: {} }));
+    const release = agentQuestionStore.watch({ ...agentClient([idle]), questions }, "refund-flow");
+    const ping = renderLayerWithPing([idle]);
+    await waitFor(() => expect(screen.getByTestId("agent-layer")).toBeInTheDocument());
+    await waitFor(() => expect(questions).toHaveBeenCalledTimes(1));
+
+    ping({ type: "agent-questions", id: "refund-flow", open_questions: 2 });
+    release();
+
+    await waitFor(() => expect(questions).toHaveBeenCalledTimes(2));
+    expect(agentStore.getAgent("refund-flow")?.open_questions).toBe(2);
   });
 
   it("never checks for a diagram when the finished agent was only opened to look around", async () => {

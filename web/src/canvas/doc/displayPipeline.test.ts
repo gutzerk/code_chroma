@@ -47,6 +47,14 @@ describe("display pipeline", () => {
     expect(Object.keys(out)).toEqual(["d"]);
   });
 
+  it.each(["decisions", "decisions/draft-ab12"])("hides an option diagram on the %s layer", (layer) => {
+    const elements = { d: box("d", 300), e: box("e", 300, { layer }) };
+
+    const out = runDisplayStages(STRUCTURAL_STAGES, elements, {});
+
+    expect(Object.keys(out)).toEqual(["d"]);
+  });
+
   it("returns the same map when no stage has work", () => {
     const elements = { a: box("a", 100) };
 

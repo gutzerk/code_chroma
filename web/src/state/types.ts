@@ -573,8 +573,8 @@ export interface AgentRecord extends AgentStatusFields {
   exit_code: number | null;
   /** The worktree directory is gone (deleted by hand); the card offers to recreate it. */
   worktree_lost: boolean;
-  /** `"task"` for an actionable first message (a "Draw a diagram" launch), `"view"` for the plain
-   * acknowledge-only line. Survives `consume_context`, which clears `context` but not this, so it
+  /** `"task"` for an actionable first message (a "Draw a diagram" launch), `"view"` for the hidden
+   * current-view context. Survives `consume_context`, which clears `context` but not this, so it
    * still identifies a task agent once it goes idle. Absent from a bridge older than the field. */
   context_kind?: string;
   /** The binary/adapter a provider-routed (`kind === "agent"`) window actually launched, e.g. a
@@ -583,6 +583,20 @@ export interface AgentRecord extends AgentStatusFields {
   /** What the Draw dialog picked for a drawing agent; absent from a bridge older than the dialog. */
   diagram_type?: string | null;
   diagram_request?: string | null;
+  /** How many ask_user questions the agent has open, counted by the bridge in the workspace it asks
+   * into; on GET /agents rows and `agent-questions` events, absent from other agent payloads. */
+  open_questions?: number;
+}
+
+/** GET /agents/{id}/questions — one agent's open questions, the settled questions of their sessions and their
+ * option diagrams (elements + arrows), from the workspace the bridge maps the agent to; a small CanvasDoc. */
+export interface AgentQuestionsPayload {
+  agent_id: string;
+  /** The workspace the agent's ask_user writes to (an alias resolves to the workspace it shares). */
+  workspace: string;
+  open_questions: number;
+  elements: Record<string, CanvasElement>;
+  edges: Record<string, CanvasEdge>;
 }
 
 /** GET /agents — the cards plus which workspace the canvas is drawing and the hard agent cap. */
@@ -657,6 +671,10 @@ export type AgentEvent =
   | { type: "agent-added"; agent: AgentRecord }
   | { type: "agent-removed"; id: string }
   | ({ type: "agent-status"; id: string; status: AgentStatus; exit_code?: number | null } & AgentStatusFields)
+  /** The user cleared the agent's conversation (claude `/clear` hook, or a typed clear command). */
+  | { type: "agent-history-cleared"; id: string }
+  /** The agent's ask_user questions changed (asked, answered, skipped, revised, diagram, delivered). */
+  | { type: "agent-questions"; id: string; open_questions: number }
   | { type: "branch-removed"; id: string };
 
 /** How far a workspace's graph is from being drawable (GET /workspaces/{id}/status). A worktree is

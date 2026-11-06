@@ -14,9 +14,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +31,7 @@ from codechroma.bridge.routes import ROUTERS
 from codechroma.bridge.services import BridgeServices
 from codechroma.bridge.skill_sync import SKILL_EXCLUDE_PATTERNS, sync_all_skills
 from codechroma.config import settings
+from codechroma.questions.agent_view import announce as announce_questions
 from codechroma.questions.mcp_server import MOUNT_PATH, QuestionMcp
 from codechroma.terminal.server import router as terminal_router
 
@@ -53,14 +55,28 @@ def default_repo_root() -> Path:
     return PROJECT_ROOT / os.environ.get("codechroma_BRIDGE_REPO_PATH", ".")
 
 
-# Strong references, so a pending exit broadcast is never garbage-collected mid-flight.
-_EXIT_BROADCASTS: set[asyncio.Task] = set()
+# Strong references, so a pending broadcast is never garbage-collected mid-flight.
+_PENDING_BROADCASTS: set[asyncio.Task] = set()
 
 
-async def _poll_agent_statuses(services: BridgeServices) -> None:
+def _asks_user(services: BridgeServices, agent_id: str) -> bool:
+    """Whether the agent has an ask_user question on its canvas not yet typed back to it."""
+    from codechroma.questions.store import agent_questions
+
+    return bool(agent_questions(services.registry.get(agent_id), agent_id))
+
+
+async def _poll_agent_statuses(services: BridgeServices, question_mcp=None) -> None:
     """Samples every live agent's screen and pushes only the changes the detector settled on."""
+    from codechroma.bridge.agents.widen_resume import WidenResume
     from codechroma.bridge.routes.agents import broadcast_agent
+    from codechroma.io import utc_now
 
+    widen = WidenResume(
+        services.agent_manager, services.agent_sessions,
+        lambda agent_id: _asks_user(services, agent_id),
+        question_mcp.endpoint_for if question_mcp is not None else None,
+    )
     while True:
         await asyncio.sleep(_status_poll_seconds())
         try:
@@ -69,6 +85,11 @@ async def _poll_agent_statuses(services: BridgeServices) -> None:
         except Exception:
             logger.exception("agents: status poll failed")
             continue
+        try:
+            # On the loop: a respawn spawns a PTY, which registers its reader with this loop.
+            changes = [*changes, *widen.sweep(utc_now())]
+        except Exception:
+            logger.exception("agents: widen resume failed")
         for agent_id in changes:
             await broadcast_agent(services, agent_id)
 
@@ -77,13 +98,26 @@ def _broadcast_exit(services: BridgeServices, agent_id: str) -> None:
     """Pushes an agent's exit at once; the PTY reaper calls this on the bridge's event loop."""
     from codechroma.bridge.routes.agents import broadcast_agent
 
+    _spawn_broadcast(lambda: broadcast_agent(services, agent_id))
+
+
+def _broadcast_cleared(services: BridgeServices, agent_id: str) -> None:
+    """Tells every canvas an agent's conversation was cleared, so its prompt list empties."""
+    from codechroma.bridge.agents.history_clear import HISTORY_CLEARED_EVENT
+
+    message = {"type": HISTORY_CLEARED_EVENT, "id": agent_id}
+    _spawn_broadcast(lambda: services.connections.broadcast(message))
+
+
+def _spawn_broadcast(make: Callable[[], Coroutine[Any, Any, Any]]) -> None:
+    """Runs a broadcast in the background on the running loop; without one there is none."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return
-    task = loop.create_task(broadcast_agent(services, agent_id))
-    _EXIT_BROADCASTS.add(task)
-    task.add_done_callback(_EXIT_BROADCASTS.discard)
+    task = loop.create_task(make())
+    _PENDING_BROADCASTS.add(task)
+    task.add_done_callback(_PENDING_BROADCASTS.discard)
 
 
 async def _unload_idle_workspaces(services: BridgeServices) -> None:
@@ -108,7 +142,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     services.connections.bind_loop(asyncio.get_running_loop())
     services.registry.start_all()
     await auto_start_agents(services, app.state.question_mcp)
-    status_poller = asyncio.create_task(_poll_agent_statuses(services))
+    status_poller = asyncio.create_task(_poll_agent_statuses(services, app.state.question_mcp))
     idle_sweeper = asyncio.create_task(_unload_idle_workspaces(services))
     try:
         # The MCP session manager's task group must live exactly as long as the bridge.
@@ -141,8 +175,12 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     app.state.services = BridgeServices.create(root)
     services = app.state.services
-    app.state.question_mcp = QuestionMcp(services.registry.get)
+    app.state.question_mcp = QuestionMcp(
+        services.registry.get, attached_windows=services.agent_sessions.attached_windows,
+        questions_changed=lambda agent_id: announce_questions(services, agent_id),
+    )
     services.agent_sessions.on_exit = lambda agent_id: _broadcast_exit(services, agent_id)
+    services.agent_sessions.on_clear = lambda agent_id: _broadcast_cleared(services, agent_id)
 
     allowed_origins = os.environ.get(
         "codechroma_BRIDGE_CORS_ORIGINS",

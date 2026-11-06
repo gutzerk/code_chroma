@@ -42,6 +42,15 @@
           }}
         }
       ]
+    },
+    {
+      "id": "activating_a_workspace_remembers_it_for_the_next_launch",
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches/ensure"}, "expect": {"status": 200, "checks": [{"path": "$.active", "equals": "br_wt-1"}]}},
+        {"http": {"method": "POST", "path": "/workspaces/br_wt-1/activate"}, "expect": {"status": 200, "checks": [{"path": "$.id", "equals": "br_wt-1"}]}},
+        {"http": {"method": "GET", "path": "/agents"}, "expect": {"status": 200, "checks": [{"path": "$.active_workspace", "equals": "br_wt-1"}]}},
+        {"http": {"method": "GET", "path": "/prs"}, "expect": {"status": 200, "checks": [{"path": "$.active_workspace", "equals": "br_wt-1"}]}}
+      ]
     }
   ]
 }

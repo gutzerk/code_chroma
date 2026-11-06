@@ -587,6 +587,71 @@ def test_a_fresh_start_consumes_the_pending_context(started_client):
     assert bridge.agent_manager.get("bare").context is None
 
 
+def _prompt_submit(test_client, agent_id: str) -> dict:
+    token = test_client.app.state.question_mcp.token_for(agent_id)
+    return test_client.post(
+        f"/agents/{agent_id}/hook", json={"hook_event_name": "UserPromptSubmit"},
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+
+
+def test_a_view_context_is_never_typed_and_rides_only_with_the_first_prompt(
+    started_client, monkeypatch
+):
+    from codechroma.bridge.agents.sessions import AgentSession
+
+    test_client, _repo, _bridge = started_client
+    typed: list = []
+    monkeypatch.setattr(
+        AgentSession, "inject_when_idle", lambda self, text, **_: typed.append(text)
+    )
+    # The status hooks (and so the hidden context) need a known bridge URL, as in the desktop app.
+    test_client.app.state.question_mcp.base_url = "http://127.0.0.1:8123"
+    test_client.post("/agents", json={"title": "reader", "context": "the System context diagram"})
+    test_client.post("/agents/reader/start", json={})
+
+    first = _prompt_submit(test_client, "reader")
+    second = _prompt_submit(test_client, "reader")
+
+    assert typed == []
+    assert "the System context diagram" in first["additional_context"]
+    assert "acknowledge" not in first["additional_context"].lower()
+    assert second == {"ok": True}
+
+
+def test_a_cli_without_the_hidden_hook_gets_its_view_context_typed(started_client, monkeypatch):
+    import dataclasses
+
+    from codechroma.bridge.agents.sessions import AgentSession
+    from codechroma.bridge.routes import agents as agent_routes
+    from codechroma.terminal.agents import PromptContext
+
+    test_client, _repo, _bridge = started_client
+    typed: list = []
+    real = agent_routes.agent_launch
+    monkeypatch.setattr(agent_routes, "agent_launch", lambda *a, **k: dataclasses.replace(
+        real(*a, **k), prompt_context=PromptContext.TYPED))
+    monkeypatch.setattr(
+        AgentSession, "inject_when_idle", lambda self, text, **_: typed.append(text)
+    )
+    test_client.post("/agents", json={"title": "typist", "context": "the System context diagram"})
+    test_client.post("/agents/typist/start", json={})
+
+    first = _prompt_submit(test_client, "typist")
+
+    assert len(typed) == 1 and typed[0].startswith("[Context]")
+    assert "the System context diagram" in typed[0]
+    assert first == {"ok": True}
+
+
+def test_only_the_claude_adapter_delivers_hidden_prompt_context():
+    from codechroma.llm.cli_adapters import CLI_ADAPTERS, delivers_hidden_prompt_context
+
+    delivers = [k for k, adapter in CLI_ADAPTERS.items() if delivers_hidden_prompt_context(adapter)]
+
+    assert delivers == ["claude"]
+
+
 def test_an_agent_kind_start_records_resolved_cli(started_client, tmp_path, monkeypatch):
     """061: a provider-routed `agent` window labels itself with the binary it actually launched."""
     from codechroma.llm.call_site_settings import save_group_assignment

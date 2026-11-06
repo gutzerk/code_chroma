@@ -176,6 +176,29 @@ public class AgentBootstrapTests : IDisposable
         Assert.False((bool)result["created_repo"]!);
         Assert.False(string.IsNullOrEmpty((string?)result["commit"]));
     }
+
+    [Fact]
+    public void Preflight_reports_ready_for_a_repository_reached_through_a_symlink()
+    {
+        InitRepo(commit: true);
+        if (_project.LinkToRoot() is not { } link) return;
+
+        var result = AgentBootstrap.Preflight(link);
+
+        Assert.Equal("ready", (string?)result["state"]);
+    }
+
+    [Fact]
+    public void Initialize_completes_an_unborn_head_repository_reached_through_a_symlink()
+    {
+        InitRepo(commit: false);
+        if (_project.LinkToRoot() is not { } link) return;
+
+        var result = AgentBootstrap.Initialize(link);
+
+        Assert.Equal("ready", (string?)result["state"]);
+        Assert.False(string.IsNullOrEmpty((string?)result["commit"]));
+    }
 }
 
 public class SkillSyncTests : IDisposable

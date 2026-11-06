@@ -33,6 +33,24 @@ public sealed record AgentLaunch(IReadOnlyList<string> Argv, IReadOnlyDictionary
 {
     /// <summary>The status manifest to detect this window with; an `agent` window uses the CLI adapter it resolved to (detect/claude.toml for Claude), except behind a stand-in binary.</summary>
     public string? DetectorKind { get; init; }
+
+    /// <summary>How the window notices the user cleared the CLI's conversation (the resolved adapter's definition); null for a shell or a stand-in binary.</summary>
+    public ClearWatch? Clear { get; init; }
+    /// <summary>Whether `--settings` carrying the status hooks was emitted, so the bridge hears this CLI's prompts and clears.</summary>
+    public bool StatusHooks { get; init; }
+    /// <summary>How the window gets its launch context: hidden with the first prompt, typed once idle, or not at all (a shell).</summary>
+    public PromptContext PromptContext { get; init; }
+}
+
+/// <summary>How an agent window receives its launch context.</summary>
+public enum PromptContext
+{
+    /// <summary>Not delivered (a shell).</summary>
+    None,
+    /// <summary>The status hook hands it to the user's first prompt.</summary>
+    Hidden,
+    /// <summary>Typed as a `[Context]` turn once the CLI idles: a CLI agent without the hidden hook.</summary>
+    Typed,
 }
 
 /// <summary>
@@ -65,9 +83,12 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             var isClaude = resolution.AdapterKey == "claude" && (resolution.ProviderAssigned || resolution.Binary == DefaultCli);
             // The claude adapter behind a stand-in binary is not the real CLI, so it gets no MCP server.
             var standIn = resolution.AdapterKey == "claude" && !isClaude;
-            var mcp = McpFor(standIn ? null : CliAdapters.All.GetValueOrDefault(resolution.AdapterKey), agentId, bridgeUrl, bare, workdir);
+            var adapter = standIn ? null : CliAdapters.All.GetValueOrDefault(resolution.AdapterKey);
+            var mcp = McpFor(adapter, agentId, bridgeUrl, bare, workdir);
             var argv = Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, ModelArgs(resolution));
-            return OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, isClaude ? HookEndpointFor(agentId, bridgeUrl) : null) with { DetectorKind = standIn ? null : resolution.AdapterKey };
+            var hooks = isClaude ? HookEndpointFor(agentId, bridgeUrl) : null;
+            var launch = OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, hooks);
+            return launch with { DetectorKind = standIn ? null : resolution.AdapterKey, Clear = ClearWatch.For(adapter, launch.StatusHooks) };
         }
         if (!Allowed.TryGetValue(agent, out var entry)) return null;
         if (agent == "claude")
@@ -75,7 +96,9 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             var binary = AssistantRoutes.EffectiveCli(paths);
             var mcp = McpFor(binary == DefaultCli ? CliAdapters.All["claude"] : null, agentId, bridgeUrl, bare, workdir);
             var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args);
-            return OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, binary == DefaultCli ? HookEndpointFor(agentId, bridgeUrl) : null);
+            var hooks = binary == DefaultCli ? HookEndpointFor(agentId, bridgeUrl) : null;
+            var launch = OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, hooks);
+            return launch with { Clear = ClearWatch.For(binary == DefaultCli ? CliAdapters.All["claude"] : null, launch.StatusHooks) };
         }
         return new AgentLaunch(string.IsNullOrEmpty(resumeSessionId) ? entry : [.. entry, ResumeFlag, resumeSessionId], new Dictionary<string, string>());
     }
@@ -118,13 +141,15 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
 
     private static AgentLaunch OwnedLaunch(string[] argv, IReadOnlyDictionary<string, string> env, bool isClaude, string? resumeSessionId, bool fork, string? newSessionId, string? trackingFile, bool hasMcp, McpEndpoint? hooks = null)
     {
-        if (!isClaude) return new AgentLaunch(argv, env);
+        if (!isClaude) return new AgentLaunch(argv, env) { PromptContext = PromptContext.Typed };
         var options = new List<string>();
         if (fork && !string.IsNullOrEmpty(resumeSessionId)) options.Add(ForkSessionFlag);
         var fresh = string.IsNullOrEmpty(resumeSessionId) || fork;
         if (fresh && !string.IsNullOrEmpty(newSessionId)) options.AddRange(["--session-id", newSessionId]);
         var ownedEnv = new Dictionary<string, string>(env);
-        if ((trackingFile is not null || hasMcp || hooks is not null) && AgentSessionOwnership.TryHookSettings(trackingFile is not null, hasMcp, hooks is not null) is { } settings) options.AddRange(["--settings", settings]);
+        var settings = trackingFile is not null || hasMcp || hooks is not null ? AgentSessionOwnership.TryHookSettings(trackingFile is not null, hasMcp, hooks is not null) : null;
+        if (settings is not null) options.AddRange(["--settings", settings]);
+        var statusHooks = hooks is not null && AgentSessionOwnership.CanRunHooks;
         // The status hooks authenticate with the agent's workspace token, which a bare window gets without the MCP server.
         foreach (var (key, value) in hooks?.Env() ?? new Dictionary<string, string>()) ownedEnv.TryAdd(key, value);
         // A fullscreen (alternate-screen) TUI leaves xterm no scrollback, so the window's scrollbar has nothing to scroll.
@@ -135,7 +160,8 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             ownedEnv[AgentSessionOwnership.InitialIdEnv] = (fresh ? newSessionId : resumeSessionId) ?? "";
         }
         // Options precede the prompt and the variadic --plugin-dir / --allowedTools options.
-        return new AgentLaunch([argv[0], .. options, .. argv.Skip(1)], ownedEnv);
+        var context = statusHooks && CliAdapters.All["claude"].HiddenPromptContext ? PromptContext.Hidden : PromptContext.Typed;
+        return new AgentLaunch([argv[0], .. options, .. argv.Skip(1)], ownedEnv) { StatusHooks = statusHooks, PromptContext = context };
     }
 
     /// <summary>The label persisted on AgentRecord.ResolvedCli: only `agent` windows report one.</summary>

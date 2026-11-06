@@ -2,6 +2,7 @@ using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Prs;
+using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Routes;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
@@ -35,8 +36,16 @@ public sealed class AgentRuntime(
 {
     public const int StatusPollMs = 250;
 
+    /// <summary>The events-socket message telling every canvas an agent's conversation was cleared, so its prompt list empties at once.</summary>
+    public const string HistoryClearedEvent = "agent-history-cleared";
+
     private CancellationTokenSource? _stop;
     private Task? _poller;
+    private readonly WidenResume _widen = new(agents, sessions, terminalAgents, paths, id => AsksUser(registry, id));
+
+    /// <summary>Whether the agent has an ask_user question on its canvas, answered or not, that is not yet typed back to it.</summary>
+    private static bool AsksUser(WorkspaceRegistry registry, string agentId) =>
+        QuestionStore.AgentQuestions(registry.Get(agentId), agentId).Count > 0;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -54,6 +63,7 @@ public sealed class AgentRuntime(
         agents.BranchLookup = branches.Find;
         agents.RevalidateActiveWorkspace();
         sessions.Exited = id => _ = BroadcastAgent(id);
+        sessions.Cleared = id => _ = connections.Broadcast(new System.Text.Json.Nodes.JsonObject { ["type"] = HistoryClearedEvent, ["id"] = id });
 
         return Task.CompletedTask;
     }
@@ -118,7 +128,7 @@ public sealed class AgentRuntime(
         var env = new Dictionary<string, string>(launch.Env);
         BridgeAddress.ExportIdentity(env, record.Id, BareSkill.BridgeUrl);
         AgentSession session;
-        try { session = sessions.Start(record.Id, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths); }
+        try { session = sessions.Start(record.Id, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths, clear: launch.Clear); }
         catch (AgentStartException error)
         {
             log.LogWarning("agents: could not auto-start {Agent}: {Reason}", record.Id, error.Message);
@@ -156,6 +166,7 @@ public sealed class AgentRuntime(
                 try
                 {
                     foreach (var id in sessions.PollStatuses()) await BroadcastAgent(id);
+                    foreach (var id in _widen.Sweep(DateTimeOffset.UtcNow)) await BroadcastAgent(id);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {

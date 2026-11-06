@@ -1,6 +1,6 @@
-import { useOpenQuestionCount } from "../canvas/doc/question/useOpenAgentQuestions";
 import { QUESTION_STRINGS as S } from "../canvas/doc/question/questionStrings";
 import type { AgentStatus } from "../state/types";
+import { useOpenQuestionCount } from "./agentStore";
 import { effectiveStatus, STATUS_LABELS } from "./statusRollup";
 import { StatusIndicator } from "./StatusIndicator";
 

@@ -1,5 +1,5 @@
 import type { EngineClient } from "../engine-client/EngineClient";
-import { createEngineClientForUrl } from "../engine-client/EngineClientContext";
+import { createEngineClient } from "../engine-client/EngineClientContext";
 import { agentStore } from "./agentStore";
 
 /**
@@ -15,7 +15,8 @@ import { agentStore } from "./agentStore";
  */
 export async function flagDiagramsReady(
   agentId: string,
-  makeClient: (repoId: string) => EngineClient = defaultMakeClient,
+  // An agent id IS a workspace/repo id, so the app's own factory points at its fork.
+  makeClient: (repoId: string) => EngineClient = createEngineClient,
 ): Promise<void> {
   if (agentStore.getActiveWorkspace() === agentId) return;
   try {
@@ -26,12 +27,4 @@ export async function flagDiagramsReady(
   } catch {
     // A workspace that cannot answer simply gets no badge; nothing here is worth surfacing.
   }
-}
-
-/** An agent id IS a workspace/repo id, so the same factory the app boots with points at its fork. */
-function defaultMakeClient(repoId: string): EngineClient {
-  return createEngineClientForUrl(
-    import.meta.env.VITE_ENGINE_BRIDGE_URL as string | undefined,
-    repoId,
-  );
 }

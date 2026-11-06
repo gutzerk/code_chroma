@@ -1,3 +1,4 @@
+using CodeChroma.Canvas.Scene;
 namespace CodeChroma.Canvas.Tests.Catalog;
 
 public class DecisionLayerTests
@@ -24,5 +25,27 @@ public class DecisionLayerTests
 
         Assert.False(recipeBacked);
         Assert.False(deletable);
+    }
+
+    [Fact]
+    public void Option_diagram_layers_are_never_listed_as_active_diagrams()
+    {
+        var doc = Fx.DocOf(Fx.Element("a"), Fx.Element("b", layer: "decisions/q1", render: RenderKind.Custom), Fx.Element("c", layer: "decisions", render: RenderKind.Custom));
+
+        var layers = DiagramCatalog.ListActiveDiagramLayers(doc);
+
+        Assert.Equal(["c1"], layers);
+    }
+
+    [Fact]
+    public void The_scene_never_holds_a_question_card_or_an_option_diagram()
+    {
+        var doc = Fx.DocOf(Fx.Element("a"), Fx.Element("q", layer: "questions", render: RenderKind.Note), Fx.Element("d", layer: "decisions/draft-ab", render: RenderKind.Group), Fx.Element("o", layer: "decisions", render: RenderKind.Custom));
+
+        var scene = new SceneGraph(doc);
+
+        Assert.Equal(["a"], scene.Nodes.Select(n => n.Id));
+        Assert.True(scene.Contains("a"));
+        Assert.False(scene.Contains("d"));
     }
 }

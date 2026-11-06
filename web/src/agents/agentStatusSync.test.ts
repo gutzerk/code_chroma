@@ -196,7 +196,7 @@ describe("startAgentStatusSync", () => {
     layoutStore.selectAgent("a1");
     const stop = startAgentStatusSync(client());
 
-    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: { q: question("q", "a2") } });
+    agentStore.setOpenQuestions("a2", 1);
     agentStore.setStatus("a2", "done");
     stop();
 
@@ -206,27 +206,25 @@ describe("startAgentStatusSync", () => {
 
   it("stays quiet when an answered question uncovers a turn that already ended", () => {
     agentStore.upsert(agent("a1"));
-    agentStore.upsert(agent("a2", { status: "done" }));
-    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: { q: question("q", "a2") } });
+    agentStore.upsert(agent("a2", { status: "done", open_questions: 1 }));
     layoutStore.selectAgent("a1");
     const stop = startAgentStatusSync(client());
 
-    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: {} });
+    agentStore.setOpenQuestions("a2", 0);
     stop();
 
     expect(agentToastStore.getToasts()).toEqual([]);
   });
 
-  it("ignores a drag that moves elements without changing any open question", () => {
+  it("ignores canvas changes: open question counts come only from the bridge", () => {
     vi.useFakeTimers();
     const reportAgents = vi.fn();
     window.codechromaDesktop = { reportAgents } as unknown as DesktopWorkspaceApi;
     agentStore.upsert(agent("a1"));
-    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: { q: question("q", "a1") } });
     const stop = startAgentStatusSync(client());
     const reconcile = vi.spyOn(agentToastStore, "reconcile");
 
-    canvasDocStore.moveElement("q", { x: 50, y: 50 });
+    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), elements: { q: question("q", "a1") } });
     vi.advanceTimersByTime(SUMMARY_DEBOUNCE_MS);
     stop();
 

@@ -36,6 +36,31 @@ A Python-only change does not fix the production desktop runtime.
   Legacy records keep their saved session ID; records without an ID start fresh. `Transcripts.cs`
   still reads known transcripts for token usage and supports workflow discovery, but is not used
   to choose an interactive agent's resume target.
+- ⚠ Widen resume (`Agents/WidenResume.cs`, Python `agents/widen_resume.py`): once an agent window
+  settles (`Settle`, 1.5 s after the last resize) at least `MinGainCols` (8) columns wider than the
+  narrowest width the current process printed at, and the agent is `idle`/`done` with no pending
+  permission, no queued `InjectWhenIdle`, no unsent draft and no keystroke for `TypingQuiet` (3 s),
+  the status poller restarts it in place: `AgentSession.Respawn` starts `claude --resume <its own
+  session id>` (with a new tracking file, via `TerminalAgents.Resolve`) on a new PTY at the current
+  size, writes `ResetScreen` (SGR reset, home, `ESC[2J` and `ESC[3J`) to the screen tap and every
+  attached window, then kills the old process; its late output and exit are ignored, so agent
+  identity, status, consumers and the prompt outline survive and no window reconnects. Busy agents
+  simply wait for a later idle poll, if still wider. An agent with an `ask_user` question on its
+  canvas is rechecked every 5 s. Skipped (the width is taken as printed, no error shown) when the
+  launch is untracked, bare (`--system-prompt`), not claude, has no session id or no transcript yet,
+  or the new PTY fails to start (the old one keeps running).
+  - 🔴 `Respawn` re-checks the input under `_gate` and refuses (old process untouched) while an
+    injection is queued or typing, a draft exists or a key came within `TypingQuiet`.
+    `InjectWhenIdle` counts itself in under the same `_gate`, so its text and the Enter
+    `TypeAndSubmit` sends 300 ms later never straddle the PTY swap.
+  - The registry's `Respawn` takes the `AgentSession` itself and only restarts it while it is
+    still the one registered for the agent, so a stop/restart during the sweep is left alone.
+  - Draft tracking (both bridges) is the same `TypedLine` (`Agents/HistoryClear.cs`,
+    `history_clear.py`) that spots typed clears: printable text adds, backspace removes one,
+    Enter/^C/^U clears, any other key (e.g. Up-arrow history recall) or a line break inside a paste
+    makes the line unknown (= a draft) until the next Enter/^C/^U; a lone Escape, focus reports
+    (`ESC[I`/`ESC[O`) and SGR mouse reports (`ESC[<…`) are not typing. Tests: `Agents/WidenResumeTests.cs`,
+  `tests/unit/test_agent_widen_resume.py`.
 - Regression coverage: `Agents/SessionOwnershipTests.cs`, `Agents/OpenStepAgentTests.cs`, and
   `Terminal/TerminalAgentsBareTests.cs`. Run
   `dotnet test dotnet/CodeChroma.Bridge.Tests/CodeChroma.Bridge.Tests.csproj`.
@@ -52,10 +77,11 @@ report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `wo
   `session_ownership.hook_document(..., status_hooks=True)`). The launch also exports
   `CODECHROMA_BRIDGE_URL`, `CODECHROMA_QUESTION_TOKEN` and `CODECHROMA_WORKSPACE_ID` (= agent id) even
   without the MCP server. Events: `UserPromptSubmit`, `PreToolUse` (`*`, after the AskUserQuestion
-  entry), `PostToolUse` (`*`), `Stop`, `Notification`, `PermissionRequest` (`*`).
+  entry), `PostToolUse` (`*`), `Stop`, `Notification`, `PermissionRequest` (`*`), plus `SessionStart`
+  with matcher `clear` (history clearing, see "Clearing the conversation" below; no status change).
 - The hook command is the bridge binary's `agent-hook` subcommand (`Agents/AgentHook.cs`, dispatched
   in `Program.cs`); Python runs the stdlib-only `bridge/agents/agent_hook.py`. It POSTs a slimmed
-  report (`AgentHook.Slim` / `slim`: `hook_event_name`, `tool_name`, `notification_type` and only
+  report (`AgentHook.Slim` / `slim`: `hook_event_name`, `tool_name`, `notification_type`, `source` and only
   the `file_path`/`command`/`pattern`/`url` keys of `tool_input`, never `tool_response`) to
   `POST /agents/{id}/hook` with the bearer token and exits 0 silently on any error. The env wiring is
   read by `Http/HookEnv.cs`, shared with the AskUserQuestion hook; the route checks the token with
@@ -113,6 +139,52 @@ report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `wo
   `Agents/AgentLifecycleStatusTests.cs`, `tests/unit/test_agent_live_status.py`, contract cases in
   `tests/fixtures/bridge_contract/agents.cases.json` (the `token` step mints an agent's bearer token).
 
+## Clearing the conversation (both bridges)
+
+When the user clears the CLI's chat (`/clear` and its aliases), the agent window drops the old turns at
+once, not on the next reopen. Each CLI adapter defines its own clear (C# `ICliAdapter.ClearCommands` /
+`HookReportsClear` / `RepaintInput` in `Skills/CliAdapters.cs`; Python class attributes
+`clear_commands` / `hook_reports_clear` / `repaint_input` in `llm/cli_adapters.py`). The launch turns it
+into a `ClearWatch` (`Agents/HistoryClear.cs`, Python `bridge/agents/history_clear.py`), carried on
+`AgentLaunch.Clear` / `.clear` into `AgentSessionRegistry.Start(..., clear)`.
+
+| CLI (adapter) | Commands | Signal | Repaint |
+|---|---|---|---|
+| Claude Code (`claude`) | `/clear`, `/reset`, `/new` | `SessionStart` hook, source `clear` (menu picks too) | Ctrl+L |
+| Claude without the status hooks (no bridge URL/agent id, or no `--settings` emitted) | same | typed input | Ctrl+L |
+| Codex (`codex`) | `/clear`, `/new` | typed input | — |
+| Kimi Code (`kimi-cli`) | `/new`, `/clear` | typed input | — |
+| Gemini CLI (`gemini`) | `/clear` | typed input | — |
+| Shell, stand-in binary | — | none | — |
+
+- Clear: `AgentSession.ClearHistory()` (Python `clear_history()`) sends `ESC[3J` down the output path,
+  so the tap's history (C#) and every attached xterm's scrollback are erased in order with the CLI's
+  output. ⚠ A PTY chunk can end mid-sequence (`\e[38;2;1`); an ESC there aborts the CSI in the tap
+  and in xterm and prints its tail as text, so the clear goes out at once only while the tap is in
+  ground state (`ScreenTap.InGround` / `in_ground`, pyte's `_taking_plain_text` in Python) and
+  otherwise waits, flagged, until after the next output chunk that leaves the tap in ground state.
+  It then writes the repaint input after `RepaintDelay` (300 ms), and fires `Cleared` / `on_clear`,
+  which broadcasts `{"type": "agent-history-cleared", "id"}`. The web empties that agent's prompt
+  list (`promptNavStore.clear`, from `AgentWindowLayer`); the transcript-based list refills from the new
+  session id on its next read.
+- ⚠ Claude Code 2.1 prints no clear sequence on `/clear` (verified on a PTY): the old turns stay on
+  screen and in the scrollback without this. Ctrl+L wipes the visible rows and redraws the prompt.
+- Typed detection (`TypedLine`, which also tracks the widen-resume draft) follows `AgentSession.Write`: a line submitted with CR (Enter)
+  whose first word is a clear command matches; backspace edits, Ctrl+U/Ctrl+C reset, a bracketed
+  paste without a line break counts. Only CR submits: LF (Ctrl+J adds a composer line in Codex and
+  Gemini) and any CR/LF inside a paste (tracked between `ESC[200~` and `ESC[201~`) make the line
+  unknown. A line touched by cursor keys, Tab completion or other control keys is unknown and never
+  matches, so a clear picked from a menu or recalled from history is missed for typed CLIs. Text the
+  bridge types (`InjectWhenIdle` → `Type(data, injected: true)` / `_type(..., injected=True)`) skips
+  detection (`TypedLine.Feed(data, injected: true)` only marks the line unknown until its CR).
+- The hook path is chosen from what was really launched: `AgentLaunch.StatusHooks` is true only when
+  the status hooks were emitted (a hook endpoint exists and `AgentSessionOwnership.CanRunHooks`, i.e. a
+  bridge executable runs the hook commands; Python: real claude with an MCP endpoint). Without it typed
+  watching stays on and the launch context is typed (see "Current-view context on launch").
+- Tests: `Agents/HistoryClearTests.cs`, `tests/unit/test_agent_history_clear.py`,
+  `web/src/agents/prompts/promptNavStore.test.ts`, `web/src/agents/AgentWindowLayer.test.tsx`, contract
+  case `a_clear_session_start_hook_is_accepted_and_leaves_the_status`.
+
 ## Python development/reference implementation
 
 The Python bridge uses the same `session_tracking_id` and per-launch file format. Both manual
@@ -139,13 +211,13 @@ Roll-up priority is blocked > error > done > working > idle; stopped never count
 | Types | `state/types.ts` | `AgentStatus` (the six); `AgentStatusFields` (`status_since`, `activity`, `pending_permission`, `error`) on `AgentRecord` and the `agent-status` event |
 | Store | `agentStore.ts` | The one status guard (`normalizeAgentStatus`, on `setList`/`upsert`/`applyStatus`): an older bridge's `exited` becomes `error` (non-zero exit) or `stopped`, any other unknown value `idle` (an `exited` event's own `exit_code` wins); `applyStatus` keeps the event's extra fields; `upsertIfCurrent` lands an HTTP reply (`/seen`, `/permission`, `/dismiss-error`) only when its `status_since` is not older than the stored one |
 | Roll-up | `statusRollup.ts` | `effectiveStatus` (an open ask_user question makes a live agent `blocked`), `rollup` -> `{top, count, counts}`, `count` = blocked + error + done, `counts` per status (the panel's header chips) |
-| Question counts | `canvas/doc/question/useOpenAgentQuestions.ts` | `openQuestionCounts` cached per `elements` object (WeakMap); `useOpenQuestionCount(id)` re-renders only when that agent's number changes |
+| Question counts | `agents/agentStore.ts` (`open_questions`, `setOpenQuestions`, `openQuestionCount`, `useOpenQuestionCount`) | The bridge counts each agent's open ask_user questions in the workspace it asks into: `open_questions` on every `GET /agents` row and on the `agent-questions` event (`{type, id, open_questions}`, global, sent on ask, answer, skip, revise, "Add diagram", an attached option diagram and a delivered batch). `upsert` keeps the last count when a payload lacks it (`agent-status` and the single-agent replies do not carry it). The LED "?", the "N questions" pill, the tab roll-ups, `agentAttention` and `agentStatusSync` read it, so nothing depends on the active tab or a canvas doc (see `ai-questions.md`) |
 | Shapes | `StatusIndicator.tsx`, `AgentLed.tsx` | `dot` 8px (tabs, strips), `icon` 16px (agent lists); pulse circle "?", square "!", check circle, spinner, ring; animations stop under `prefers-reduced-motion` |
 | Worktree tabs | `WorktreeStrip.tsx`, `agentAttention.tabRollups` | Dot + badge per tab from its agents (`workspace`/`shares_workspace_with`); the selected tab hides `done`; idle shows nothing |
 | Rows | `activity/AgentStatusLine.tsx` | `working`: "Edit · src/x.ts" + live m:ss turn timer; `blocked`: "Asking permission: Bash(...)" + Allow (`POST /agents/{id}/permission`); `error`: message + Dismiss (`POST /agents/{id}/dismiss-error`); every timer shares one 1 s clock that runs only while a timer is shown |
 | Toasts | `toasts/` | blocked until answered, error until closed, done `DONE_AUTO_CLOSE_MS` (6 s, paused while hovered or focused); one per agent, dropped when the agent leaves that status; text read from the live agent record; screen readers hear them through two always-mounted live regions (assertive for blocked/error, polite for done), cards carry no live role; a closing focused toast hands focus back to where it came from; buttons share the rows' `.agent-status-action` class (`--toast` modifier) |
 | OS + sound | `agentNotifications.ts`, `notificationSound.ts` | OS notification for blocked and error, for done only when the page is in the background; sound only for blocked; `attentionTitle`/`attentionBody`/`BLOCKED_TEXT` are the one wording source for toasts, notifications and rows |
-| Sync | `agentStatusSync.ts` | Announces (toast, OS notification, sound) effective status changes, so an open ask_user question plus a finished turn reads "needs you", not "finished"; a question closing on its own announces nothing (`statusAnnouncements`); marks the viewed `done` agent seen (`POST /agents/{id}/seen`), reconciles toasts, sends the desktop `agent-summary` (150 ms debounce, skipped when identical to the last one sent), runs shell commands; store emits that change none of its inputs (agents, open question counts by content, tab, panel) are ignored, so a canvas drag costs nothing |
+| Sync | `agentStatusSync.ts` | Announces (toast, OS notification, sound) effective status changes, so an open ask_user question plus a finished turn reads "needs you", not "finished"; a question closing on its own announces nothing (`statusAnnouncements`); marks the viewed `done` agent seen (`POST /agents/{id}/seen`), reconciles toasts, sends the desktop `agent-summary` (150 ms debounce, skipped when identical to the last one sent), runs shell commands; store emits that change none of its inputs (agents, tab, panel) are ignored; question counts live on the agent records, so canvas changes never reach it |
 
 - "Looking at an agent" (`agentAttention.isLookingAtAgent`): it is the agent the panel shows on the
   active worktree tab, the panel is not collapsed, and the page has focus. No toast or OS notification
@@ -245,7 +317,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
 - `bootstrap.py` — why the feature works on a folder that isn't under git. `git worktree add` is
   impossible without a commit, and an *empty* first commit would hand the agent an empty directory,
   so initialization has to commit real code. `preflight()` returns `ready` / `no-git` / `not-a-repo`
-  / `no-commits` / `nested`; `commit_plan()` reports what would land **in its default state** (every
+  / `no-commits` / `nested`. ⚠ `nested` compares symlink-resolved paths on both sides (Python
+  `Path.resolve()`, C# `Workspaces/RealPaths.Resolve`): git reports the real toplevel, so a project
+  opened via `/tmp`, `/var` or a linked folder must not read as nested. `commit_plan()` reports what would land **in its default state** (every
   suspicious path pre-ticked for exclusion, `include=[...]` to keep one). 🔴 An existing `.gitignore`
   is never rewritten — the plan is computed against it and it is left alone.
 - `manager.py` — `AgentRecord`/`AgentManager`: atomic (temp+rename) writes, the hard limit of
@@ -361,8 +435,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   history once. 🔴 `useXtermSession` sends no size until `FitAddon.proposeDimensions()` can measure
   its box (a hidden or not-yet-laid-out box would leave xterm's 80x24 default, shrinking the PTY so
   a background agent prints at 80 columns); the first measurable refit sends the real size. A laid-out 0px
-  box counts as unmeasurable too: it measures FitAddon's 2x1 floor. Rows claude itself
-  printed while the PTY was narrow stay narrow: claude's classic renderer never reprints them.
+  box counts as unmeasurable too: it measures FitAddon's 2x1 floor. Claude's classic renderer
+  writes wrapped rows as hard rows and on SIGWINCH repaints only the visible frame, so rows printed
+  while the PTY was narrow would stay narrow; the widen resume below reprints them.
   🔴 Entirely separate from `skill_agent`'s registry: if the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
   kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via
@@ -392,46 +467,67 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   so never got its `ask_user` answers typed. Tests: `QuestionAgentWiringTests.cs`,
   `test_question_agent_wiring.py`.
 - **Current-view context on launch.** A user-launched agent (the canvas's single "Run agent" button,
-  always attached to the active workspace) gets a short acknowledge-only line telling it what the
-  user is currently looking at — active view and the
+  always attached to the active workspace) gets hidden context telling it what the user was looking
+  at — active view and the
   focused item (e.g. the epic open in the AI brief plus its `source_ref`, the C1 system name +
   description, the patterns count, or the custom-diagram title). It is built on the frontend from
   state already loaded at click time (`web/src/agents/viewContext.ts::buildViewContext`), kept in the
   workspace-scoped `viewContextStore`, and carried to the bridge as `POST /agents`' `context` field,
   which `AgentManager.create(..., context=...)` persists on the `AgentRecord`.
-  🔴 **Delivered once, only on a fresh start, only via the route.** `POST /agents/{id}/start` calls
-  `AgentManager.consume_context()` (which clears the field so a resume/restart never re-injects) and,
-  on a fresh (non-resume) start, calls `session.inject_when_idle(text)` — a public `AgentSession` /
-  `AgentSessionPort` method that spawns a background task polling the session's own rendered
-  `ScreenTap` tail for the Claude idle prompt (the `❯` line, the same rule `detect/claude.toml` uses)
-  and then types the line as a normal user message (text first, then Enter as a separate write
-  after `context_inject_submit_delay_seconds`, C# `AgentSession.SubmitDelay`, 0.3 s: Claude Code reads
-  one write of text plus Enter as a paste and does not submit it), giving up quietly (never typing into a
-  `working`/`blocked` agent) if it never idles. Because injection is wired only in the route,
-  `autostart.py` (which spawns via `agent_sessions.start` directly) never
-  injects — correct, since there's no live view at boot. Tunables: `agents_routes`
-  `context_inject_attempts` / `context_inject_interval_seconds` / `context_inject_submit_delay_seconds`.
-  The text may also be a builder (Python: async callable, C#: `Func<string?>`) run once the agent
-  idles; a null result types nothing and resolves `False` (question batches use this, see
-  [`ai-questions.md`](ai-questions.md)).
-  🔵 **`context_kind` now splits both the wrapping and the delivery.** `AgentRecord.context_kind`
+  🔴 **Hidden, and only with the user's first prompt, when the CLI has the hook.** For such a launch
+  nothing is typed into the PTY and the agent gets no turn of its own. A CLI agent without it falls
+  back to the typed `[Context] … Please acknowledge` turn (`AgentRoutes.TypedViewContext` /
+  `typed_view_context`, via `InjectWhenIdle` once the CLI idles).
+  `POST /agents/{id}/start` calls `AgentManager.consume_context()` (which clears the field so a
+  resume/restart never re-delivers it) and, on a fresh start of a CLI that can take hidden context,
+  holds the wrapped line on the session (`AgentSession.HoldPromptContext` / `hold_prompt_context`,
+  text from `AgentRoutes.ViewContext` / `routes/agents.py::view_context`). The first
+  `UserPromptSubmit` status hook (`POST /agents/{id}/hook`) takes it (`TakePromptContext`, handed out
+  once) and replies `{"ok": true, "additional_context": "…"}`; the `agent-hook` subcommand
+  (`AgentHook.cs` / `agent_hook.py`) prints it as
+  `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "…"}}`, which
+  Claude Code adds to that prompt without showing it. Later prompts get nothing. The hook stays
+  fail-open: any error prints nothing and never blocks the prompt. A held context lives in memory
+  only, so a bridge restart before the first prompt drops it.
+
+  | CLI | View context |
+  |---|---|
+  | Claude Code with the status hooks emitted (`AgentLaunch.StatusHooks`) | Hidden, added to the first prompt via the `UserPromptSubmit` hook |
+  | Claude without the status hooks, Codex, Gemini, Kimi, a stand-in binary behind the claude adapter | Typed `[Context]` turn once idle (`AgentLaunch.PromptContext == Typed`) |
+  | `shell` | None |
+
+  The capability is per adapter: `ICliAdapter.HiddenPromptContext` (C#, `Skills/CliAdapters.cs`,
+  true only for `ClaudeAdapter`) and `hidden_prompt_context` / `delivers_hidden_prompt_context`
+  (`llm/cli_adapters.py`); `TerminalAgents.Resolve` / `agent_launch` copy it onto
+  `AgentLaunch.PromptContext` / `prompt_context` (`PromptContext.Hidden` / `HIDDEN`) only when the status
+  hooks were emitted; every other CLI launch gets `Typed` and a shell `None`. Tests:
+  `AgentLifecycleStatusTests.cs` (never typed into an idle window; first prompt only),
+  `AgentHookTests.cs`, `test_bridge_agents_route.py`, `test_agent_live_status.py`, contract case
+  `a_view_context_is_consumed_on_start_and_a_shell_gets_none`.
+  `AgentSession.inject_when_idle` / `InjectWhenIdle` still exists for question answers (see
+  [`ai-questions.md`](ai-questions.md)): it polls the session's `ScreenTap` for the idle prompt and
+  types text, then Enter as a separate write after `context_inject_submit_delay_seconds` (C#
+  `AgentSession.SubmitDelay`, 0.3 s: Claude Code reads one write of text plus Enter as a paste),
+  giving up quietly if the agent never idles. Tunables: `agents_routes` `context_inject_attempts` /
+  `context_inject_interval_seconds` / `context_inject_submit_delay_seconds`. The text may also be a
+  builder (Python: async callable, C#: `Func<string?>`) run once the agent idles; a null result types
+  nothing and resolves `False`.
+  🔵 **`context_kind` splits the delivery.** `AgentRecord.context_kind`
   (`"view"` default, or `"task"`) rides alongside `context`; `consume_context()` returns both as a
-  `(text, kind)` pair, called up front in `post_agent_start` (before argv is even built) rather than
-  after the PTY comes up. `"view"` keeps the acknowledge-only `inject_when_idle` path above. `"task"`
-  skips PTY injection entirely: its text is passed straight to `agent_cli(..., initial_prompt=text)`
+  `(text, kind)` pair, called up front in `post_agent_start` (before argv is even built). `"view"`
+  takes the hidden first-prompt path above. `"task"` is passed straight to
+  `agent_cli(..., initial_prompt=text)`
   (`terminal/agents.py`), which appends it as a positional argv entry for the `claude` binary — so the
   CLI process starts already answering it, and the window the user opens already shows the agent's
-  question instead of an empty prompt waiting on idle-detection. `DrawDiagramButton`'s "Draw…" button
+  question instead of an empty prompt. `DrawDiagramButton`'s "Draw…" button
   (now via `DrawDialog`, see `web-canvas-shell.md`) is the one caller today: `attachAgent`/`launchAgent` accept an optional `task`
   string that, when given, takes priority over `context` and is sent with `contextKind: "task"`.
   🔴 **`context` is control-character-free by construction** (`manager._clean_context`, applied in
   both `create()` and `AgentRecord.from_json`, so a record persisted by an older build is cleaned on
-  load too) — this still matters for `"view"`, whose text is typed into a **live PTY**: every C0 char
-  (CR, LF, ESC), DEL and C1 is a real keystroke, so a newline would submit the message early and an
-  ESC would drive the TUI itself. They're replaced with a space (not dropped — "a\nb" must stay two
-  words) and the result is whitespace-collapsed to one line, leaving an empty string as `None`.
-  `"task"` text no longer passes through a PTY at all — it's an OS argv entry, not keystrokes — but
-  stays just as clean since the same `_clean_context` runs on every `context` regardless of kind.
+  load too): every C0 char (CR, LF, ESC), DEL and C1 is replaced with a space (not dropped — "a\nb"
+  must stay two words) and the result is whitespace-collapsed to one line, leaving an empty string as
+  `None`. Neither kind passes through a PTY as keystrokes any more (`"task"` is an argv entry,
+  `"view"` hook output), but the same `_clean_context` runs on every `context` regardless of kind.
 - `status.py` + `detect/<kind>.toml` (C# `Agents/StatusDetector.cs`, same manifests embedded) — the
   LED. A port of herdr's rule engine (`src/detect/manifest.rs`, Apache-2.0): each manifest
   (`claude`, `codex`, `kimi` with alias `kimi-cli`, `gemini`) is a list of `[[rules]]` with a
@@ -487,8 +583,10 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `POST /agents/{id}/{start,stop,recreate-worktree,pr,seen,dismiss-error,permission}`,
   `POST /agents/{id}/hook` (bearer token of that agent), `PATCH /agents/{id}/window`,
   `GET /agents/{id}/pr-preflight`, `GET /agents/git-preflight`, `POST /agents/git-init`,
-  `POST /workspaces/{id}/activate`, `GET /workspaces/{id}/status`. Lifecycle pings
-  (`agent-added`/`agent-removed`/`agent-status`) travel over the existing
+  `POST /workspaces/{id}/activate`, `GET /workspaces/{id}/status`,
+  `GET /agents/{id}/questions` and `POST /agents/{id}/questions/{qid}/{answer,skip,revise,request-diagram}`
+  (see [`ai-questions.md`](ai-questions.md)). Lifecycle pings
+  (`agent-added`/`agent-removed`/`agent-status`/`agent-history-cleared`/`agent-questions`) travel over the existing
   `WS /repos/{id}/events` — no new socket.
 - 🔴 Agent processes start **from the bridge**, never the renderer: that is the only way they inherit
   the PATH the bridge's `RuntimeEnvironment` captures from the user's login shell (see [`runtime-environment.md`](runtime-environment.md)), without which a Finder-launched app can't find
@@ -513,12 +611,14 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   carries `data-active-workspace` for the e2e specs: once a workspace is `ready` nothing on screen says
   which one it is, and the spec used to infer it from the branch switcher being disabled — a proxy that
   stopped existing when the switcher became usable everywhere.
-- 🔴 **A window owns its active workspace.** `agentStore.workspaceChosen` is set by a `?workspace=` URL
-  param or any `setActiveWorkspace` call, and once set `setList` ignores the bridge's
+- 🔴 **A window owns its active workspace.** `agentStore.setList` never adopts the bridge's
   `active_workspace` — otherwise a second window on the same project (a PR tab, a branch tab) would be
-  dragged onto whatever the first one last opened. The bridge no longer pushes `workspace-activated`
-  at all; the persisted value only seeds a window that names no workspace. The desktop shell always
-  names one (`?workspace=main` for a repo tab), see [`desktop-app.md`](desktop-app.md).
+  dragged onto whatever the first one last opened, and the old "adopt on first list" raced the boot's
+  tab selection. The bridge no longer pushes `workspace-activated` at all. The persisted value (written
+  by `POST /workspaces/{id}/activate` in both bridges) is read once, at boot, by
+  `worktreeActions.ensureWorktrees`, and only to reopen the last-viewed PR review (see
+  [`pr-workspaces.md`](pr-workspaces.md)). A desktop repo tab loads `/` with no `?workspace=`; a
+  PR tab loads `?workspace=pr-N`, see [`desktop-app.md`](desktop-app.md).
 - A window can be docked into the resizable left-side `AgentTerminalDock` in `.canvas-main-row`.
   `agentDockStore` keeps a session-local ordered list of attached agent ids and the selected tab;
   every docked terminal stays mounted while switching tabs. Collapsed, the dock shrinks to a 28px
@@ -675,7 +775,7 @@ Web: `AgentClient.openStepSession`, `launchAgent.openStepAgent`, the Open agent 
 
 ## Canvas questions (017)
 
-Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones. `ask_user` is non-blocking: the agent ends its turn, and once the user has answered or skipped every open question of that agent, all its answers are typed into that agent's terminal as one next message (an "Add diagram" request is typed at once) via `AgentSession.inject_when_idle` (86400 attempts, about 12 hours of waiting for idle; `questions/delivery.py`, C# `QuestionDelivery.cs`), and the answered cards and their option diagrams are removed from the canvas, so an open question leaves the agent `idle` with the "?" badge rather than `running`.
+Claude agent windows launch with the CodeChroma MCP server (`ask_user`) registered through `agent_cli`'s `mcp` parameter, plus the `CODECHROMA_BRIDGE_URL`/`CODECHROMA_QUESTION_TOKEN` env vars; see [`ai-questions.md`](ai-questions.md) "Agent wiring". A bridge restart invalidates old tokens, so agent windows are respawned with fresh ones. `ask_user` is non-blocking: the agent ends its turn, and once the user has answered or skipped every open question of that agent, all its answers are typed into that agent's terminal as one next message (an "Add diagram" request is typed at once) via `AgentSession.inject_when_idle` (86400 attempts, about 12 hours of waiting for idle; `questions/delivery.py`, C# `QuestionDelivery.cs`), and the answered cards and their option diagrams are removed from the canvas, so an open question leaves the agent `idle` with the "?" badge rather than `running`. The agent window reads its card from `GET /agents/{id}/questions` and answers through `/agents/{id}/questions/{qid}/...`; the bridge resolves the workspace (an "Add agent here" agent asks into the workspace it shares), never the web.
 
 ## Agent panel modes (layout store)
 
@@ -713,7 +813,7 @@ model id or its dated snapshot; `costUsd` is null when any model with tokens has
 
 The web reads it through the optional `AgentClient.usage` (`HttpAgentClient` only; the mock has none, so
 the strip stays hidden there). `activity/UsageStrip.tsx`'s `useAgentUsage` fetches only for the selected
-agent while full screen is open, again on each status change and, while the agent is running and the page is visible, every `USAGE_POLL_MS` (5 s), and
+agent while full screen is open, again on each status change and, while the agent is working (`useAgentPoll` checks `status === "working"`; every other status re-reads only on its change) and the page is visible, every `USAGE_POLL_MS` (5 s), and
 `UsageStrip` renders "Context 62k / 200k · 31%" with a `role="meter"` bar, "Tokens 184k in · 12k out",
 "Cache hit 78%" and "Cost $0.84" (omitted when `costUsd` is null). Tests:
 `dotnet/CodeChroma.Bridge.Tests/Agents/AgentUsageTests.cs`, `web/src/agents/activity/UsageStrip.test.tsx`.
@@ -740,7 +840,7 @@ The web side lives in `web/src/agents/prompts/`:
 | `promptNav.ts` | Pure logic: `toPrompts` + `replySummary` ("1 edit, 1 run" / "answer"), `clampIndex`, `activeIndexAt` (last prompt at or above the viewport top + 3 rows), `filterPrompts`, `findPromptLines` (each prompt's echo row: a row starting with `>`/`❯`/`›`/`!` plus its indented rows up to a `⎿` row of hook/tool output, compared whole with the prompt, whitespace removed, first 60 chars; matched newest first so a repeated prompt keeps its own echo after old rows leave the 5000-line scrollback; null when not found) |
 | `promptNavStore.ts` | Per-agent state kept across agent switches: prompts, buffer lines, `current`, aria-live text, find requests. `go` scrolls the attached viewport and ignores its own scroll events for `JUMP_LOCK_MS` (250 ms). `ActivityPanel` calls `retain` with the live agent ids so a deleted agent's state is dropped |
 | `xtermPromptViewport.ts` | Attached through `useXtermSession`'s `onTerminal`: re-scans the buffer 200 ms after output or resize (skipped while the terminal is hidden; `AgentTerminal` calls `rescanPrompts` when it is shown again), follows the viewport (rAF-throttled), scrolls a prompt one row below the top, and highlights the current echo with an xterm decoration |
-| `usePromptList.ts` | Loads the selected agent's prompts; polls every 3 s while it runs and the page is visible |
+| `usePromptList.ts` | Loads the selected agent's prompts; polls every 3 s while the agent is working (shared with usage through `useAgentPoll`) and the page is visible |
 | `usePromptHotkeys.ts` | One window listener: Alt+↑/↓ prev/next and Cmd/Ctrl+Shift+P find, only while focus is inside a `data-prompt-nav-agent` element and not in another text field (the terminal's own input and the prompt search are allowed) |
 | `PromptNavBar.tsx`, `PromptPicker.tsx`, `PromptOutline.tsx`, `PromptMarkers.tsx` | The compact 44px bar with a listbox popover, the full-screen 48px bar (Prev/Next/Latest), the full-screen left-column outline under `AgentList`, and the marker rail on the terminal's right edge |
 

@@ -104,7 +104,7 @@ public sealed class RuntimeEnvironmentTests : IDisposable
     }
 
     [Fact]
-    public void Terminal_env_layers_snapshot_then_overrides_and_keeps_codechroma_variables()
+    public async Task Terminal_env_layers_snapshot_then_overrides_and_keeps_codechroma_variables()
     {
         var snapshotPath = Path.Combine(_home, "login");
         var inherited = new Dictionary<string, string>
@@ -112,6 +112,7 @@ public sealed class RuntimeEnvironmentTests : IDisposable
             ["HOME"] = _home, ["USERPROFILE"] = _home, ["PATH"] = Path.Combine(_home, "inherited"), ["codechroma_MODELS_DIR"] = "models",
         };
         var service = new RuntimeEnvironment(() => new RuntimeSettings(ShellPath(), 5, new Dictionary<string, string>()), inherited, probe: Captures(snapshotPath), registryPath: () => "");
+        await service.SnapshotAsync();
 
         var env = service.TerminalEnv(new Dictionary<string, string> { ["codechroma_AGENT_KEY"] = "k" });
 

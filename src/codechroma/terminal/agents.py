@@ -17,13 +17,15 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
+from codechroma.bridge.agents.history_clear import ClearWatch, clear_watch_for
 from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV, hook_document
 from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
-from codechroma.llm.cli_adapters import CLI_ADAPTERS
+from codechroma.llm.cli_adapters import CLI_ADAPTERS, delivers_hidden_prompt_context
 from codechroma.questions.launch import CLAUDE_PERMISSION, McpEndpoint
 
 CLASSIC_RENDERER_ENV = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"
@@ -51,6 +53,17 @@ def _default_model() -> str:
     return settings.skill_agent_timeouts.model
 
 
+class PromptContext(StrEnum):
+    """How an agent window receives its launch context."""
+
+    # Not delivered (a shell).
+    NONE = "none"
+    # The status hook hands it to the user's first prompt.
+    HIDDEN = "hidden"
+    # Typed as a `[Context]` turn once idle: a CLI agent without the hidden hook.
+    TYPED = "typed"
+
+
 @dataclass(frozen=True)
 class AgentLaunch:
     """An allow-listed window's argv, provider env and the status manifest to detect it with."""
@@ -58,6 +71,10 @@ class AgentLaunch:
     argv: list[str]
     env: dict[str, str]
     detector_kind: str
+    # How the window notices a cleared conversation (the resolved adapter's definition), if at all.
+    clear: ClearWatch | None = None
+    # How the window gets its launch context (C# PromptContext).
+    prompt_context: PromptContext = PromptContext.NONE
 
 
 def agent_cli(
@@ -104,7 +121,9 @@ def agent_launch(
             **resolution.env_overrides, **_status_hook_env(is_claude, mcp), **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
             **_renderer_env(is_claude),
-        }, agent if stand_in else resolution.adapter_key)
+        }, agent if stand_in else resolution.adapter_key,
+            clear_watch_for(CLI_ADAPTERS.get(adapter or ""), is_claude and mcp is not None),
+            prompt_context=_prompt_context(is_claude and mcp is not None))
     argv_entry = ALLOWED_AGENTS.get(agent)
     if argv_entry is None:
         return None
@@ -125,7 +144,8 @@ def agent_launch(
             **_status_hook_env(is_claude, mcp), **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
             **_renderer_env(is_claude),
-        }, agent)
+        }, agent, clear_watch_for(CLI_ADAPTERS["claude"] if is_claude else None, mcp is not None),
+            prompt_context=_prompt_context(is_claude and mcp is not None))
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
     if resume_session_id:
         return AgentLaunch([*argv_entry, RESUME_FLAG, resume_session_id], {}, agent)
@@ -155,6 +175,12 @@ def _settings_args(
     if has_mcp:
         document["permissions"] = {"allow": [CLAUDE_PERMISSION]}
     return ["--settings", json.dumps(document)]
+
+
+def _prompt_context(status_hooked: bool) -> PromptContext:
+    """Only a real claude with the status hooks emitted takes its context hidden."""
+    hidden = status_hooked and delivers_hidden_prompt_context(CLI_ADAPTERS["claude"])
+    return PromptContext.HIDDEN if hidden else PromptContext.TYPED
 
 
 def _status_hook_env(is_claude: bool, mcp: McpEndpoint | None) -> dict[str, str]:

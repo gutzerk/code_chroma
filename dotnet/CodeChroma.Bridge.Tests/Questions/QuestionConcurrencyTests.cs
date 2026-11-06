@@ -12,7 +12,7 @@ public class QuestionConcurrencyTests
     [Fact]
     public async Task An_answer_before_a_diagram_reask_keeps_its_options_and_result()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var ws = Main(host);
         var mcp = Mcp(host);
         var questionId = Open(host, Request(sessionId: "session"));

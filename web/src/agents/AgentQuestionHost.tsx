@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLayoutState } from "../canvas/layout/layoutStore";
-import { useCanvasDoc } from "../canvas/doc/canvasDocStore";
 import { ConnectedQuestionCard } from "../canvas/doc/question/ConnectedQuestionCard";
 import { pickQuestionLayout } from "../canvas/doc/question/pickQuestionLayout";
 import { resolveSelection, toQuestionView } from "../canvas/doc/question/questionAdapter";
 import { QuestionDiagram } from "../canvas/doc/question/QuestionDiagram";
 import { useOpenAgentQuestions } from "../canvas/doc/question/useOpenAgentQuestions";
+import { EMPTY_CANVAS_DOC } from "../state/types";
+import { useAgentQuestions } from "./agentQuestions";
 
-/** Wraps an agent's terminal and shows its oldest open question beside it in the layout that fits the host. */
+/** Wraps an agent's terminal and shows its oldest open question (from GET /agents/{id}/questions) beside it in the layout that fits the host. */
 export function AgentQuestionHost({
   agentId,
   onFocusTerminal,
@@ -22,8 +23,10 @@ export function AgentQuestionHost({
   const [width, setWidth] = useState(0);
   const [pick, setPick] = useState<{ questionId: string; optionId: string } | null>(null);
   const { agentsMode } = useLayoutState();
-  const doc = useCanvasDoc();
-  const current = useOpenAgentQuestions(agentId)[0];
+  // The bridge resolves the workspace the agent asks into; the active tab plays no part.
+  const source = useAgentQuestions(agentId);
+  const doc = source?.doc ?? EMPTY_CANVAS_DOC;
+  const current = useOpenAgentQuestions(agentId, doc)[0];
   const question = useMemo(() => (current ? toQuestionView(current) : null), [current]);
   const selectedId = question
     ? resolveSelection(question, pick?.questionId === question.questionId ? pick.optionId : null)
@@ -76,11 +79,13 @@ export function AgentQuestionHost({
     >
       {layout === "A4" && diagram}
       {children}
-      {current && question && (
+      {current && question && source && (
         <div className="aq-card" data-testid={`agent-question-${agentId}`} role="region" aria-label="Agent question">
           <ConnectedQuestionCard
             key={current.id}
             question={question}
+            client={source.actions}
+            doc={doc}
             variant={layout === "B1" ? "full" : "compact"}
             selectedId={selectedId}
             onSelectedIdChange={setSelectedId}

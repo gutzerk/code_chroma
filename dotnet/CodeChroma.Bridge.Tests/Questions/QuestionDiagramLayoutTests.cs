@@ -9,9 +9,9 @@ public class QuestionDiagramLayoutTests
 {
     private static readonly DiagramNode[] Five = [new("a", "A"), new("b", "B"), new("c", "C"), new("d", "D"), new("e", "E")];
 
-    private static CanvasDoc Draw(BridgeHost host, string? questionId = null, string? optionId = null)
+    private static CanvasDoc Draw(BridgeHost host, string? questionId = null, string? optionId = null, string? agentId = null)
     {
-        QuestionStore.DrawDiagram(Main(host), "T", Five, [new DiagramEdge("a", "b")], questionId, optionId);
+        QuestionStore.DrawDiagram(Main(host), "T", Five, [new DiagramEdge("a", "b")], questionId, optionId, agentId);
         return CanvasDoc.Load(Main(host).CanvasCorePath(), Main(host).DiagramsRoot());
     }
 
@@ -70,8 +70,8 @@ public class QuestionDiagramLayoutTests
     [Fact]
     public async Task Asking_with_a_drawn_diagram_ref_moves_the_draft_diagram_onto_the_question_layer()
     {
-        using var host = new BridgeHost();
-        var root = Draw(host).Elements.Values.Single(IsRoot);
+        using var host = Host();
+        var root = Draw(host, agentId: "main").Elements.Values.Single(IsRoot);
 
         var asked = await Mcp(host).Ask("main", Request([Option("a", 1, diagramRef: root.Id), Option("b", 2)], kind: "diagram"));
 

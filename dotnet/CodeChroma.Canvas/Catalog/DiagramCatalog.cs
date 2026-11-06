@@ -40,7 +40,13 @@ public static class DiagramCatalog
     }
 
     public static IReadOnlyList<string> ListActiveDiagramLayers(CanvasDoc doc) =>
-        doc.Elements.Values.Select(e => e.Layer).Distinct().Where(IsDiagramLayer).ToList();
+        doc.Elements.Values.Select(e => e.Layer).Distinct().Where(l => IsDiagramLayer(l) && !IsDecisionLayer(l)).ToList();
+
+    /// <summary>The shared `decisions` layer or a per-question `decisions/&lt;id&gt;` option-diagram layer.</summary>
+    public static bool IsDecisionLayer(string layer) => layer == "decisions" || layer.StartsWith(CanvasOnlyPrefix, StringComparison.Ordinal);
+
+    /// <summary>Question cards and their option diagrams: only the asking agent's window shows them, the canvas never does.</summary>
+    public static bool IsAgentWindowOnly(CanvasElement element) => element.Layer == "questions" || IsDecisionLayer(element.Layer);
 
     public static string LabelForDiagramLayer(string layer, IReadOnlyList<DiagramTypeSummary> customTypes, CanvasDoc? doc = null)
     {

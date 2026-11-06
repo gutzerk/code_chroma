@@ -4,7 +4,12 @@ import asyncio
 
 import pytest
 
-from codechroma.bridge.agents.sessions import AgentSession, AgentSessionPort, agent_run_env
+from codechroma.bridge.agents.sessions import (
+    AgentSession,
+    AgentSessionPort,
+    AgentSessionRegistry,
+    agent_run_env,
+)
 from tests.unit.portable_commands import ECHO
 
 
@@ -13,7 +18,7 @@ def _attach_frame(stream: str) -> str:
 
     async def run() -> str:
         session = AgentSession("runner", ECHO, cwd=".")
-        session._on_output(stream)
+        session._on_output(stream, 0)
         queue = session.attach()
         session.close()
         return queue.get_nowait()
@@ -46,6 +51,28 @@ def test_resyncing_an_unknown_queue_is_a_no_op_rather_than_an_error():
     assert asyncio.run(run()) == 0
 
 
+def test_attached_windows_counts_each_attach_until_its_detach():
+    async def run() -> tuple[int, int, int, int]:
+        session = AgentSession("runner", ECHO, cwd=".")
+        before = session.attached_windows
+        first, second = session.attach(), session.attach()
+        both = session.attached_windows
+        session.detach(first)
+        one = session.attached_windows
+        session.detach(second)
+        after = session.attached_windows
+        session.close()
+        return before, both, one, after
+
+    assert asyncio.run(run()) == (0, 2, 1, 0)
+
+
+def test_the_registry_reports_no_windows_for_an_agent_without_a_session():
+    registry = AgentSessionRegistry()
+
+    assert registry.attached_windows("ghost") == 0
+
+
 def test_agent_session_satisfies_the_terminal_port():
     async def run() -> bool:
         session = AgentSession("runner", ECHO, cwd=".")
@@ -73,9 +100,9 @@ class _IdleLater:
 
 
 def _make_injecting_session(monkeypatch, classify, written: list[str]):
-    """Real AgentSession with detector.classify patched and write() recording into `written`."""
+    """Real AgentSession with detector.classify patched and its typing recorded into `written`."""
     session = AgentSession("runner", ECHO, cwd=".")
-    session.write = written.append
+    session._type = lambda data, injected=False: written.append(data)
     monkeypatch.setattr(session._detector, "classify", classify)
     return session
 

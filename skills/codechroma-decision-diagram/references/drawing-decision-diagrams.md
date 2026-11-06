@@ -11,4 +11,5 @@
 - Every edge gets a verb `label` ("publishes", "reads", "owns"), never a noun or empty.
 - Show what this option adds or changes versus today: existing parts plain, the option's additions
   `status: "new"`, so the user sees the delta rather than the whole system.
-- All options of one question land on one canvas layer (`decisions/<question_id>`), one root each.
+- All options of one question land on one option-diagram layer (`decisions/<question_id>`), one root each.
+  The user sees them only inside the question in their CodeChroma agent window, never on the canvas.

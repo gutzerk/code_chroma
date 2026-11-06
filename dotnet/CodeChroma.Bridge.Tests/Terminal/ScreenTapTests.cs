@@ -298,6 +298,22 @@ public class ScreenTapTests
         Assert.Null(error);
     }
 
+    [Theory]
+    [InlineData("plain text", true)]
+    [InlineData(Esc + "[38;2;1", false)]
+    [InlineData(Esc + "[38;2;1;2;3m", true)]
+    [InlineData(Esc + "]0;title", false)]
+    [InlineData(Esc + "]0;title\u0007", true)]
+    [InlineData(Esc, false)]
+    public void The_tap_reports_whether_a_chunk_left_an_escape_sequence_open(string chunk, bool ground)
+    {
+        var tap = Tap();
+
+        tap.Feed(chunk);
+
+        Assert.Equal(ground, tap.InGround);
+    }
+
     [Fact]
     public void Tail_returns_only_the_bottom_rows()
     {

@@ -1,7 +1,7 @@
-import { useOpenQuestionCount } from "../../canvas/doc/question/useOpenAgentQuestions";
 import type { AgentRecord } from "../../state/types";
 import { useAgentClient } from "../AgentClientContext";
 import { answerPermission, dismissAgentError } from "../agentFocus";
+import { useOpenQuestionCount } from "../agentStore";
 import { BLOCKED_TEXT } from "../agentNotifications";
 import { agentMeta, useElapsed } from "./agentStatusText";
 

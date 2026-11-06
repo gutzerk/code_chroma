@@ -3,7 +3,9 @@
   "sources": [
     "src/codechroma/bridge/routes/questions.py",
     "src/codechroma/questions/store.py",
-    "dotnet/CodeChroma.Bridge/Routes/QuestionRoutes.cs"
+    "dotnet/CodeChroma.Bridge/Routes/QuestionRoutes.cs",
+    "src/codechroma/questions/agent_view.py",
+    "dotnet/CodeChroma.Bridge/Questions/AgentQuestions.cs"
   ],
   "repo": {
     "base": "sample_repo"
@@ -1335,6 +1337,1009 @@
               {
                 "path": "$.elements['{{diagram}}'].layer",
                 "equals": "decisions/q1"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_question_cannot_take_a_canvas_diagram_as_an_option_diagram",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "layer": "custom/plan",
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "plan",
+                  "render": "custom",
+                  "layer": "custom/plan",
+                  "label": "On canvas",
+                  "position": {
+                    "x": 0.0,
+                    "y": 0.0
+                  }
+                }
+              ]
+            }
+          },
+          "capture": {
+            "ref": "$.id_map.plan"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "token": "main",
+          "as": "tok"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ask",
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            },
+            "json": {
+              "question": "Which plan?",
+              "kind": "diagram",
+              "options": [
+                {
+                  "id": "a",
+                  "title": "A",
+                  "description": "d",
+                  "pro": "p",
+                  "con": "c",
+                  "why": "w",
+                  "rank": 1,
+                  "diagram_ref": "{{ref}}"
+                },
+                {
+                  "id": "b",
+                  "title": "B",
+                  "description": "d",
+                  "pro": "p",
+                  "con": "c",
+                  "why": "w",
+                  "rank": 2
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 422,
+            "checks": [
+              {
+                "path": "$.detail",
+                "contains": "is not an option diagram; draw it with draw_option_diagram"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "asking_without_an_attached_window_is_refused_and_writes_nothing",
+      "steps": [
+        {
+          "token": "main",
+          "as": "tok"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ask",
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            },
+            "json": {
+              "question": "Which plan?",
+              "options": [
+                {
+                  "id": "a",
+                  "title": "A",
+                  "description": "d",
+                  "pro": "p",
+                  "con": "c",
+                  "why": "w",
+                  "rank": 1
+                },
+                {
+                  "id": "b",
+                  "title": "B",
+                  "description": "d",
+                  "pro": "p",
+                  "con": "c",
+                  "why": "w",
+                  "rank": 2
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 422,
+            "checks": [
+              {
+                "path": "$.detail",
+                "contains": "No CodeChroma window is showing this agent"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_agent_reads_its_questions_from_the_workspace_it_shares",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Asker",
+              "kind": "shell",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.id",
+                "equals": "asker"
+              },
+              {
+                "path": "$.shares_workspace_with",
+                "equals": "{{ws}}"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents/asker/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agent_id",
+                "equals": "asker"
+              },
+              {
+                "path": "$.workspace",
+                "equals": "{{ws}}"
+              },
+              {
+                "path": "$.open_questions",
+                "equals": 0
+              },
+              {
+                "path": "$.elements",
+                "count": 0
+              },
+              {
+                "path": "$.edges",
+                "count": 0
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/{{ws}}/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "before",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Before?",
+                  "meta": {
+                    "question_id": "q0",
+                    "session_id": "s1",
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "answered",
+                    "answer": "Modular monolith",
+                    "option_id": "a",
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "asker",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "mine",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Mine?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": "s1",
+                    "step": 2,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "asker",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "theirs",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Not mine?",
+                  "meta": {
+                    "question_id": "q2",
+                    "session_id": "s9",
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "other",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents/asker/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.workspace",
+                "equals": "{{ws}}"
+              },
+              {
+                "path": "$.open_questions",
+                "equals": 1
+              },
+              {
+                "path": "$.elements",
+                "count": 2
+              },
+              {
+                "path": "$.elements..label",
+                "contains": "Mine?"
+              },
+              {
+                "path": "$.elements..label",
+                "contains": "Before?"
+              },
+              {
+                "path": "$.edges",
+                "count": 0
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[id=asker].open_questions",
+                "equals": [
+                  1
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_agent_answers_by_its_own_id_and_every_canvas_hears_the_new_count",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Asker",
+              "kind": "shell",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.id",
+                "equals": "asker"
+              },
+              {
+                "path": "$.shares_workspace_with",
+                "equals": "{{ws}}"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/{{ws}}/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "mine",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Mine?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": "s1",
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "asker",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "theirs",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Not mine?",
+                  "meta": {
+                    "question_id": "q2",
+                    "session_id": "s9",
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "other",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "ws": "connect",
+          "name": "events",
+          "path": "/repos/main/events"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/asker/questions/q1/answer",
+            "json": {
+              "option_id": "b"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "question_id": "q1",
+              "state": "answered",
+              "waiting": false,
+              "answer": "Microservices"
+            }
+          }
+        },
+        {
+          "ws": "receive",
+          "name": "events",
+          "skip_until_match": true,
+          "expect": {
+            "checks": [
+              {
+                "path": "$.type",
+                "equals": "agent-questions"
+              },
+              {
+                "path": "$.id",
+                "equals": "asker"
+              },
+              {
+                "path": "$.open_questions",
+                "equals": 0
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/asker/questions/q2/skip"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown question"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/asker/questions/q1/revise"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.state",
+                "equals": "open"
+              }
+            ]
+          }
+        },
+        {
+          "ws": "receive",
+          "name": "events",
+          "skip_until_match": true,
+          "expect": {
+            "checks": [
+              {
+                "path": "$.type",
+                "equals": "agent-questions"
+              },
+              {
+                "path": "$.id",
+                "equals": "asker"
+              },
+              {
+                "path": "$.open_questions",
+                "equals": 1
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/asker/questions/q1/skip"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.state",
+                "equals": "skipped"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents/asker/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.open_questions",
+                "equals": 0
+              },
+              {
+                "path": "$.elements",
+                "count": 0
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/{{ws}}/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 1
+              },
+              {
+                "path": "$.questions[0].question_id",
+                "equals": "q2"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "an_unknown_agent_has_no_questions_to_read_or_answer",
+      "steps": [
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents/nope/questions"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/nope/questions/q1/answer",
+            "json": {
+              "answer": "x"
+            }
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/nope/questions/q1/skip"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/nope/questions/q1/revise"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/nope/questions/q1/request-diagram"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_neighbours_settled_question_in_the_same_session_stays_out_of_an_agents_history",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Asker",
+              "kind": "shell",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.id",
+                "equals": "asker"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/{{ws}}/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "theirs",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Their earlier?",
+                  "meta": {
+                    "question_id": "q0",
+                    "session_id": "s1",
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "answered",
+                    "answer": "Modular monolith",
+                    "option_id": "a",
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "other",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "mine",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Mine?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": "s1",
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "asker",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents/asker/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.open_questions",
+                "equals": 1
+              },
+              {
+                "path": "$.elements",
+                "count": 1
+              },
+              {
+                "path": "$.elements..label",
+                "contains": "Mine?"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_caller_sent_degraded_flag_does_not_skip_validation_on_the_hook_route",
+      "steps": [
+        {
+          "token": "main",
+          "as": "tok"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ask",
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            },
+            "json": {
+              "question": "Which plan?",
+              "degraded": true,
+              "options": [
+                {
+                  "id": "a",
+                  "title": "A"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 422,
+            "checks": [
+              {
+                "path": "$.detail",
+                "contains": "CodeChroma rejected the question."
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 0
               }
             ]
           }

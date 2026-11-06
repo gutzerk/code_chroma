@@ -87,7 +87,6 @@ describe("agentStore", () => {
   it("reports capacity once the bridge's limit is reached", () => {
     agentStore.setList({
       agents: [agent("a"), agent("b")],
-      active_workspace: "main",
       max_agents: 2,
     });
 
@@ -100,7 +99,6 @@ describe("agentStore", () => {
         agent("a", { window: { ...agent("a").window, z: 5 } }),
         agent("b", { window: { ...agent("b").window, z: 2 } }),
       ],
-      active_workspace: "main",
       max_agents: 5,
     });
 
@@ -254,33 +252,24 @@ describe("workspace switching", () => {
   it("does not follow another window's pick once this window has chosen its workspace", () => {
     agentStore.setActiveWorkspace("pr-9");
 
-    agentStore.setList({ agents: [], active_workspace: "refund-flow", max_agents: 5 });
+    const list = { agents: [], active_workspace: "refund-flow", max_agents: 5 };
+
+    agentStore.setList(list);
 
     expect(agentStore.getActiveWorkspace()).toBe("pr-9");
   });
 
-  it("keeps the first load's workspace across later list refreshes", () => {
-    agentStore.setList({ agents: [], active_workspace: "refund-flow", max_agents: 5 });
+  it("leaves the boot's restore to ensureWorktrees: a list never moves the workspace", () => {
+    const list = { agents: [agent("refund-flow")], active_workspace: "pr-7", max_agents: 5 };
 
-    agentStore.setList({ agents: [], active_workspace: "main", max_agents: 5 });
+    agentStore.setList(list);
 
-    expect(agentStore.getActiveWorkspace()).toBe("refund-flow");
-  });
-
-  it("restores the workspace the bridge remembers on load", () => {
-    agentStore.setList({
-      agents: [agent("refund-flow")],
-      active_workspace: "refund-flow",
-      max_agents: 5,
-    });
-
-    expect(agentStore.getActiveWorkspace()).toBe("refund-flow");
+    expect(agentStore.getActiveWorkspace()).toBe("main");
   });
 
   it("switching does not touch any agent's status", () => {
     agentStore.setList({
       agents: [agent("a", { status: "working" }), agent("b", { status: "blocked" })],
-      active_workspace: "main",
       max_agents: 5,
     });
 

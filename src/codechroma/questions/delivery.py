@@ -11,7 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from codechroma.bridge.workspaces import Workspace
 from codechroma.canvas.document import Element
 from codechroma.config import settings
-from codechroma.questions import store
+from codechroma.questions import agent_view, store
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +84,13 @@ async def deliver_settled(services: Any, ws: Workspace, element: Element) -> boo
         return False
     agent_id = element.meta["agent_id"]
     if await run_in_threadpool(store.claim_batch, ws, agent_id):
-        follow_up = asyncio.ensure_future(_type_batch(session, ws, agent_id))
+        follow_up = asyncio.ensure_future(_type_batch(services, session, ws, agent_id))
         _follow_ups.add(follow_up)
         follow_up.add_done_callback(_follow_ups.discard)
     return True
 
 
-async def _type_batch(session: Any, ws: Workspace, agent_id: str) -> None:
+async def _type_batch(services: Any, session: Any, ws: Workspace, agent_id: str) -> None:
     """Types the batch as it stands when the agent idles, clears what was typed, then unclaims."""
     typed: list[Element] = []
 
@@ -102,6 +102,7 @@ async def _type_batch(session: Any, ws: Workspace, agent_id: str) -> None:
         attempts = settings.questions.answer_inject_attempts
         if await session.inject_when_idle(message, attempts=attempts) and typed:
             await run_in_threadpool(store.clear_batch, ws, typed)
+            await agent_view.announce(services, agent_id)
     except Exception:
         logger.exception("questions: could not deliver the answers of agent %s", agent_id)
     finally:

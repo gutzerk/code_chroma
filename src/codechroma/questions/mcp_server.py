@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import secrets
 import uuid
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -30,6 +30,11 @@ from codechroma.questions.validation import (
 
 SERVER_NAME = "codechroma"
 MOUNT_PATH = "/mcp"
+# Where an asked question shows and what the agent does next, shared by three texts below.
+WINDOW_NOTE = (
+    "the question appears in the user's CodeChroma agent window above this terminal, so tell "
+    "the user that in one line, then end your turn"
+)
 _INSTRUCTIONS = (
     "Ask every decision question through ask_user, never in chat text and never with another "
     "question tool. Each call needs: question, and 2-4 options that each have id, title, "
@@ -38,7 +43,8 @@ _INSTRUCTIONS = (
     "them and call again with the same intent. For a question that changes structure "
     "(boundaries, data flow, ownership, a new component) use kind \"diagram\": first draw one "
     "small diagram per option with draw_option_diagram, then pass each returned diagram_ref on "
-    "its option. ask_user returns at once with {asked: true}: end your turn then. Once every "
+    "its option. ask_user returns at once with {asked: true}; " + WINDOW_NOTE + ". If ask_user "
+    "is refused because no CodeChroma window shows you, ask in chat instead. Once every "
     "question you asked is answered or skipped, all answers arrive together as your next "
     "message, one [CodeChroma answer] part per question. If the next "
     "message says the user wants diagrams, draw them with draw_option_diagram and call ask_user "
@@ -46,7 +52,17 @@ _INSTRUCTIONS = (
     "chat. ask_user_result(question_id) reads an answer back if you need it."
 )
 
-NEXT_STEP = "End your turn now. The user's answer will arrive as your next message."
+NEXT_STEP = (
+    "Asked: " + WINDOW_NOTE + " now. The user's answer will arrive as your next message."
+)
+NO_WINDOW = (
+    "No CodeChroma window is showing this agent, so the user cannot see an ask_user question. "
+    "Ask in chat instead: write the question and its options as plain text, then end your turn."
+)
+_ASK_DESCRIPTION = (
+    "Ask the user a decision question. Returns at once: " + WINDOW_NOTE + ". The answer arrives "
+    "as your next message. Refused when no CodeChroma window shows this agent: ask in chat then."
+)
 MISSING_DESCRIPTIONS = (
     "More than half the nodes have no description; say what changes for each node under "
     "this option."
@@ -83,13 +99,22 @@ class _Delegate:
 class QuestionMcp:
     """One MCP server for every workspace; the bearer token names and authorizes the workspace."""
 
-    def __init__(self, workspace_for: Callable[[str], Workspace]) -> None:
+    def __init__(
+        self,
+        workspace_for: Callable[[str], Workspace],
+        attached_windows: Callable[[str], int],
+        questions_changed: Callable[[str], Awaitable[None]] | None = None,
+    ) -> None:
         self.rejections = RejectionTracker()
         self._workspace_for = workspace_for
+        # Told the agent id after an ask or an attached diagram, so the agent window refetches.
+        self._questions_changed = questions_changed
+        # How many windows show an agent id; ask refuses at 0.
+        self._attached_windows = attached_windows
         self._secret = secrets.token_bytes(32)
         self._server = MCPServer(SERVER_NAME, instructions=_INSTRUCTIONS)
         # Claude pre-approves every tool here (CLAUDE_PERMISSION): never add one that edits files.
-        self._server.tool(name="ask_user")(self._ask_user_tool)
+        self._server.tool(name="ask_user", description=_ASK_DESCRIPTION)(self._ask_user_tool)
         self._server.tool(name="ask_user_result")(self._ask_user_result_tool)
         self._server.tool(name="draw_option_diagram", description=_DRAW_DESCRIPTION)(
             self._draw_option_diagram_tool
@@ -141,9 +166,12 @@ class QuestionMcp:
     async def ask(
         self, workspace_id: str, request: AskRequest, connection: str | None = None
     ) -> dict[str, Any]:
-        """Opens (or re-opens) the question and returns at once; the answer is typed in later."""
+        """Opens (or re-opens) the question unless no window shows the agent; returns at once."""
         ws = self._workspace_for(workspace_id)
         extra = await self._check(ws, workspace_id, request, connection)
+        # An agent no window shows (closed, or no bridge session) would wait on an unseen question.
+        if self._attached_windows(workspace_id) <= 0:
+            raise QuestionRejected(NO_WINDOW)
         request.agent_id = workspace_id
         found = await asyncio.to_thread(store.find_diagram_requested, ws, request)
         reasked, stale = found if found else (None, [])
@@ -152,17 +180,26 @@ class QuestionMcp:
             await asyncio.to_thread(store.reask, ws, reasked, request, extra, stale)
         else:
             await asyncio.to_thread(store.open_question, ws, request, question_id, extra)
+        await self._changed(workspace_id)
         return {"asked": True, "question_id": question_id, "next": NEXT_STEP}
+
+    async def _changed(self, agent_id: str) -> None:
+        if self._questions_changed is not None:
+            await self._questions_changed(agent_id)
 
     async def _check(
         self, ws: Workspace, workspace_id: str, request: AskRequest, connection: str | None = None
     ) -> dict | None:
         """Raises QuestionRejected on a contract break; at the retry limit lets one through."""
+        known = (
+            await asyncio.to_thread(store.option_diagram_ids, ws, workspace_id)
+            if any(option.diagram_ref for option in request.options) else None
+        )
         if request.degraded:
+            _drop_foreign_refs(request, known)
             return {"degraded": True}
         problems = validate_ask(request)
-        if not problems and any(option.diagram_ref for option in request.options):
-            known = await asyncio.to_thread(store.known_element_ids, ws)
+        if not problems and known is not None:
             problems = unknown_refs(request, known)
         tracker = self.rejections
         key = request.session_id or (f"conn:{connection}" if connection else None)
@@ -174,6 +211,7 @@ class QuestionMcp:
             tracker.record(workspace_id, key)
             raise QuestionRejected(text)
         tracker.reset(workspace_id, key)
+        _drop_foreign_refs(request, known)
         return {"degraded": True, "validation": text}
 
     async def draw_diagram(
@@ -184,8 +222,11 @@ class QuestionMcp:
         diagrams.check(nodes, edges, title)
         ws = self._workspace_for(workspace_id)
         root = await asyncio.to_thread(
-            store.draw_diagram, ws, title, nodes, edges, question_id, option_id
+            store.draw_diagram, ws, title, nodes, edges, question_id, option_id, workspace_id
         )
+        # A draft drawn before its question shows nowhere yet; one attached to a question does.
+        if question_id:
+            await self._changed(workspace_id)
         if diagrams.missing_descriptions(nodes):
             return {"diagram_ref": root, "warning": MISSING_DESCRIPTIONS}
         return {"diagram_ref": root}
@@ -216,7 +257,7 @@ class QuestionMcp:
         allow_skip: bool = True,
         total: int | None = None,
     ) -> dict[str, Any]:
-        """Ask the user a question on the canvas; returns at once, so end your turn."""
+        """Ask the user a question in their CodeChroma agent window; returns at once."""
         request = AskRequest(
             question=question, options=options or [], kind=kind, session_id=session_id,
             allow_custom=allow_custom, allow_skip=allow_skip, total=total,
@@ -241,3 +282,12 @@ class QuestionMcp:
         return await self.draw_diagram(
             self._workspace_id(ctx), title, nodes, edges or [], question_id, option_id
         )
+
+
+def _drop_foreign_refs(request: AskRequest, known: set[str] | None) -> None:
+    """A degraded ask skips validation, so it keeps only this agent's option-diagram refs."""
+    if known is None:
+        return
+    for option in request.options:
+        if option.diagram_ref and option.diagram_ref not in known:
+            option.diagram_ref = None

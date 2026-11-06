@@ -130,6 +130,27 @@ the new read-only review with a task that names the impact type (the draw skill 
 diagram). It targets `pr.id` explicitly, so it works in the desktop app too, where the review opens in
 its own tab and the current window stays on main. Tests: `PrDialog.test.tsx`.
 
+## Reopening the last-viewed PR
+
+🔴 A reopened project draws the PR review it was showing last time. `POST /workspaces/{id}/activate`
+records the id as `active_workspace` in `.codechroma/agents.json` (per repo); the C# route used to skip
+this, so a PR was never remembered in the desktop app. At boot, `ensureWorktrees`
+(`web/src/agents/worktreeActions.ts`) reads `GET /prs` alongside `POST /branches/ensure`: when its
+`active_workspace` names a PR in that list, the browser draws it in place (the tab strip keeps its
+tab), and the desktop app keeps the repo tab on its worktree tab and reopens the PR in its own tab via
+`openWorkspaceWindow`. A window opened on `?workspace=pr-N` activates it, which is what records it.
+An explicit `?workspace=br_x` tab wins over the remembered PR and is recorded in its place.
+⚠ After boot, `recordShownWorkspace` (started by `AgentWindowLayer` only once `ensureWorktrees`
+settles, so it can't erase the PR the boot is reading) re-activates the window's own workspace on
+`focus` and on `visibilitychange` to visible. That is what forgets a PR whose desktop tab was closed:
+the shell fronts the project tab, which re-records its worktree tab, so the PR tab neither reopens
+on the next launch nor re-fronts when the project page reloads. No shell or bridge change was needed.
+A PR that is gone falls back to the tab with no error: the bridge drops an unregistered id at
+`RevalidateActiveWorkspace`, the web skips an id missing from `GET /prs`, and a failed activate
+selects the tab silently. Tests: `web/src/agents/worktreeActions.test.ts`,
+`dotnet/CodeChroma.Bridge.Tests/Workspaces/ActiveWorkspaceTests.cs`, contract case
+`workspaces::activating_a_workspace_remembers_it_for_the_next_launch`.
+
 ## Relation to worktree tabs
 
 PR workspaces stay a separate, read-only `pr-<n>` kind. Worktree tabs (`br_*`, see

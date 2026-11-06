@@ -591,6 +591,14 @@ class WorkspaceRegistry:
             self._canonical[workspace_id] = canonical
             self._aliases.setdefault(canonical, {canonical}).add(workspace_id)
 
+    def resolve(self, repo_id: str) -> tuple[str, Path]:
+        """The id and root `get` would serve (alias -> shared id, unknown -> main), never built."""
+        with self._lock:
+            canonical = self._canonical.get(repo_id, repo_id)
+            if canonical not in self._roots:
+                return MAIN_ID, self._roots[MAIN_ID]
+            return canonical, self._roots[canonical]
+
     def root_for(self, workspace_id: str) -> Path | None:
         """The registered root, or None for an unknown id — never a silent fall back to main."""
         return self._roots.get(workspace_id)

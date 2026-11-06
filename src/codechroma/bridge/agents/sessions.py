@@ -26,10 +26,20 @@ import logging
 import threading
 import time
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from codechroma.bridge.agents.agent_hook import is_clear
+from codechroma.bridge.agents.history_clear import (
+    CLEAR_SCROLLBACK,
+    REPAINT_DELAY_SECONDS,
+    RESET_SCREEN,
+    ClearWatch,
+    TypedLine,
+)
 from codechroma.bridge.agents.live_status import (
+    STATUS_DONE,
     STATUS_ERROR,
     STATUS_IDLE,
     STATUS_STOPPED,
@@ -43,12 +53,26 @@ from codechroma.bridge.agents.status import Classification, StatusDetector, load
 from codechroma.config import settings
 from codechroma.errors import codechromaError
 from codechroma.io import utc_now
-from codechroma.llm.runtime_env import CliLookupError, launch_failed, resolve_runtime_cli
+from codechroma.llm.runtime_env import (
+    CliLookupError,
+    RuntimeCli,
+    launch_failed,
+    resolve_runtime_cli,
+)
 from codechroma.questions.launch import identity_env
 from codechroma.terminal.pty_session import PtySession, default_cols, default_rows
 from codechroma.terminal.screen_tap import ScreenTap
 
 logger = logging.getLogger("uvicorn.error")
+
+# Columns a window must grow past the narrowest printed width before a resume reprints it.
+WIDEN_MIN_GAIN_COLS = 8
+# Quiet time after the last resize, so dragging a window edge restarts at most once.
+WIDEN_SETTLE = timedelta(seconds=1.5)
+# Quiet time after the last keystroke, so a restart never lands mid-typing.
+WIDEN_TYPING_QUIET = timedelta(seconds=3)
+# Focus (ESC [ I / O) and mouse (ESC [ M, ESC [ <) reports the terminal sends on its own.
+_NEVER = datetime.min.replace(tzinfo=UTC)
 
 def context_inject_attempts() -> int:
     return settings.agents_routes.context_inject_attempts
@@ -113,8 +137,17 @@ class AgentSession(AgentSessionPort):
         kind: str = "claude",
         env: dict[str, str] | None = None,
         on_exit: Callable[[AgentSession], None] | None = None,
+        clear: ClearWatch | None = None,
+        on_clear: Callable[[AgentSession], None] | None = None,
     ) -> None:
         self.agent_id = agent_id
+        self._clear = clear
+        self._cleared = on_clear
+        # The prompt line: the draft a restart would lose, and a typed clear of a hookless CLI.
+        self._typed = TypedLine(clear.typed_commands if clear else ())
+        self._typed_lock = threading.Lock()
+        # A clear asked for mid escape sequence; emitted after the next chunk ending in ground.
+        self._clear_pending = False
         self.argv = list(argv)
         self.session_tracking_file = (env or {}).get(FILE_ENV)
         self.initial_session_id = (env or {}).get(INITIAL_ID_ENV)
@@ -127,13 +160,30 @@ class AgentSession(AgentSessionPort):
         self._state = AgentStatusState()
         # The poll thread and hook requests both drive the detector, which is not thread-safe.
         self._detector_lock = threading.Lock()
+        self._prompt_context: str | None = None
+        self._prompt_context_lock = threading.Lock()
         self._consumers: set[asyncio.Queue] = set()
         self._inject_lock = asyncio.Lock()
         # Seeded with the PTY's own geometry, so the tap renders the screen the agent actually drew.
         self._tap = ScreenTap(rows=default_rows(), cols=default_cols())
         self._detector = StatusDetector(load_manifest_for(kind))
-        self._pty = PtySession(
-            argv, on_output=self._on_output, on_exit=self._on_exit, cwd=cwd, env=env
+        # Which PTY of this session is current; callbacks of a replaced one are ignored.
+        self._spawn = 0
+        self._rows = default_rows()
+        self._cols = default_cols()
+        self._narrowest_printed: int | None = None
+        self._resized_at = _NEVER
+        self._typed_at = _NEVER
+        self._widen_not_before = _NEVER
+        self._injecting = 0
+        self._pty = self._spawn_pty(argv, cwd, env)
+
+    def _spawn_pty(self, argv: list[str], cwd: str, env: dict[str, str] | None) -> PtySession:
+        spawn = self._spawn
+        return PtySession(
+            argv, on_output=lambda chunk: self._on_output(chunk, spawn),
+            on_exit=lambda: self._on_exit(spawn), cwd=cwd, env=env,
+            rows=self._rows, cols=self._cols,
         )
 
     @property
@@ -186,6 +236,8 @@ class AgentSession(AgentSessionPort):
         """Applies one Claude Code hook report and keeps the detector in step with it."""
         if self.exit_code is not None:
             return HookOutcome(False)
+        if is_clear(body):
+            self.clear_history()
         with self._detector_lock:
             outcome = self._state.apply_hook(body)
             self._sync()
@@ -195,6 +247,17 @@ class AgentSession(AgentSessionPort):
         """Once hooks report, the detector holds whatever status they set."""
         if self._state.hooked:
             self._detector.force(self._state.live)
+
+    def hold_prompt_context(self, context: str) -> None:
+        """Holds hidden context for the next prompt the user submits; never typed into the PTY."""
+        with self._prompt_context_lock:
+            self._prompt_context = context
+
+    def take_prompt_context(self) -> str | None:
+        """The held prompt context, handed out once."""
+        with self._prompt_context_lock:
+            context, self._prompt_context = self._prompt_context, None
+            return context
 
     def mark_seen(self) -> bool:
         """Done becomes idle; True when that changed the status."""
@@ -217,6 +280,11 @@ class AgentSession(AgentSessionPort):
         self._exit_error = None
         return had
 
+    @property
+    def attached_windows(self) -> int:
+        """How many windows are attached right now; 0 means nobody can see this agent."""
+        return len(self._consumers)
+
     def attach(self) -> asyncio.Queue:
         """A queue seeded with a screen redraw, so a reattach can never start mid-sequence."""
         queue: asyncio.Queue = asyncio.Queue()
@@ -236,7 +304,103 @@ class AgentSession(AgentSessionPort):
         self._pty.client_attached = bool(self._consumers)
 
     def write(self, data: str) -> None:
+        """Types into the agent; a submitted clear command of a CLI without a clear hook clears."""
+        self._type(data)
+
+    def _type(self, data: str, injected: bool = False) -> None:
+        """Types data; bridge-composed (injected) text never reads as a clear command."""
+        cleared = self._note_typing(data, injected)
         self._pty.write(data)
+        if cleared:
+            self.clear_history()
+
+    def clear_history(self) -> None:
+        """The user cleared the chat: windows drop their scrollback, then the CLI repaints."""
+        if self.exit_code is not None:
+            return
+        self._clear_pending = True
+        self._flush_pending_clear()
+        repaint = self._clear.repaint if self._clear is not None else None
+        if repaint:
+            timer = threading.Timer(REPAINT_DELAY_SECONDS, self._repaint, args=(repaint,))
+            timer.daemon = True
+            timer.start()
+        if self._cleared is not None:
+            try:
+                self._cleared(self)
+            except Exception:
+                logger.exception("agents: clear callback failed for %s", self.agent_id)
+
+    def _repaint(self, keys: str) -> None:
+        if self.exit_code is None:
+            self._pty.write(keys)
+
+    def _note_typing(self, data: str, injected: bool = False) -> bool:
+        """Feeds the prompt line; True on a user-submitted clear; a lone Escape is not typing."""
+        if data in ("", "\x1b"):
+            return False
+        self._typed_at = utc_now()
+        with self._typed_lock:
+            return self._typed.feed(data, injected)
+
+    @property
+    def has_draft(self) -> bool:
+        """Whether the prompt holds a draft a restart would lose."""
+        return self._typed.has_draft
+
+    def _input_busy(self, now: datetime) -> bool:
+        """A restart now would lose input: an injection in flight, a draft, or a recent key."""
+        return bool(self._injecting) or self.has_draft or now - self._typed_at < WIDEN_TYPING_QUIET
+
+    @property
+    def resumes_on_widen(self) -> bool:
+        """A tracked claude launch that is not a bare skill window can be resumed in place."""
+        return self.session_tracking_file is not None and "--system-prompt" not in self.argv
+
+    def widen_due(self, now: datetime) -> bool:
+        """True once the window settled wider than the narrowest printed width, idle and untyped."""
+        if not self.resumes_on_widen or self._input_busy(now) or self.exit_code is not None:
+            return False
+        live = self._state.snapshot()
+        if live.status not in (STATUS_IDLE, STATUS_DONE) or live.pending is not None:
+            return False
+        narrowest = self._narrowest_printed
+        return (
+            narrowest is not None
+            and self._cols >= narrowest + WIDEN_MIN_GAIN_COLS
+            and now - self._resized_at >= WIDEN_SETTLE and now >= self._widen_not_before
+        )
+
+    def settle_width(self) -> None:
+        """Takes the current width as printed, so a widen that cannot resume is not retried."""
+        self._narrowest_printed = self._cols
+
+    def postpone_widen(self, until: datetime) -> None:
+        """Holds a due widen until `until`, for a check that may pass later (an open question)."""
+        self._widen_not_before = until
+
+    def respawn(self, argv: list[str], cwd: str, env: dict[str, str] | None) -> bool:
+        """Runs `argv` on a new PTY at the current size in place of the old; False keeps the old."""
+        # Re-checked here, so an injection's text and Enter never straddle the swap.
+        if self.exit_code is not None or self._closing or self._input_busy(utc_now()):
+            return False
+        old = self._pty
+        self._spawn += 1
+        try:
+            self._pty = self._spawn_pty(argv, cwd, env)
+        except Exception as exc:
+            self._spawn -= 1
+            logger.warning("agents: could not restart %s at the new width: %s", self.agent_id, exc)
+            return False
+        self.argv = list(argv)
+        self.session_tracking_file = (env or {}).get(FILE_ENV)
+        self.initial_session_id = (env or {}).get(INITIAL_ID_ENV)
+        self._narrowest_printed = None
+        self._pty.client_attached = bool(self._consumers)
+        # Single-threaded loop: the clear goes out before any byte of the new process.
+        self._emit(RESET_SCREEN)
+        old.close()
+        return True
 
     def write_bytes(self, data: bytes) -> None:
         self._pty.write_bytes(data)
@@ -254,10 +418,13 @@ class AgentSession(AgentSessionPort):
         True once the text was typed; it never raises.
         """
         async def run() -> bool:
-            async with self._inject_lock:
-                return await self._inject_once(text, attempts)
+            try:
+                async with self._inject_lock:
+                    return await self._inject_once(text, attempts)
+            finally:
+                self._injecting -= 1
 
-
+        self._injecting += 1
         task = asyncio.create_task(run())
         return task
 
@@ -278,9 +445,9 @@ class AgentSession(AgentSessionPort):
                 if body is None:
                     return False
                 # Enter goes alone: text + "\r" in one write reads as a paste and never submits.
-                self.write(body)
+                self._type(body, injected=True)
                 await asyncio.sleep(context_inject_submit_delay_seconds())
-                self.write("\r")
+                self._type("\r", injected=True)
                 await asyncio.sleep(interval)
                 return True
             await asyncio.sleep(interval)
@@ -300,6 +467,9 @@ class AgentSession(AgentSessionPort):
     def resize(self, rows: int, cols: int) -> None:
         self._pty.resize(rows, cols)
         self._tap.resize(rows, cols)
+        self._rows = rows
+        self._cols = cols
+        self._resized_at = utc_now()
 
     def close(self) -> None:
         """Kills the process from the event loop; a deliberate kill is no error."""
@@ -311,13 +481,28 @@ class AgentSession(AgentSessionPort):
         if self.exit_code is None:
             self._pty.terminate_process()
 
-    def _on_output(self, chunk: str) -> None:
-        # The detector reads the rendered screen, and so does a reattach; same chunks as the socket.
+    def _on_output(self, chunk: str, spawn: int) -> None:
+        if spawn != self._spawn:
+            return
+        self._narrowest_printed = min(self._narrowest_printed or self._cols, self._cols)
+        self._emit(chunk)
+        self._flush_pending_clear()
+
+    def _flush_pending_clear(self) -> None:
+        """Sends a pending clear once the tap is in ground; mid-sequence its ESC prints a tail."""
+        if self._clear_pending and self._tap.in_ground:
+            self._clear_pending = False
+            self._emit(CLEAR_SCROLLBACK)
+
+    def _emit(self, chunk: str) -> None:
+        """Feeds the tap and every window; the detector and a reattach read the same chunks."""
         self._tap.feed(chunk)
         for queue in list(self._consumers):
             queue.put_nowait(chunk)
 
-    def _on_exit(self) -> None:
+    def _on_exit(self, spawn: int = 0) -> None:
+        if spawn != self._spawn:
+            return
         self.exit_code = self._pty.returncode if self._pty.returncode is not None else 0
         if self.exit_code != 0 and not self._closing:
             name = Path(self.argv[0]).stem if self.argv else "agent"
@@ -332,6 +517,19 @@ class AgentSession(AgentSessionPort):
                 logger.exception("agents: exit callback failed for %s", self.agent_id)
 
 
+def _resolve_launch(argv: list[str], cwd: Path, env: dict[str, str] | None) -> RuntimeCli:
+    """The agent's CLI resolved for `env`; raises AgentStartError when it cannot start in `cwd`."""
+    if not argv:
+        raise AgentStartError("no command configured for this agent kind")
+    try:
+        runtime = resolve_runtime_cli(argv[0], env)
+    except CliLookupError as exc:
+        raise AgentStartError(str(exc)) from exc
+    if not cwd.is_dir():
+        raise AgentStartError(f"the agent's worktree is missing: {cwd}")
+    return runtime
+
+
 class AgentSessionRegistry:
     """Every live agent PTY, keyed by agent id — the one place their processes are tracked."""
 
@@ -339,9 +537,16 @@ class AgentSessionRegistry:
         self._sessions: dict[str, AgentSession] = {}
         # Called with the agent id when a registered session exits on its own (not after stop()).
         self.on_exit: Callable[[str], None] | None = None
+        # Called with the agent id when the user cleared a registered session's conversation.
+        self.on_clear: Callable[[str], None] | None = None
 
     def get(self, agent_id: str) -> AgentSession | None:
         return self._sessions.get(agent_id)
+
+    def attached_windows(self, agent_id: str) -> int:
+        """Windows attached to the agent's session; 0 without a session (not a bridge agent)."""
+        session = self._sessions.get(agent_id)
+        return session.attached_windows if session is not None else 0
 
     def is_running(self, agent_id: str) -> bool:
         """Whether the process is alive — not what the LED says, which is a screen reading."""
@@ -360,24 +565,19 @@ class AgentSessionRegistry:
         cwd: Path,
         kind: str = "claude",
         env: dict[str, str] | None = None,
+        clear: ClearWatch | None = None,
     ) -> AgentSession:
         """Spawns the agent, or returns the session already running for it."""
         existing = self._sessions.get(agent_id)
         if existing is not None and existing.is_alive:
             return existing
-        if not argv:
-            raise AgentStartError("no command configured for this agent kind")
-        try:
-            runtime = resolve_runtime_cli(argv[0], env)
-        except CliLookupError as exc:
-            raise AgentStartError(str(exc)) from exc
+        runtime = _resolve_launch(argv, cwd, env)
         argv = [runtime.executable, *argv[1:]]
         env = dict(runtime.env)
-        if not cwd.is_dir():
-            raise AgentStartError(f"the agent's worktree is missing: {cwd}")
         try:
             session = AgentSession(
-                agent_id, argv, str(cwd), kind=kind, env=env, on_exit=self._session_exited
+                agent_id, argv, str(cwd), kind=kind, env=env, on_exit=self._session_exited,
+                clear=clear, on_clear=self._session_cleared,
             )
         except Exception as exc:
             launch_failed(exc)
@@ -385,9 +585,30 @@ class AgentSessionRegistry:
         self._sessions[agent_id] = session
         return session
 
+    def all(self) -> list[AgentSession]:
+        """Every registered session, live or exited."""
+        return list(self._sessions.values())
+
+    def respawn(
+        self, session: AgentSession, argv: list[str], cwd: Path, env: dict[str, str] | None = None
+    ) -> bool:
+        """Restarts `session` in place while it is the live one registered; False keeps the old."""
+        # A session stopped (and maybe restarted) during the sweep is not this one any more.
+        if self._sessions.get(session.agent_id) is not session or not session.is_alive:
+            return False
+        try:
+            runtime = _resolve_launch(argv, cwd, env)
+        except AgentStartError:
+            return False
+        return session.respawn([runtime.executable, *argv[1:]], str(cwd), dict(runtime.env))
+
     def _session_exited(self, session: AgentSession) -> None:
         if self.on_exit is not None and self._sessions.get(session.agent_id) is session:
             self.on_exit(session.agent_id)
+
+    def _session_cleared(self, session: AgentSession) -> None:
+        if self.on_clear is not None and self._sessions.get(session.agent_id) is session:
+            self.on_clear(session.agent_id)
 
     def stop(self, agent_id: str) -> bool:
         """Kills one agent's PTY, keeping its worktree and branch; False if it wasn't running."""

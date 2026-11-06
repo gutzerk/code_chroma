@@ -1,5 +1,6 @@
 import type {
   AgentList,
+  AgentQuestionsPayload,
   AgentRecord,
   AgentWindowGeometry,
   BuiltinDiagramKind,
@@ -14,7 +15,11 @@ import type {
   WorktreeCreated,
   WorktreeList,
   WorktreeRecord,
+  CanvasDoc,
 } from "../state/types";
+import { diagramSubgraph } from "../canvas/doc/question/QuestionDiagram";
+import { questionAgentId, toQuestionView, type QuestionAck, type QuestionAnswerBody } from "../canvas/doc/question/questionAdapter";
+import { MockBridgeEngineClient } from "../engine-client/mockBridge";
 import { parsePrNumber } from "../pr/prUrl";
 import type { AgentClient, DiagramTaskHint, PermissionDecision } from "./agentClient";
 
@@ -37,6 +42,25 @@ const MOCK_DIAGRAM_KINDS: BuiltinDiagramKind[] = [
 // The fixed set GitHub is pretending has open pull requests — e2e picks #7 and #42 from here.
 const GITHUB_PR_NUMBERS = [7, 42, 64];
 
+/** The bridge's GET /agents/{id}/questions rule over one doc: open questions, their sessions' settled ones, option diagrams. */
+export function agentQuestionsFromDoc(doc: CanvasDoc, agentId: string, workspace = "main"): AgentQuestionsPayload {
+  const questions = Object.values(doc.elements).filter((el) => el.render === "question");
+  const open = questions.filter((el) => questionAgentId(el) === agentId && (el.meta.state ?? "open") === "open");
+  const sessions = new Set(open.map((el) => el.meta.session_id).filter((id) => typeof id === "string" && id !== ""));
+  const history = questions.filter((el) => (el.meta.state ?? "open") !== "open" && sessions.has(el.meta.session_id));
+  const diagram = new Set(
+    open.flatMap((el) => toQuestionView(el).options.flatMap((o) => (o.diagramRef ? diagramSubgraph(doc, o.diagramRef) : []))).map((el) => el.id),
+  );
+  const keep = new Set([...open, ...history].map((el) => el.id).concat([...diagram]));
+  return {
+    agent_id: agentId,
+    workspace,
+    open_questions: open.length,
+    elements: Object.fromEntries(Object.entries(doc.elements).filter(([id]) => keep.has(id))),
+    edges: Object.fromEntries(Object.entries(doc.edges).filter(([, e]) => diagram.has(e.from) && diagram.has(e.to))),
+  };
+}
+
 /** Fixture-backed stand-in used whenever VITE_ENGINE_BRIDGE_URL is unset — the same "frontend work
  * is unblocked without a bridge" precedent as MockBridgeEngineClient, and what the e2e specs drive.
  * No git, no worktree, no process: creating an agent just adds a card. */
@@ -50,6 +74,34 @@ export class MockAgentClient implements AgentClient {
   private worktrees: WorktreeRecord[] = [];
   private worktreeCounter = 0;
   private activeWorktree: string | null = null;
+
+  private questionCanvas: MockBridgeEngineClient | null = null;
+
+  /** The mock canvas agent questions live on (the dev "ask a question" preview writes here); made on first use. */
+  get questionEngine(): MockBridgeEngineClient {
+    this.questionCanvas ??= new MockBridgeEngineClient();
+    return this.questionCanvas;
+  }
+
+  async questions(id: string): Promise<AgentQuestionsPayload> {
+    return agentQuestionsFromDoc(await this.questionEngine.getCanvas(), id);
+  }
+
+  async answerQuestion(_id: string, questionId: string, body: QuestionAnswerBody): Promise<QuestionAck> {
+    return this.questionEngine.answerQuestion(questionId, body);
+  }
+
+  async skipQuestion(_id: string, questionId: string): Promise<QuestionAck> {
+    return this.questionEngine.skipQuestion(questionId);
+  }
+
+  async reviseQuestion(_id: string, questionId: string): Promise<QuestionAck> {
+    return this.questionEngine.reviseQuestion(questionId);
+  }
+
+  async requestQuestionDiagram(_id: string, questionId: string): Promise<QuestionAck> {
+    return this.questionEngine.requestQuestionDiagram(questionId);
+  }
 
   /** e2e hook: makes the next preflight report a project that isn't under git yet. */
   setPreflight(preflight: GitPreflight): void {

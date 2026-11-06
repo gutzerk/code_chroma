@@ -80,6 +80,16 @@ public sealed class WorkspaceRegistry : IDisposable
         }
     }
 
+    /// <summary>The workspace id `Get` would serve (an alias resolves to the id it shares, an unregistered id to main) and its root, without bringing it up.</summary>
+    public (string Id, string Root) Resolve(string id)
+    {
+        lock (_lock)
+        {
+            id = Canon(id);
+            return _roots.TryGetValue(id, out var entry) ? (id, entry.Root) : (Workspace.MainId, _roots[Workspace.MainId].Root);
+        }
+    }
+
     /// <summary>The directory a registered id lives in; null when nothing is registered under it.</summary>
     public string? RootFor(string id)
     {

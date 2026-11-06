@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAgentPoll } from "../useAgentPoll";
 import type { AgentClient, AgentUsage } from "../agentClient";
+import type { AgentStatus } from "../../state/types";
 
 /** How often the active agent panel re-reads the selected agent's usage between status changes. */
 export const USAGE_POLL_MS = 5000;
@@ -16,8 +17,8 @@ function percent(ratio: number): number {
   return Math.round(Math.min(Math.max(ratio, 0), 1) * 100);
 }
 
-/** Reads the agent's usage while `enabled` and again on every status change; polls only while it runs and the page is visible. */
-export function useAgentUsage(client: AgentClient, agentId: string, status: string, enabled: boolean) {
+/** Reads the agent's usage while `enabled` and again on every status change; polls only while the agent is working and the page is visible. */
+export function useAgentUsage(client: AgentClient, agentId: string, status: AgentStatus, enabled: boolean) {
   const [usage, setUsage] = useState<AgentUsage | null>(null);
   useAgentPoll(agentId, status, enabled && !!client.usage, USAGE_POLL_MS, async (isLive) => {
     const next = await client.usage!(agentId);

@@ -1,12 +1,10 @@
-import { canvasDocStore } from "../canvas/doc/canvasDocStore";
-import { openQuestionCounts } from "../canvas/doc/question/useOpenAgentQuestions";
 import { layoutStore } from "../canvas/layout/layoutStore";
 import type { AgentRecord, AgentStatus, WorktreeRecord } from "../state/types";
 import type { AgentClient } from "./agentClient";
 import { attentionBody, attentionTitle, notifyAgentStatus, statusChangeKind } from "./agentNotifications";
 import { currentEffectiveStatuses, isLookingAtAgent, viewedAgentId } from "./agentAttention";
 import { answerPermission, markSeen, nextBlockedAgent, openAgent } from "./agentFocus";
-import { agentStore } from "./agentStore";
+import { agentStore, openQuestionCount } from "./agentStore";
 import {
   getDesktopWorkspaceApi,
   type AgentCommand,
@@ -74,11 +72,10 @@ export interface StatusSnapshot {
 
 /** Every agent's raw and effective status right now. */
 function statusSnapshot(): Map<string, StatusSnapshot> {
-  const questions = openQuestionCounts(canvasDocStore.getDoc().elements);
   return new Map(
     agentStore.getAgents().map((agent) => [
       agent.id,
-      { raw: agent.status, effective: effectiveStatus(agent, questions.get(agent.id) ?? 0) },
+      { raw: agent.status, effective: effectiveStatus(agent, openQuestionCount(agent)) },
     ]),
   );
 }
@@ -108,18 +105,11 @@ function isInTerminal(event: KeyboardEvent): boolean {
   return event.target instanceof Element && event.target.closest(".xterm") !== null;
 }
 
-/** Open question counts as a comparable string, so a drag that moves elements but asks nothing is skipped. */
-function questionKey(): string {
-  const counts = openQuestionCounts(canvasDocStore.getDoc().elements);
-  return [...counts].sort(([a], [b]) => a.localeCompare(b)).join(";");
-}
-
 /** Everything the sync reads from the stores; an emit that changes none of it is skipped. */
 function syncInputs(): readonly unknown[] {
   const { agentsMode, selectedAgentId } = layoutStore.getState();
   return [
     agentStore.getAgents(),
-    questionKey(),
     worktreeStore.getActiveId(),
     worktreeStore.getRecords(),
     agentsMode,
@@ -182,7 +172,6 @@ export function startAgentStatusSync(client: AgentClient): () => void {
     agentStore.subscribe(onStoreChange),
     layoutStore.subscribe(onStoreChange),
     worktreeStore.subscribe(onStoreChange),
-    canvasDocStore.subscribe(onStoreChange),
   ];
   window.addEventListener("focus", onChange);
   document.addEventListener("visibilitychange", onChange);

@@ -30,13 +30,13 @@ public static class QuestionValidation
         return problems;
     }
 
-    /// <summary>One line per `diagram_ref` that names no canvas element.</summary>
+    /// <summary>One line per `diagram_ref` that names no option diagram, so a canvas diagram never becomes a question's.</summary>
     public static List<string> UnknownRefs(AskRequest request, IEnumerable<string> knownIds)
     {
         var known = knownIds.ToHashSet();
         return request.Options
             .Where(o => !string.IsNullOrEmpty(o.DiagramRef) && !known.Contains(o.DiagramRef))
-            .Select(o => $"Option \"{(o.Title.Length > 0 ? o.Title : o.Id)}\": diagram_ref '{o.DiagramRef}' is unknown")
+            .Select(o => $"Option \"{(o.Title.Length > 0 ? o.Title : o.Id)}\": diagram_ref '{o.DiagramRef}' is not an option diagram; draw it with draw_option_diagram and pass the returned diagram_ref")
             .ToList();
     }
 

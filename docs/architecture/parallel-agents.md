@@ -715,7 +715,7 @@ model id or its dated snapshot; `costUsd` is null when any model with tokens has
 
 The web reads it through the optional `AgentClient.usage` (`HttpAgentClient` only; the mock has none, so
 the strip stays hidden there). `activity/UsageStrip.tsx`'s `useAgentUsage` fetches only for the selected
-agent while full screen is open, again on each status change and, while the agent is running and the page is visible, every `USAGE_POLL_MS` (5 s), and
+agent while full screen is open, again on each status change and, while the agent is live (`statusRollup.isLiveStatus`: idle, working, blocked or done; not stopped or error) and the page is visible, every `USAGE_POLL_MS` (5 s), and
 `UsageStrip` renders "Context 62k / 200k · 31%" with a `role="meter"` bar, "Tokens 184k in · 12k out",
 "Cache hit 78%" and "Cost $0.84" (omitted when `costUsd` is null). Tests:
 `dotnet/CodeChroma.Bridge.Tests/Agents/AgentUsageTests.cs`, `web/src/agents/activity/UsageStrip.test.tsx`.
@@ -742,7 +742,7 @@ The web side lives in `web/src/agents/prompts/`:
 | `promptNav.ts` | Pure logic: `toPrompts` + `replySummary` ("1 edit, 1 run" / "answer"), `clampIndex`, `activeIndexAt` (last prompt at or above the viewport top + 3 rows), `filterPrompts`, `findPromptLines` (each prompt's echo row: a row starting with `>`/`❯`/`›`/`!` plus its indented rows up to a `⎿` row of hook/tool output, compared whole with the prompt, whitespace removed, first 60 chars; matched newest first so a repeated prompt keeps its own echo after old rows leave the 5000-line scrollback; null when not found) |
 | `promptNavStore.ts` | Per-agent state kept across agent switches: prompts, buffer lines, `current`, aria-live text, find requests. `go` scrolls the attached viewport and ignores its own scroll events for `JUMP_LOCK_MS` (250 ms). `ActivityPanel` calls `retain` with the live agent ids so a deleted agent's state is dropped |
 | `xtermPromptViewport.ts` | Attached through `useXtermSession`'s `onTerminal`: re-scans the buffer 200 ms after output or resize (skipped while the terminal is hidden; `AgentTerminal` calls `rescanPrompts` when it is shown again), follows the viewport (rAF-throttled), scrolls a prompt one row below the top, and highlights the current echo with an xterm decoration |
-| `usePromptList.ts` | Loads the selected agent's prompts; polls every 3 s while it runs and the page is visible |
+| `usePromptList.ts` | Loads the selected agent's prompts; polls every 3 s while the agent is live (`isLiveStatus`, shared with usage through `useAgentPoll`) and the page is visible |
 | `usePromptHotkeys.ts` | One window listener: Alt+↑/↓ prev/next and Cmd/Ctrl+Shift+P find, only while focus is inside a `data-prompt-nav-agent` element and not in another text field (the terminal's own input and the prompt search are allowed) |
 | `PromptNavBar.tsx`, `PromptPicker.tsx`, `PromptOutline.tsx`, `PromptMarkers.tsx` | The compact 44px bar with a listbox popover, the full-screen 48px bar (Prev/Next/Latest), the full-screen left-column outline under `AgentList`, and the marker rail on the terminal's right edge |
 

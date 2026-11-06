@@ -40,6 +40,20 @@ export function isAttentionStatus(status: AgentStatus): status is AttentionStatu
   return ATTENTION.has(status);
 }
 
+/** Whether the agent's session is alive and may still write prompts or usage; exhaustive so a status change breaks the build. */
+const LIVE: Record<AgentStatus, boolean> = {
+  idle: true,
+  working: true,
+  blocked: true,
+  done: true,
+  stopped: false,
+  error: false,
+};
+
+export function isLiveStatus(status: AgentStatus): boolean {
+  return LIVE[status];
+}
+
 /** Store-boundary guard against an older bridge: `exited` is `error` (non-zero exit) or `stopped`, any other unknown value `idle`. */
 export function normalizeAgentStatus(status: string, exitCode: number | null = null): AgentStatus {
   if (status === "exited") return exitCode ? "error" : "stopped";

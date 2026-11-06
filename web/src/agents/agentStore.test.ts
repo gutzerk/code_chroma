@@ -259,22 +259,10 @@ describe("workspace switching", () => {
     expect(agentStore.getActiveWorkspace()).toBe("pr-9");
   });
 
-  it("keeps the first load's workspace across later list refreshes", () => {
-    agentStore.setList({ agents: [], active_workspace: "refund-flow", max_agents: 5 });
+  it("leaves the boot's restore to ensureWorktrees: a list never moves the workspace", () => {
+    agentStore.setList({ agents: [agent("refund-flow")], active_workspace: "pr-7", max_agents: 5 });
 
-    agentStore.setList({ agents: [], active_workspace: "main", max_agents: 5 });
-
-    expect(agentStore.getActiveWorkspace()).toBe("refund-flow");
-  });
-
-  it("restores the workspace the bridge remembers on load", () => {
-    agentStore.setList({
-      agents: [agent("refund-flow")],
-      active_workspace: "refund-flow",
-      max_agents: 5,
-    });
-
-    expect(agentStore.getActiveWorkspace()).toBe("refund-flow");
+    expect(agentStore.getActiveWorkspace()).toBe("main");
   });
 
   it("switching does not touch any agent's status", () => {

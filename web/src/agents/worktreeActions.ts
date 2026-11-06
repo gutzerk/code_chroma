@@ -4,6 +4,8 @@ import { agentStore } from "./agentStore";
 import { messageOf } from "../util/reportError";
 import { workspaceStore } from "./workspaceStore";
 import { worktreeStore } from "./worktreeStore";
+import { getDesktopWorkspaceApi } from "./desktopWorkspaceApi";
+import { prStore } from "../pr/prStore";
 
 function applyList(list: WorktreeList): void {
   worktreeStore.setList(list.branches, list.active);
@@ -11,9 +13,9 @@ function applyList(list: WorktreeList): void {
 
 /** Makes `id` (a worktree tab or an agent/PR workspace id) the canvas's workspace, persisting a tab
  * choice and bringing its graph up; a no-op when it is already shown. */
-export function selectWorktree(client: AgentClient, id: string): void {
+export function selectWorktree(client: AgentClient, id: string): Promise<void> {
   const isTab = worktreeStore.has(id);
-  if (agentStore.getActiveWorkspace() === id && (!isTab || worktreeStore.getActiveId() === id)) return;
+  if (agentStore.getActiveWorkspace() === id && (!isTab || worktreeStore.getActiveId() === id)) return Promise.resolve();
   agentStore.setActiveWorkspace(id);
   if (isTab) {
     worktreeStore.setActive(id);
@@ -21,23 +23,63 @@ export function selectWorktree(client: AgentClient, id: string): void {
       // Best effort: the choice only matters for the next boot.
     });
   }
-  client
+  return client
     .activateWorkspace(id)
     .then((status) => workspaceStore.setStatus(status))
     // A swallowed failure would leave the canvas silently on the previous workspace's data.
     .catch((err) => agentStore.setLaunchError(messageOf(err)));
 }
 
-/** Boot: restores every tab (creating `wt-N` only when none exist) and selects the active one. */
+/** Boot: restores every tab (creating `wt-N` only when none exist), selects the active one and
+ * reopens the PR review the project was last showing. */
 export async function ensureWorktrees(client: AgentClient): Promise<void> {
-  const list = await client.ensureWorktrees();
+  const [list, rememberedPr] = await Promise.all([client.ensureWorktrees(), lastViewedPr(client)]);
   applyList(list);
   const current = agentStore.getActiveWorkspace();
-  // A window opened on a PR (?workspace=pr-N) keeps it; an explicit known tab (?workspace=br_x) wins
-  // over the bridge's active one (and is PUT as active); anything else follows the tab list.
-  if (current.startsWith("pr-")) return;
+  // A window opened on a PR (?workspace=pr-N) keeps it and records it as the last-viewed workspace.
+  if (current.startsWith("pr-")) {
+    client.activateWorkspace(current).then(workspaceStore.setStatus, () => {
+      // Best effort: the status banner's own poll reports a PR that can no longer be drawn.
+    });
+    return;
+  }
+  // An explicit known tab (?workspace=br_x) wins over the bridge's active one (and is PUT as active);
+  // anything else follows the tab list.
   const target = worktreeStore.has(current) ? current : worktreeStore.getActiveId();
-  if (target) selectWorktree(client, target);
+  const desktop = getDesktopWorkspaceApi();
+  if (rememberedPr && !desktop) {
+    await restorePr(client, rememberedPr, target);
+    return;
+  }
+  if (target) await selectWorktree(client, target);
+  // The desktop app shows a PR review in its own tab, so it reopens that tab beside this one.
+  if (rememberedPr && desktop) {
+    await desktop.openWorkspaceWindow(rememberedPr).catch(() => {
+      // Best effort: the review stays one click away in the PR dialog.
+    });
+  }
+}
+
+/** The PR review the bridge last drew for this project, when it is still open; null otherwise. */
+async function lastViewedPr(client: AgentClient): Promise<string | null> {
+  try {
+    const { prs, active_workspace: active } = await client.listPrs();
+    prStore.setList(prs);
+    return prs.some((pr) => pr.id === active) ? active : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Draws the remembered PR in place; one that can no longer be loaded falls back to the tab silently. */
+async function restorePr(client: AgentClient, id: string, fallback: string | null): Promise<void> {
+  agentStore.setActiveWorkspace(id);
+  try {
+    workspaceStore.setStatus(await client.activateWorkspace(id));
+  } catch {
+    if (fallback) await selectWorktree(client, fallback);
+    else agentStore.setActiveWorkspace("main");
+  }
 }
 
 /** Re-reads the tab list (dirty counts included) without touching the selection. */

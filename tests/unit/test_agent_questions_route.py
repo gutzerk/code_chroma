@@ -59,6 +59,20 @@ def test_reads_the_agents_question_history_and_option_diagram_from_the_workspace
     assert len(body["edges"]) == 1
 
 
+def test_a_neighbours_settled_question_in_the_same_session_is_not_in_the_history(bridge):
+    with TestClient(bridge.app) as client:
+        tab, agent = _agent_on_tab(client)
+        theirs = _ask(
+            bridge, "someone-else", into=agent, question="Their earlier?", session_id="s1"
+        )
+        client.post(f"/repos/{tab}/questions/{theirs}/answer", json={"option_id": "a"})
+        _ask(bridge, agent, session_id="s1")
+
+        body = client.get(f"/agents/{agent}/questions").json()
+
+    assert [e["label"] for e in body["elements"].values()] == ["Now?"]
+
+
 def test_an_unknown_agent_is_a_404_on_read_and_every_write(bridge):
     with TestClient(bridge.app) as client:
         statuses = [

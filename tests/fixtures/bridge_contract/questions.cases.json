@@ -2134,6 +2134,217 @@
           }
         }
       ]
+    },
+    {
+      "id": "a_neighbours_settled_question_in_the_same_session_stays_out_of_an_agents_history",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Asker",
+              "kind": "shell",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.id",
+                "equals": "asker"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/{{ws}}/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "theirs",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Their earlier?",
+                  "meta": {
+                    "question_id": "q0",
+                    "session_id": "s1",
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "answered",
+                    "answer": "Modular monolith",
+                    "option_id": "a",
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "other",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                },
+                {
+                  "op": "add_element",
+                  "temp_id": "mine",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Mine?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": "s1",
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "asker",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents/asker/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.open_questions",
+                "equals": 1
+              },
+              {
+                "path": "$.elements",
+                "count": 1
+              },
+              {
+                "path": "$.elements..label",
+                "contains": "Mine?"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "a_caller_sent_degraded_flag_does_not_skip_validation_on_the_hook_route",
+      "steps": [
+        {
+          "token": "main",
+          "as": "tok"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ask",
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            },
+            "json": {
+              "question": "Which plan?",
+              "degraded": true,
+              "options": [
+                {
+                  "id": "a",
+                  "title": "A"
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 422,
+            "checks": [
+              {
+                "path": "$.detail",
+                "contains": "CodeChroma rejected the question."
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

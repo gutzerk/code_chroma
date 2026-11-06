@@ -19,7 +19,7 @@ public static class AgentQuestionView
         var sessions = open.Select(e => Json.Str(e.Meta["session_id"])).OfType<string>().Where(s => s.Length > 0).ToHashSet();
         var keep = open.Select(e => e.Id).ToHashSet();
         foreach (var e in doc.Elements.Values)
-            if (e.Render == "question" && !IsOpen(e) && Json.Str(e.Meta["session_id"]) is { Length: > 0 } session && sessions.Contains(session)) keep.Add(e.Id);
+            if (e.Render == "question" && !IsOpen(e) && Json.Str(e.Meta["agent_id"]) == agentId && Json.Str(e.Meta["session_id"]) is { Length: > 0 } session && sessions.Contains(session)) keep.Add(e.Id);
         var roots = open.SelectMany(q => q.Meta["options"] as JsonArray ?? []).Select(o => Json.Str(o?["diagram_ref"])).OfType<string>().Where(r => r.Length > 0);
         var diagram = new HashSet<string>();
         foreach (var root in roots) diagram.UnionWith(Subgraph(doc, root));

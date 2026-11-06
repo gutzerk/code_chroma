@@ -99,10 +99,14 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, Func<strin
     /// <summary>Throws QuestionRejected on a contract break; at the retry limit lets one through degraded.</summary>
     private async Task<JsonObject?> Check(Workspace ws, string workspaceId, AskRequest request, string? connection)
     {
-        if (request.Degraded) return new JsonObject { ["degraded"] = true };
+        if (request.Degraded)
+        {
+            await DropForeignRefs(ws, workspaceId, request);
+            return new JsonObject { ["degraded"] = true };
+        }
         var problems = QuestionValidation.Validate(request);
         if (problems.Count == 0 && request.Options.Any(o => !string.IsNullOrEmpty(o.DiagramRef)))
-            problems = QuestionValidation.UnknownRefs(request, await Task.Run(() => QuestionStore.OptionDiagramIds(ws)));
+            problems = QuestionValidation.UnknownRefs(request, await Task.Run(() => QuestionStore.OptionDiagramIds(ws, workspaceId)));
         var key = !string.IsNullOrEmpty(request.SessionId) ? request.SessionId : !string.IsNullOrEmpty(connection) ? "conn:" + connection : null;
         if (problems.Count == 0)
         {
@@ -116,7 +120,17 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, Func<strin
             throw new QuestionRejected(text);
         }
         Rejections.Reset(workspaceId, key);
+        await DropForeignRefs(ws, workspaceId, request);
         return new JsonObject { ["degraded"] = true, ["validation"] = text };
+    }
+
+    /// <summary>A degraded ask skips validation, so it keeps only refs to option diagrams this agent drew; any other canvas element would be pulled into its card.</summary>
+    private static async Task DropForeignRefs(Workspace ws, string agentId, AskRequest request)
+    {
+        if (!request.Options.Any(o => !string.IsNullOrEmpty(o.DiagramRef))) return;
+        var known = await Task.Run(() => QuestionStore.OptionDiagramIds(ws, agentId));
+        foreach (var option in request.Options)
+            if (!string.IsNullOrEmpty(option.DiagramRef) && !known.Contains(option.DiagramRef)) option.DiagramRef = null;
     }
 
     /// <summary>Draws one option diagram after the node budget check; returns its `diagram_ref`.</summary>
@@ -124,7 +138,7 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, Func<strin
     {
         QuestionDiagrams.Check(nodes, edges, title);
         var ws = workspaceFor(workspaceId);
-        var root = await Task.Run(() => QuestionStore.DrawDiagram(ws, title, nodes, edges, questionId, optionId));
+        var root = await Task.Run(() => QuestionStore.DrawDiagram(ws, title, nodes, edges, questionId, optionId, workspaceId));
         // A draft drawn before its question shows nowhere yet; one attached to a question changes the window.
         if (!string.IsNullOrEmpty(questionId)) questionsChanged?.Invoke(workspaceId);
         var drawn = new JsonObject { ["diagram_ref"] = root };

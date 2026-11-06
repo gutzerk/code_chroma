@@ -252,19 +252,19 @@ export class HttpAgentClient implements AgentClient {
   }
 
   answerQuestion(id: string, questionId: string, body: QuestionAnswerBody): Promise<QuestionAck> {
-    return this.request<QuestionAck>(`/agents/${id}/questions/${questionId}/answer`, this.json("POST", body));
+    return this.request<QuestionAck>(`/agents/${id}/questions/${encodeURIComponent(questionId)}/answer`, this.json("POST", body));
   }
 
   skipQuestion(id: string, questionId: string): Promise<QuestionAck> {
-    return this.request<QuestionAck>(`/agents/${id}/questions/${questionId}/skip`, this.json("POST"));
+    return this.request<QuestionAck>(`/agents/${id}/questions/${encodeURIComponent(questionId)}/skip`, this.json("POST"));
   }
 
   reviseQuestion(id: string, questionId: string): Promise<QuestionAck> {
-    return this.request<QuestionAck>(`/agents/${id}/questions/${questionId}/revise`, this.json("POST"));
+    return this.request<QuestionAck>(`/agents/${id}/questions/${encodeURIComponent(questionId)}/revise`, this.json("POST"));
   }
 
   requestQuestionDiagram(id: string, questionId: string): Promise<QuestionAck> {
-    return this.request<QuestionAck>(`/agents/${id}/questions/${questionId}/request-diagram`, this.json("POST"));
+    return this.request<QuestionAck>(`/agents/${id}/questions/${encodeURIComponent(questionId)}/request-diagram`, this.json("POST"));
   }
 
   activateWorkspace(id: string): Promise<WorkspaceStatus> {

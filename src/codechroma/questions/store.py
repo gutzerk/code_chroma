@@ -92,6 +92,7 @@ def _adopt_ops(doc: CanvasDoc, request: AskRequest, question_id: str) -> list[di
     roots = [
         doc.elements[r] for r in refs
         if r in doc.elements and diagrams.is_draft_layer(doc.elements[r].layer)
+        and _diagram_owner(doc, doc.elements[r]) == request.agent_id
     ]
     moved = {root.id for root in roots}
     moved |= {
@@ -173,10 +174,14 @@ def _cleanup_ops(doc: CanvasDoc, questions: list[Element]) -> list[dict]:
         diagrams.layer_for(q.meta["question_id"], "") for q in questions
         if q.meta.get("question_id")
     }
-    refs = {o.get("diagram_ref") for q in questions for o in q.meta.get("options", [])}
+    refs = {
+        (o.get("diagram_ref"), q.meta.get("agent_id"))
+        for q in questions for o in q.meta.get("options", [])
+    }
     roots = {
-        r for r in refs
+        r for r, agent in refs
         if r and r in doc.elements and diagrams.is_decision_layer(doc.elements[r].layer)
+        and _diagram_owner(doc, doc.elements[r]) == agent
     }
     doomed = {q.id for q in questions} | {
         e.id for e in doc.elements.values()
@@ -287,10 +292,26 @@ def reopen(ws: Workspace, element: Element) -> list[str]:
     return later
 
 
-def option_diagram_ids(ws: Workspace) -> set[str]:
-    """Ids on a `decisions` layer: the only elements a `diagram_ref` may name."""
+def option_diagram_ids(ws: Workspace, agent_id: str | None) -> set[str]:
+    """Ids on a `decisions` layer that `agent_id` drew: the only ids its `diagram_ref` may name."""
     doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
-    return {e.id for e in doc.elements.values() if diagrams.is_decision_layer(e.layer)}
+    return {
+        e.id for e in doc.elements.values()
+        if diagrams.is_decision_layer(e.layer) and _diagram_owner(doc, e) == agent_id
+    }
+
+
+def _diagram_owner(doc: CanvasDoc, element: Element) -> str | None:
+    """The agent that drew it: its root's `agent_id`, else the agent of the question it is under."""
+    root = doc.elements.get(element.group_id or "", element)
+    if owner := root.meta.get("agent_id"):
+        return owner
+    question = next((
+        e for e in doc.elements.values()
+        if e.render == "question" and e.meta.get("question_id")
+        and diagrams.layer_for(e.meta["question_id"], "") == element.layer
+    ), None)
+    return question.meta.get("agent_id") if question else None
 
 
 def find_diagram_requested(
@@ -369,6 +390,7 @@ def _next_top(doc: CanvasDoc, layer: str) -> float:
 def draw_diagram(
     ws: Workspace, title: str, nodes: list[diagrams.DiagramNode],
     edges: list[diagrams.DiagramEdge], question_id: str | None, option_id: str | None,
+    agent_id: str | None = None,
 ) -> str:
     """Draws one option diagram on its `decisions/<question_id>` layer; returns its root id."""
     with canvas_lock(ws.id):
@@ -376,10 +398,14 @@ def draw_diagram(
         target = None
         if question_id:
             target = _question_in(doc, question_id)
+            if agent_id is not None and target.meta.get("agent_id") != agent_id:
+                raise QuestionWriteError(f"unknown question {question_id!r}")
             if option_id not in {o["id"] for o in target.meta.get("options", [])}:
                 raise QuestionWriteError(f"unknown option {option_id!r} on that question")
         layer = diagrams.layer_for(question_id, uuid.uuid4().hex[:8])
         ops = diagrams.diagram_ops(title, nodes, edges, _next_top(doc, layer), option_id, layer)
+        if agent_id is not None:
+            ops[0]["meta"]["agent_id"] = agent_id
         result = apply_batch(doc, ops, explanation="ai question")
         if result.ok and target is not None:
             assert result.doc is not None

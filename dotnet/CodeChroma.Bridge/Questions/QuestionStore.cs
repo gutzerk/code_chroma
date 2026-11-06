@@ -83,7 +83,8 @@ public static class QuestionStore
     private static List<JsonNode?> AdoptOps(CanvasDoc doc, AskRequest request, string questionId)
     {
         var target = QuestionDiagrams.LayerFor(questionId, "");
-        var roots = request.Options.Select(o => o.DiagramRef).Where(r => !string.IsNullOrEmpty(r) && doc.Elements.TryGetValue(r, out var e) && QuestionDiagrams.IsDraftLayer(e.Layer)).ToHashSet();
+        var roots = request.Options.Select(o => o.DiagramRef)
+            .Where(r => !string.IsNullOrEmpty(r) && doc.Elements.TryGetValue(r, out var e) && QuestionDiagrams.IsDraftLayer(e.Layer) && DiagramOwner(doc, e) == request.AgentId).ToHashSet();
         var moved = roots.ToHashSet();
         foreach (var e in doc.Elements.Values)
             if (e.GroupId is not null && roots.Contains(e.GroupId) && QuestionDiagrams.IsDraftLayer(e.Layer)) moved.Add(e.Id);
@@ -178,8 +179,9 @@ public static class QuestionStore
     private static List<JsonNode?> CleanupOps(CanvasDoc doc, List<CanvasElement> questions)
     {
         var layers = questions.Select(q => Json.Str(q.Meta["question_id"])).OfType<string>().Where(id => id.Length > 0).Select(id => QuestionDiagrams.LayerFor(id, "")).ToHashSet();
-        var roots = questions.SelectMany(q => q.Meta["options"] as JsonArray ?? []).Select(o => Json.Str(o?["diagram_ref"]))
-            .OfType<string>().Where(r => doc.Elements.TryGetValue(r, out var root) && QuestionDiagrams.IsDecisionLayer(root.Layer)).ToHashSet();
+        var roots = questions.SelectMany(q => (q.Meta["options"] as JsonArray ?? []).Select(o => (Ref: Json.Str(o?["diagram_ref"]), Agent: Json.Str(q.Meta["agent_id"]))))
+            .Where(p => p.Ref is not null && doc.Elements.TryGetValue(p.Ref, out var root) && QuestionDiagrams.IsDecisionLayer(root.Layer) && DiagramOwner(doc, root) == p.Agent)
+            .Select(p => p.Ref!).ToHashSet();
         var doomed = questions.Select(q => q.Id).ToHashSet();
         foreach (var e in doc.Elements.Values)
             if (layers.Contains(e.Layer) || roots.Contains(e.Id) || (e.GroupId is not null && roots.Contains(e.GroupId) && QuestionDiagrams.IsDecisionLayer(e.Layer))) doomed.Add(e.Id);
@@ -208,8 +210,21 @@ public static class QuestionStore
         return later;
     }
 
-    /// <summary>Every option-diagram element id (on a `decisions` layer), the only ids a `diagram_ref` may name.</summary>
-    public static HashSet<string> OptionDiagramIds(Workspace ws) => [.. Load(ws).Elements.Values.Where(e => QuestionDiagrams.IsDecisionLayer(e.Layer)).Select(e => e.Id)];
+    /// <summary>The option-diagram element ids (on a `decisions` layer) `agentId` drew, the only ids its `diagram_ref` may name.</summary>
+    public static HashSet<string> OptionDiagramIds(Workspace ws, string? agentId)
+    {
+        var doc = Load(ws);
+        return [.. doc.Elements.Values.Where(e => QuestionDiagrams.IsDecisionLayer(e.Layer) && DiagramOwner(doc, e) == agentId).Select(e => e.Id)];
+    }
+
+    /// <summary>The agent that drew an option-diagram element: its root's `agent_id`, else the agent of the question whose layer it is on.</summary>
+    private static string? DiagramOwner(CanvasDoc doc, CanvasElement element)
+    {
+        var root = element.GroupId is { } group && doc.Elements.TryGetValue(group, out var parent) ? parent : element;
+        if (Json.Str(root.Meta["agent_id"]) is { Length: > 0 } owner) return owner;
+        var question = doc.Elements.Values.FirstOrDefault(e => e.Render == "question" && Json.Str(e.Meta["question_id"]) is { Length: > 0 } id && QuestionDiagrams.LayerFor(id, "") == element.Layer);
+        return question is null ? null : Json.Str(question.Meta["agent_id"]);
+    }
 
     /// <summary>The open diagram-requested card this re-ask continues, and its older duplicates.</summary>
     public static (CanvasElement Keep, List<CanvasElement> Stale)? FindDiagramRequested(Workspace ws, AskRequest request)
@@ -258,7 +273,7 @@ public static class QuestionStore
     }
 
     /// <summary>Draws one option diagram on its `decisions/<question id>` layer (a fresh key when no question is named) and returns its root id (the ref); nothing is drawn if the option is unknown.</summary>
-    public static string DrawDiagram(Workspace ws, string title, IReadOnlyList<DiagramNode> nodes, IReadOnlyList<DiagramEdge> edges, string? questionId, string? optionId)
+    public static string DrawDiagram(Workspace ws, string title, IReadOnlyList<DiagramNode> nodes, IReadOnlyList<DiagramEdge> edges, string? questionId, string? optionId, string? agentId = null)
     {
         lock (CanvasWrite.LockFor(ws.Id))
         {
@@ -266,13 +281,15 @@ public static class QuestionStore
             CanvasElement? target = null;
             if (!string.IsNullOrEmpty(questionId))
             {
-                target = doc.Elements.Values.FirstOrDefault(e => e.Render == "question" && Json.Str(e.Meta["question_id"]) == questionId)
+                target = doc.Elements.Values.FirstOrDefault(e => e.Render == "question" && Json.Str(e.Meta["question_id"]) == questionId && (agentId is null || Json.Str(e.Meta["agent_id"]) == agentId))
                     ?? throw new QuestionWriteException($"unknown question '{questionId}'");
                 var optionIds = (target.Meta["options"] as JsonArray ?? []).Select(o => Json.Str(o?["id"])).ToHashSet();
                 if (optionId is null || !optionIds.Contains(optionId)) throw new QuestionWriteException($"unknown option '{optionId}' on that question");
             }
             var layer = QuestionDiagrams.LayerFor(questionId, Guid.NewGuid().ToString("N")[..8]);
-            var result = ApplyBatch.Apply(doc, QuestionDiagrams.Ops(title, nodes, edges, NextTop(doc, layer), optionId, layer), "default", Explanation);
+            var ops = QuestionDiagrams.Ops(title, nodes, edges, NextTop(doc, layer), optionId, layer);
+            if (agentId is not null) ops[0]!["meta"]!["agent_id"] = agentId;
+            var result = ApplyBatch.Apply(doc, ops, "default", Explanation);
             if (result.Ok && target is not null)
             {
                 var rootId = result.IdMap["root"];

@@ -103,7 +103,7 @@ public class QuestionBatchDeliveryTests
         using var host = new BridgeHost();
         var ws = Main(host);
         DiagramNode[] nodes = [new("api", "API", "d"), new("db", "DB", "d")];
-        var draft = QuestionStore.DrawDiagram(ws, "Draft", nodes, [new DiagramEdge("api", "db")], null, null);
+        var draft = QuestionStore.DrawDiagram(ws, "Draft", nodes, [new DiagramEdge("api", "db")], null, null, "agent-1");
         var questionId = Ask(host, "agent-1", options: [Option("a", 1, diagramRef: draft), Option("b", 2)]);
         QuestionStore.DrawDiagram(ws, "Attached", nodes, [new DiagramEdge("api", "db")], questionId, "b");
         var unrelated = QuestionStore.DrawDiagram(ws, "Other draft", nodes, [], null, null);
@@ -111,10 +111,27 @@ public class QuestionBatchDeliveryTests
         Settle(host, questionId, new Terminals().Live("agent-1"));
 
         var doc = CanvasDoc.Load(ws.CanvasCorePath(), ws.DiagramsRoot());
+        Assert.DoesNotContain(draft, doc.Elements.Keys);
         Assert.DoesNotContain(doc.Elements.Values, e => e.Render == "question");
         Assert.DoesNotContain(doc.Elements.Values, e => e.Layer == QuestionDiagrams.LayerFor(questionId, ""));
         Assert.DoesNotContain(doc.Edges.Values, e => e.Layer.StartsWith(QuestionDiagrams.LayerPrefix, StringComparison.Ordinal) && !QuestionDiagrams.IsDraftLayer(e.Layer));
         Assert.Contains(unrelated, doc.Elements.Keys);
+    }
+
+    [Fact]
+    public void A_completed_batch_never_deletes_an_option_diagram_another_agent_drew()
+    {
+        using var host = new BridgeHost();
+        var ws = Main(host);
+        var theirs = QuestionStore.DrawDiagram(ws, "Theirs", [new DiagramNode("api", "API", "d")], [], null, null, "agent-2");
+        var questionId = Ask(host, "agent-1", options: [Option("a", 1, diagramRef: theirs), Option("b", 2)]);
+
+        Settle(host, questionId, new Terminals().Live("agent-1"));
+
+        var doc = CanvasDoc.Load(ws.CanvasCorePath(), ws.DiagramsRoot());
+        Assert.DoesNotContain(doc.Elements.Values, e => e.Render == "question");
+        Assert.Contains(theirs, doc.Elements.Keys);
+        Assert.Contains(doc.Elements.Values, e => e.GroupId == theirs);
     }
 
     [Fact]

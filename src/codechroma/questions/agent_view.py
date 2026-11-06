@@ -60,7 +60,8 @@ def read(registry: WorkspaceRegistry, agent_id: str) -> dict[str, Any]:
     sessions = {s for q in open_questions if (s := q.meta.get("session_id"))}
     keep = {q.id for q in open_questions} | {
         e.id for e in doc.elements.values()
-        if e.render == "question" and not _is_open(e) and e.meta.get("session_id") in sessions
+        if e.render == "question" and not _is_open(e) and e.meta.get("agent_id") == agent_id
+        and e.meta.get("session_id") in sessions
     }
     diagram: set[str] = set()
     for question in open_questions:

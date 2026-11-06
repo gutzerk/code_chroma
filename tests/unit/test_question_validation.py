@@ -292,8 +292,60 @@ def test_draw_diagram_with_an_empty_title_is_rejected(mcp):
         asyncio.run(mcp.draw_diagram("main", "  ", nodes, [], None, None))
 
 
+def test_an_ask_cannot_take_an_option_diagram_another_agent_drew(bridge):
+    mcp = QuestionMcp(lambda _agent_id: bridge.main, attached_windows=lambda _agent_id: 1)
+    theirs = asyncio.run(mcp.draw_diagram("agent-2", "T", [_node("a")], [], None, None))
+    options = [_option("a", 1, diagram_ref=theirs["diagram_ref"]), _option("b", 2)]
+
+    with pytest.raises(QuestionRejected) as caught:
+        asyncio.run(mcp.ask("agent-1", _request(options, kind="diagram")))
+
+    assert "draw_option_diagram" in str(caught.value)
+    assert store.list_questions(bridge.main) == []
+
+
+def test_an_agent_cannot_draw_onto_another_agents_question(bridge):
+    mcp = QuestionMcp(lambda _agent_id: bridge.main, attached_windows=lambda _agent_id: 1)
+    asked = asyncio.run(mcp.ask("agent-2", _request()))
+
+    with pytest.raises(store.QuestionWriteError):
+        asyncio.run(mcp.draw_diagram("agent-1", "T", [_node("a")], [], asked["question_id"], "a"))
+
+    assert store.list_questions(bridge.main)[0].meta["options"][0]["diagram_ref"] is None
+
+
+def test_a_degraded_ask_drops_a_diagram_ref_that_is_not_its_option_diagram(
+    bridge, mcp, monkeypatch
+):
+    from fastapi.testclient import TestClient
+
+    _fast(monkeypatch, 0.05)
+    add = {"op": "add_element", "render": "custom", "layer": "custom/plan", "label": "On canvas",
+           "position": {"x": 0.0, "y": 0.0}}
+    with TestClient(bridge.app) as client:
+        client.patch("/repos/main/canvas", json={"ops": [add], "layer": "custom/plan"})
+    doc = CanvasDoc.load(bridge.main.canvas_core_path, bridge.main.diagrams_root)
+    canvas_id = next(e.id for e in doc.elements.values() if e.label == "On canvas")
+    own = asyncio.run(mcp.draw_diagram("main", "T", [_node("a")], [], None, None))["diagram_ref"]
+    options = [
+        QuestionOption(id="a", title="A", diagram_ref=canvas_id),
+        QuestionOption(id="b", title="B", diagram_ref=own),
+    ]
+
+    async def run() -> None:
+        for _ in range(3):
+            with pytest.raises(QuestionRejected):
+                await mcp.ask("main", AskRequest(question="Q?", session_id="s", options=options))
+        await mcp.ask("main", AskRequest(question="Q?", session_id="s", options=options))
+
+    asyncio.run(run())
+
+    stored = store.list_questions(bridge.main)[0].meta["options"]
+    assert [o["diagram_ref"] for o in stored] == [None, own]
+
+
 def test_draw_diagram_attaches_the_ref_to_the_question_option(bridge, mcp):
-    store.open_question(bridge.main, _request(), "q1")
+    store.open_question(bridge.main, _request(agent_id="main"), "q1")
 
     root = asyncio.run(mcp.draw_diagram("main", "T", [_node("a")], [], "q1", "b"))
 

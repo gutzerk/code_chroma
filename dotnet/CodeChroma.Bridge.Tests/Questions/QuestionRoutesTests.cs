@@ -511,7 +511,9 @@ public sealed class QuestionRoutesTests
     public async Task Draw_diagram_attaches_the_ref_to_the_question_option()
     {
         using var host = new BridgeHost();
-        var questionId = Open(host, Request());
+        var request = Request();
+        request.AgentId = "main";
+        var questionId = Open(host, request);
 
         var root = await Mcp(host).DrawDiagram("main", "T", [new DiagramNode("a", "a")], [], questionId, "b");
 
@@ -562,6 +564,51 @@ public sealed class QuestionRoutesTests
         Assert.Contains("draw_option_diagram", rejected.Message);
         Assert.Empty(QuestionStore.ListQuestions(ws));
         Assert.Equal("custom/plan", CanvasDoc.Load(ws.CanvasCorePath(), ws.DiagramsRoot()).Elements[canvasId].Layer);
+    }
+
+    [Fact]
+    public async Task An_ask_cannot_take_an_option_diagram_another_agent_drew()
+    {
+        using var host = Host();
+        var mcp = new QuestionMcp(_ => Main(host), attachedWindows: _ => 1);
+        var theirs = (string)(await mcp.DrawDiagram("agent-2", "T", [new DiagramNode("a", "a")], [], null, null))["diagram_ref"]!;
+
+        var rejected = await Assert.ThrowsAsync<QuestionRejected>(() => mcp.Ask("agent-1", Request([Option("a", 1, diagramRef: theirs), Option("b", 2)], kind: "diagram")));
+
+        Assert.Contains("draw_option_diagram", rejected.Message);
+        Assert.Empty(QuestionStore.ListQuestions(Main(host)));
+    }
+
+    [Fact]
+    public async Task An_agent_cannot_draw_onto_another_agents_question()
+    {
+        using var host = Host();
+        var mcp = new QuestionMcp(_ => Main(host), attachedWindows: _ => 1);
+        var asked = await mcp.Ask("agent-2", Request());
+
+        await Assert.ThrowsAsync<QuestionWriteException>(() => mcp.DrawDiagram("agent-1", "T", [new DiagramNode("a", "a")], [], (string)asked["question_id"]!, "a"));
+
+        Assert.Null(QuestionStore.ListQuestions(Main(host)).Single().Meta["options"]![0]!["diagram_ref"]);
+    }
+
+    [Fact]
+    public async Task A_degraded_ask_drops_a_diagram_ref_that_is_not_its_option_diagram()
+    {
+        using var host = Host();
+        var mcp = Mcp(host);
+        var add = new JsonObject { ["op"] = "add_element", ["render"] = "custom", ["layer"] = "custom/plan", ["label"] = "On canvas", ["position"] = new JsonObject { ["x"] = 0.0, ["y"] = 0.0 } };
+        await host.Client.PatchAsync("/repos/main/canvas", JsonBody(new JsonObject { ["ops"] = new JsonArray(add), ["layer"] = "custom/plan" }));
+        var ws = Main(host);
+        var canvasId = CanvasDoc.Load(ws.CanvasCorePath(), ws.DiagramsRoot()).Elements.Values.Single(e => e.Label == "On canvas").Id;
+        var own = (string)(await mcp.DrawDiagram("main", "T", [new DiagramNode("a", "a")], [], null, null))["diagram_ref"]!;
+        var bad = new AskRequest { Question = "Q?", SessionId = "s", Options = [new QuestionOption { Id = "a", Title = "A", DiagramRef = canvasId }, new QuestionOption { Id = "b", Title = "B", DiagramRef = own }] };
+
+        for (var i = 0; i < 3; i++) await Assert.ThrowsAsync<QuestionRejected>(() => mcp.Ask("main", bad));
+        await mcp.Ask("main", bad);
+
+        var options = QuestionStore.ListQuestions(ws).Single().Meta["options"]!.AsArray();
+        Assert.Null((string?)options[0]!["diagram_ref"]);
+        Assert.Equal(own, (string?)options[1]!["diagram_ref"]);
     }
 
     [Fact]

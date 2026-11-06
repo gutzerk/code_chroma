@@ -56,6 +56,21 @@ public sealed class AgentQuestionRoutesTests
     }
 
     [Fact]
+    public async Task A_neighbours_settled_question_in_the_same_session_is_not_in_the_agents_history()
+    {
+        using var host = new BridgeHost();
+        var (tab, agent) = await AgentOnTab(host);
+        var theirs = Ask(host, "someone-else", Request(question: "Their earlier?", sessionId: "s1"), into: agent);
+        await host.Client.PostAsync($"/repos/{tab}/questions/{theirs}/answer", JsonBody(new JsonObject { ["option_id"] = "a" }));
+        Ask(host, agent, Request(question: "Now?", sessionId: "s1"));
+
+        var body = await Body(await host.Client.GetAsync($"/agents/{agent}/questions"));
+
+        var labels = body["elements"]!.AsObject().Select(p => (string?)p.Value!["label"]).ToList();
+        Assert.Equal(["Now?"], labels);
+    }
+
+    [Fact]
     public async Task An_unknown_agent_is_a_404_on_read_and_every_write()
     {
         using var host = new BridgeHost();

@@ -69,6 +69,8 @@ async def ask_question(repo_id: str, request: Request, body: AskRequest) -> dict
     mcp = request.app.state.question_mcp
     if not mcp.authorizes(request.headers, repo_id):
         raise HTTPException(status_code=401, detail="invalid or missing workspace token")
+    # `degraded` is server-side only (as in C#): a caller-sent flag must not skip validation.
+    body = body.model_copy(update={"degraded": False})
     try:
         return await mcp.ask(repo_id, body)
     except QuestionRejected as rejected:

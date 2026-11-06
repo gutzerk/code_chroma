@@ -321,7 +321,7 @@ def test_a_completed_batch_leaves_no_question_or_option_diagram_on_the_canvas(br
     ws = bridge.main
     _live_agent(bridge)
     edge = [diagrams.DiagramEdge(**{"from": "n0", "to": "n1"})]
-    draft = store.draw_diagram(ws, "Draft", _nodes(), edge, None, None)
+    draft = store.draw_diagram(ws, "Draft", _nodes(), edge, None, None, "agent-1")
     options = [OPTIONS[0].model_copy(update={"diagram_ref": draft}), OPTIONS[1]]
     question_id = _ask_for(bridge, options=options)
     store.draw_diagram(ws, "Attached", _nodes(), edge, question_id, "b")
@@ -332,10 +332,29 @@ def test_a_completed_batch_leaves_no_question_or_option_diagram_on_the_canvas(br
         _eventually(lambda: not store.list_questions(ws))
 
     doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    assert draft not in doc.elements
     assert not [e for e in doc.elements.values() if e.render == "question"]
     assert not [e for e in doc.elements.values() if e.layer == f"decisions/{question_id}"]
     assert not [e for e in doc.edges.values() if e.layer == f"decisions/{question_id}"]
     assert unrelated in doc.elements
+
+
+def test_a_completed_batch_never_deletes_an_option_diagram_another_agent_drew(bridge):
+    from codechroma.canvas.document import CanvasDoc
+
+    ws = bridge.main
+    _live_agent(bridge)
+    theirs = store.draw_diagram(ws, "Theirs", _nodes(), [], None, None, "agent-2")
+    options = [OPTIONS[0].model_copy(update={"diagram_ref": theirs}), OPTIONS[1]]
+    question_id = _ask_for(bridge, options=options)
+
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{question_id}/answer", json={"option_id": "a"})
+        _eventually(lambda: not store.list_questions(ws))
+
+    doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    assert theirs in doc.elements
+    assert [e for e in doc.elements.values() if e.group_id == theirs]
 
 
 def test_a_session_keeps_counting_steps_after_its_answered_batch_is_cleared(bridge):

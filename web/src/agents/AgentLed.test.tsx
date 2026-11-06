@@ -1,40 +1,30 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { AgentLed } from "./AgentLed";
-import { canvasDocStore } from "../canvas/doc/canvasDocStore";
-import { useLoadCanvasDoc } from "../canvas/doc/canvasDocSync";
-import { EngineClientProvider, useEngineClient } from "../engine-client/EngineClientContext";
-import { MockBridgeEngineClient } from "../engine-client/mockBridge";
-import type { CanvasOp } from "../state/types";
+import { agentStore } from "./agentStore";
+import type { AgentRecord } from "../state/types";
 
-function ask(step: number): CanvasOp {
-  return {
-    op: "add_element", render: "question", layer: "questions", label: `Q${step}`,
-    position: { x: 0, y: step * 100 },
-    meta: { session_id: "s", step, total: 2, state: "open", agent_id: "ag1", options: [] },
-  } as CanvasOp;
-}
+const AGENT = { id: "ag1", title: "ag1", status: "working", window: { x: 0, y: 0, width: 300, height: 300, minimized: false, z: 1 } } as AgentRecord;
 
-function Loader() {
-  useLoadCanvasDoc(useEngineClient());
-  return null;
-}
-
-afterEach(() => canvasDocStore.reset());
+afterEach(() => agentStore.reset());
 
 describe("AgentLed", () => {
-  it("names the number of open questions in its label", async () => {
-    const client = new MockBridgeEngineClient();
-    await client.patchCanvas({ ops: [ask(1), ask(2)], layer: "default", explanation: "", confirm_mass_delete: false });
+  it("names the bridge's open question count in its label and follows an agent-questions update", () => {
+    agentStore.upsert({ ...AGENT, open_questions: 1 });
+    render(<AgentLed status="working" agentId="ag1" />);
 
-    render(
-      <EngineClientProvider repoId="default" client={client}>
-        <Loader />
-        <AgentLed status="working" agentId="ag1" />
-      </EngineClientProvider>,
-    );
+    act(() => agentStore.setOpenQuestions("ag1", 2));
 
-    await waitFor(() => expect(screen.getByRole("img")).toHaveAttribute("aria-label", "Needs you · 2 questions"));
+    expect(screen.getByRole("img")).toHaveAttribute("aria-label", "Needs you · 2 questions");
+  });
+
+  it("keeps the count when a status payload without it replaces the card", () => {
+    agentStore.upsert({ ...AGENT, open_questions: 2 });
+    render(<AgentLed status="working" agentId="ag1" />);
+
+    act(() => agentStore.upsert({ ...AGENT, status: "idle" }));
+
+    expect(screen.getByRole("img")).toHaveAttribute("aria-label", "Needs you · 2 questions");
   });
 
   it.each([

@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AgentQuestionHost } from "./AgentQuestionHost";
-import { canvasDocStore } from "../canvas/doc/canvasDocStore";
-import { useLoadCanvasDoc } from "../canvas/doc/canvasDocSync";
-import { useEngineClient } from "../engine-client/EngineClientContext";
-import { EngineClientProvider } from "../engine-client/EngineClientContext";
-import { MockBridgeEngineClient } from "../engine-client/mockBridge";
+import { AgentClientProvider } from "./AgentClientContext";
+import { agentQuestionStore } from "./agentQuestions";
+import { agentStore } from "./agentStore";
+import { MockAgentClient } from "./mockAgentClient";
 import type { CanvasOp } from "../state/types";
 import { WIRE_OPTIONS } from "../canvas/doc/question/fixtures";
 
@@ -17,26 +16,23 @@ function ask(agent: string, title: string, step: number, extra: Record<string, u
   } as CanvasOp;
 }
 
-function Loader() {
-  useLoadCanvasDoc(useEngineClient());
-  return null;
-}
-
 async function mount(ops: CanvasOp[], agent = "ag1", onFocusTerminal = vi.fn()) {
-  const client = new MockBridgeEngineClient();
-  await client.patchCanvas({ ops, layer: "default", explanation: "", confirm_mass_delete: false });
+  const client = new MockAgentClient();
+  await client.questionEngine.patchCanvas({ ops, layer: "default", explanation: "", confirm_mass_delete: false });
   render(
-    <EngineClientProvider repoId="default" client={client}>
-      <Loader />
+    <AgentClientProvider client={client}>
       <AgentQuestionHost agentId={agent} onFocusTerminal={onFocusTerminal}>
         <div className="agent-window-terminal" data-testid="term"><input aria-label="term-input" /></div>
       </AgentQuestionHost>
-    </EngineClientProvider>,
+    </AgentClientProvider>,
   );
   return { client, onFocusTerminal };
 }
 
-afterEach(() => canvasDocStore.reset());
+afterEach(() => {
+  agentQuestionStore.reset();
+  agentStore.reset();
+});
 
 describe("AgentQuestionHost", () => {
   it("renders only the terminal when the agent has no open question", async () => {
@@ -76,16 +72,16 @@ describe("AgentQuestionHost", () => {
     expect(onFocusTerminal).toHaveBeenCalled();
   });
 
-  it("drops the card once the bridge deletes the completed batch", async () => {
+  it("drops the card once the bridge deletes the completed batch and announces it", async () => {
     const { client } = await mount([ask("ag1", "First?", 1, { question_id: "q1" })]);
     await screen.findByTestId("question-card");
-    const ids = Object.keys(canvasDocStore.getDoc().elements);
+    const ids = Object.keys((await client.questionEngine.getCanvas()).elements);
     const ops = ids.map((id) => ({ op: "delete_element", id }) as CanvasOp);
+    await client.questionEngine.patchCanvas({ ops, layer: "default", explanation: "", confirm_mass_delete: true });
 
-    await act(() => client.patchCanvas({ ops, layer: "default", explanation: "", confirm_mass_delete: true }));
+    act(() => agentQuestionStore.refresh("ag1"));
 
     await waitFor(() => expect(screen.queryByTestId("question-card")).toBeNull());
-    expect(Object.values(canvasDocStore.getDoc().elements).filter((el) => el.render === "question")).toEqual([]);
   });
 
   it("Ctrl+Enter in the terminal moves focus into the card", async () => {

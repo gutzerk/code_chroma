@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { useOpenQuestionCounts } from "../canvas/doc/question/useOpenAgentQuestions";
 import { useResizableSize } from "../canvas/useResizableSize";
 import { layoutStore, useLayoutState } from "../canvas/layout/layoutStore";
 import { agentsWideWidth } from "../canvas/layout/layoutMetrics";
-import { useAgents, useAgentLaunchError } from "./agentStore";
+import { openQuestionCount, useAgents, useAgentLaunchError } from "./agentStore";
 import { useActiveWorktreeId } from "./worktreeStore";
 import { DockedAgentPanel } from "./AgentTerminalDock";
 import { WorkflowsTab } from "../workflows/WorkflowsTab";
@@ -45,10 +44,9 @@ export function ActivityPanel({
   // Every agent's terminal stays mounted (below) so a tab switch never drops a session; only the active tab's are listed.
   const agents = useMemo(() => panelAgents(allAgents, worktreeTab), [allAgents, worktreeTab]);
   const agentClient = useAgentClient();
-  const questionCounts = useOpenQuestionCounts();
   const attention = useMemo(
-    () => rollup(agents.map((agent) => effectiveStatus(agent, questionCounts.get(agent.id) ?? 0))).counts,
-    [agents, questionCounts],
+    () => rollup(agents.map((agent) => effectiveStatus(agent, openQuestionCount(agent)))).counts,
+    [agents],
   );
   const { agentsMode, leftOpen, selectedAgentId } = useLayoutState();
   const [tab, setTab] = useState<ActivityTab>("agents");

@@ -317,6 +317,7 @@ export const AGENT_EVENT_TYPES = [
   "agent-removed",
   "agent-status",
   "agent-history-cleared",
+  "agent-questions",
   "branch-removed",
 ] as const;
 

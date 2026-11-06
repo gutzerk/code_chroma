@@ -1,21 +1,20 @@
 import { useMemo, useState } from "react";
 import { useOptionalAgentClient } from "../../../agents/AgentClientContext";
 import { restoreAgentWindow } from "../../../agents/windowActions";
-import type { EngineClient } from "../../../engine-client/EngineClient";
 import type { CanvasDoc } from "../../../state/types";
 import { layoutStore } from "../../layout/layoutStore";
 import { reportAsyncError } from "../../../util/reportError";
 import { sessionHistory, type QuestionView } from "./questionAdapter";
-import { answerCustom, answerOption, requestDiagram, reviseQuestion, skipQuestion } from "./questionClient";
+import { answerCustom, answerOption, requestDiagram, reviseQuestion, skipQuestion, type QuestionActions } from "./questionClient";
 import { QuestionCard } from "./QuestionCard";
 import type { QuestionVariant } from "./QuestionOptions";
 import { QUESTION_STRINGS as S } from "./questionStrings";
 
 export interface ConnectedQuestionCardProps {
   question: QuestionView;
-  /** The asking agent's workspace client; answers post there. */
-  client: EngineClient;
-  /** The doc the question lives in, for its session history. */
+  /** Where answers post: the agent-scoped routes in the agent window. */
+  client: QuestionActions;
+  /** The doc the question came from, for its session history. */
   doc: CanvasDoc;
   variant?: QuestionVariant;
   selectedId?: string | null;

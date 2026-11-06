@@ -4,7 +4,7 @@ import { useEngineClient } from "../engine-client/EngineClientContext";
 import { ensureNotificationPermission, statusChangeKind } from "./agentNotifications";
 import { useAgentClient } from "./AgentClientContext";
 import { flagDiagramsReady } from "./agentDiagramsReady";
-import { useAgentQuestionSync } from "./agentQuestionSource";
+import { agentQuestionStore } from "./agentQuestions";
 import { startAgentStatusSync } from "./agentStatusSync";
 import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingClose } from "./agentStore";
 import { agentDockStore } from "./agentDockStore";
@@ -16,6 +16,7 @@ import { ensureWorktrees, refreshWorktrees, settleRemovedWorktree } from "./work
 import { worktreeStore } from "./worktreeStore";
 import { WorkspaceStatusBanner } from "./WorkspaceStatusBanner";
 import { confirmCloseAgentWindow } from "./windowActions";
+import { MockAgentClient } from "./mockAgentClient";
 
 /** Agent lifecycle, live updates, workspace status and launch/close dialogs. Terminals live in ActivityPanel. */
 export function AgentWindowLayer() {
@@ -56,8 +57,20 @@ export function AgentWindowLayer() {
   // Seen marking, toast clean-up, the desktop shell's agent summary and commands, ⌘⇧J in a browser.
   useEffect(() => startAgentStatusSync(agentClient), [agentClient]);
 
-  // Agent windows and badges read each agent's own workspace, whatever tab the canvas draws.
-  useAgentQuestionSync();
+  // Mock bridge only, opt-in: a demo ask_user question on the mock agent client's question canvas.
+  useEffect(() => {
+    if (!import.meta.env.DEV || import.meta.env.VITE_ENGINE_BRIDGE_URL || !import.meta.env.VITE_DEV_ASK_QUESTION) return undefined;
+    if (!(agentClient instanceof MockAgentClient)) return undefined;
+    let uninstall: (() => void) | undefined;
+    let cancelled = false;
+    void import("../canvas/doc/question/devAskQuestion").then((m) => {
+      if (!cancelled) uninstall = m.installDevAskQuestion(agentClient.questionEngine);
+    });
+    return () => {
+      cancelled = true;
+      uninstall?.();
+    };
+  }, [agentClient]);
 
   // A monitor unplugged mid-session shrinks the browser window in place -- pull any window that
   // landed off-screen back into view (see agentStore.reclampToViewport).
@@ -76,6 +89,11 @@ export function AgentWindowLayer() {
         else if (message.type === "agent-removed") agentStore.remove(message.id);
         // The terminal's own scrollback is erased by the bridge's output stream; the prompt list is ours to drop.
         else if (message.type === "agent-history-cleared") promptNavStore.clear(message.id);
+        // The bridge counted the agent's open questions; a shown window refetches its card.
+        else if (message.type === "agent-questions") {
+          agentStore.setOpenQuestions(message.id, message.open_questions);
+          agentQuestionStore.refresh(message.id);
+        }
         else if (message.type === "agent-status") {
           const { type: _type, id, status, ...fields } = message;
           const previous = agentStore.getAgent(id)?.status;

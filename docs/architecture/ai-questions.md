@@ -11,10 +11,11 @@ Phases 1 (backend), 2 (canvas UI), 3 (agent wiring) and 4 (diagram options, 021)
 ```
 agent ── MCP ask_user ──► bridge /mcp (bearer token names the workspace)
             QuestionMcp.ask: validate, then no attached window for the agent? refuse (NO_WINDOW, nothing written)
-            store.open_question (apply_batch add_element) ──► "canvas" ping ──► the agent window's QuestionCard
+            store.open_question (apply_batch add_element) ──► `agent-questions` {id, open_questions} on every events socket
+            ──► the agent window refetches GET /agents/{id}/questions ──► its QuestionCard
             returns at once {asked: true, question_id, next: "The question appears in the user's CodeChroma agent window..."}
             (agent says so in one line and ends its turn, LED idle + "?")
-user click ─► POST /repos/{id}/questions/{qid}/answer|skip ─► store.settle (meta, awaiting_delivery: true)
+user click ─► POST /agents/{agent}/questions/{qid}/answer|skip (or /repos/{id}/...) ─► store.settle (meta, awaiting_delivery: true)
             ─► delivery.deliver_settled: live session for meta.agent_id? (no: stop, element kept)
             ─► store.claim_batch: batch complete (none open, some awaiting) and no wake-up queued? (no: stop)
                  claims the agent in memory (one queued wake-up per agent; a restart frees it)
@@ -74,9 +75,13 @@ restart, so a long-lived agent window must be relaunched to get a new one.
 | `POST .../{qid}/answer` body `{answer?, option_id?}` | With `option_id`: must match an option (422 otherwise), answer defaults to its title. Without: refused 422 if `allow_custom` is false. Empty answer 422. Settles meta, then `delivery.deliver_settled` wakes the agent if this was its last open question (ack `waiting` = a live session will receive the answers, now or when the batch completes). |
 | `POST .../{qid}/skip` | 422 if `allow_skip` is false. Settles as skipped; the batch line then reads "skipped by the user, decide yourself" for it. |
 | `POST .../{qid}/revise` | Works on a settled question (no 409 check): reopens it (`state open`, answer and option_id cleared), deletes later-step questions of the same `session_id`, sets `meta.revised = true`. Returns the ack plus `removed: [element ids]`. |
+| `GET /agents/{agent}/questions` | The agent window's source. 404 `unknown agent: <id>` for an agent the manager does not know. `{agent_id, workspace, open_questions, elements, edges}`: a small canvas doc holding the agent's open questions, the settled questions of their `session_id`s (the card's "Earlier" history) and each open question's option-diagram subgraph (root, group members and arrow targets, walked like `QuestionDiagram.diagramSubgraph`, max 40) plus the arrows inside it. `workspace` is the id the agent's ask_user writes to: `WorkspaceRegistry.Resolve` / `resolve` (the alias an "Add agent here" agent shares, else its own id, main for an unregistered id), the same mapping the MCP token write goes through. The canvas file is read from disk; the workspace is never brought up. |
+| `POST /agents/{agent}/questions/{qid}/answer\|skip\|revise\|request-diagram` | The repo routes' behaviour, acks and refusals on the workspace the agent asks into, limited to that agent's questions: another agent's question (even in a shared workspace) is 404 `unknown question`; an unknown agent is 404 `unknown agent: <id>`. Delivery is unchanged (`deliver_settled` / `DeliverSettled`). |
 
 Unknown question id: 404. Answer/skip on an already-settled question: 409. Ack shape:
 `{ok, question_id, state, waiting[, answer]}`.
+
+**Push.** Every question change of an agent broadcasts `{type: "agent-questions", id, open_questions}` to every events socket (global, like `agent-status`): ask and re-ask (`QuestionMcp` `questions_changed` / `questionsChanged`), `draw_option_diagram` with a `question_id`, answer, skip, revise, a first "Add diagram" (both route families) and a typed batch's cleanup (`deliver_settled`'s follow-up / `DeliverSettled(..., cleared)`). Senders: C# `Questions/AgentQuestions.cs` `AgentQuestionEvents.Changed`, Python `questions/agent_view.py` `announce`; both count from the canvas file and never throw. `GET /agents` rows carry the same `open_questions`. A canvas `PATCH` that deletes a question sends nothing (the canvas never draws questions).
 
 Revise only changes canvas state and delivers nothing (ack `waiting: false`); because `meta.revised` is set, the next answer to the reopened question is typed into the agent as "changed answer: ...". With a live agent, a question can only be revised while its batch is still open (another question of that agent unanswered): a completed batch is deleted, so "Change" and the "Earlier: …" history no longer reach delivered questions.
 
@@ -112,20 +117,21 @@ implemented; the diagram options kept this shape: `option.diagram_ref` points at
 ### Agent terminal host (020)
 
 `web/src/agents/AgentQuestionHost.tsx` wraps the xterm element in `AgentTerminal` (so the docked panel, floating
-windows, `ActivityPanel` and the tutorial mock all get it). 🔴 **It reads the agent's own workspace, not the active tab.**
+windows, `ActivityPanel` and the tutorial mock all get it). 🔴 **The bridge, not the web, maps the agent to its workspace.**
 An agent asks into the workspace its MCP token names (its id, an alias of `shares_workspace_with` for an "Add agent here"
-agent), and agent windows are listed across every workspace, so the single `canvasDocStore` (the active tab's doc) is the
-wrong source whenever that tab differs. `agents/agentQuestionSource.ts`: `questionWorkspaceOf(agentId, agents)` follows
-`shares_workspace_with` (through other agents) else returns the agent id; `useAgentQuestionSync()` (mounted once in
-`AgentWindowLayer`) keeps `canvas/doc/question/workspaceQuestionDocs.ts` watching every agent workspace other than the
-active one: one `EngineClient` per repo id (`createEngineClient`), `getCanvas` on start and on each `canvas` ping of
-that repo (at most one in flight; pings during it coalesce into one more fetch), disposed when no agent needs it. A fetch
-whose question elements and open-question option diagrams are unchanged is not republished. `useAgentQuestionSource(agentId)` returns that workspace's `{doc, client}`, or the
-active `canvasDocStore` doc and client when the agent asks into the active workspace (or is unknown). The host passes the
-doc to `useOpenAgentQuestions(agentId, doc)` and `QuestionDiagram`, and `{client, doc}` to `ConnectedQuestionCard`, so
-answer/skip/revise/"Add diagram" post to the agent's own repo id. `agentOpenQuestionCounts()` sums the active doc and every
-watched doc; `useOpenQuestionCount`/`useOpenQuestionCounts`, `agentStatusSync` and `agentAttention` read it, so the LED "?",
-the "N questions" pill and the tab rollups do not depend on the active tab. `useOpenAgentQuestions` filters open `question`
+agent), so the active tab's `canvasDocStore` is the wrong source whenever that tab differs. `agents/agentQuestions.ts`:
+`agentQuestionStore.watch(agentClient, agentId)` (held by `useAgentQuestions(agentId)` while a window is mounted, shared
+by every window of that agent) loads `GET /agents/{id}/questions` once, and `refresh(id)` refetches (at most one request in
+flight; a refresh meanwhile becomes one more). `AgentWindowLayer` refreshes the agent and calls `agentStore.setOpenQuestions`
+on each `agent-questions` event; each write refreshes too. `agentQuestionActions(agentClient, agentId)` binds answer/skip/
+revise/"Add diagram" to the agent routes (`AgentClient.questions`, `answerQuestion`, `skipQuestion`, `reviseQuestion`,
+`requestQuestionDiagram`, optional so test stubs need none). The host passes the payload (a small CanvasDoc) to
+`useOpenAgentQuestions(agentId, doc)` and `QuestionDiagram`, and `{client: actions, doc}` to `ConnectedQuestionCard`
+(`client` is a `QuestionActions`, the four writes; an `EngineClient` still fits it). There are no per-workspace engine
+clients, sockets or canvas docs and no fallback to the active doc. Badges read `agent.open_questions` (see
+`parallel-agents.md` "Question counts"). Mock bridge: `MockAgentClient` serves the same routes from its own
+`questionEngine` (a `MockBridgeEngineClient`) through `agentQuestionsFromDoc`, the web mirror of the bridge rule; the
+opt-in `devAskQuestion.ts` preview (installed by `AgentWindowLayer` for a `MockAgentClient`) asks there. `useOpenAgentQuestions` filters open `question`
 elements by `meta.agent_id` and sorts by `meta.step`; the host shows only the first (oldest). It measures its own
 width (ResizeObserver) and `pickQuestionLayout({width, full, hasDiagram})` picks: **B1** (agents panel full mode and
 width >= 1100: full-width question + diagram, up to 65% of the host), **A4** (width >= 880 and some option has a
@@ -137,7 +143,7 @@ switch never remounts xterm. A new question does not steal focus; Ctrl+Enter in 
 read-only scaled view with option tabs, drag-to-pan, wheel/button zoom and a full-screen overlay (Esc closes); the fit scale is floored at 0.6 so labels stay readable (a larger diagram is panned, not shrunk), nodes show label + description and arrows connect node boundaries so their heads remain visible, and show labels; it is a light renderer, not
 `CanvasNodeBox`, which is interactive. Attention: `AgentLed` takes `agentId` and turns accent-coloured with a "?" badge
 while that agent has an open question, and the Agents tab shows a "N questions" pill (`useOpenQuestionCount`).
-The highlighted option is owned by the host (`resolveSelection` in `questionAdapter.ts` falls back to the recommended option when the pick no longer exists, e.g. after a re-ask) and passed to `QuestionCard` as the controlled `selectedId`, so the diagram tabs and Send always agree; `QuestionCard` owns it only when used standalone. `devAskQuestion.ts` (mock bridge, opt-in via `VITE_DEV_ASK_QUESTION=1`, dynamically imported) asks a demo question when Enter is pressed in an agent terminal.
+The highlighted option is owned by the host (`resolveSelection` in `questionAdapter.ts` falls back to the recommended option when the pick no longer exists, e.g. after a re-ask) and passed to `QuestionCard` as the controlled `selectedId`, so the diagram tabs and Send always agree; `QuestionCard` owns it only when used standalone. `devAskQuestion.ts` (mock bridge, opt-in via `VITE_DEV_ASK_QUESTION=1`, dynamically imported by `AgentWindowLayer`) asks a demo question on the mock agent client's question canvas when Enter is pressed in an agent terminal.
 - `elementRules.ts`: `BLOCK_RULES.question` = `{renderer: "question", activation: "inspector",
   lockedLayout: true}` (never dragged or auto-laid-out); excluded from `StyledRenderKind`.
 - `CanvasDocView.tsx`: `case "question"` renders nothing; question elements are excluded
@@ -145,13 +151,14 @@ The highlighted option is owned by the host (`resolveSelection` in `questionAdap
 - **The canvas never draws questions.** `displayPipeline.ts` `hideQuestions` (first of
   `STRUCTURAL_STAGES`) drops every `question` element and every option-diagram element (plain `decisions` or `decisions/<qid>` layer, `isDecisionLayer`)
   from rendering, canvas bounds, frames and edges, whatever its agent; the elements stay in the document
-  (the bridges still write them, and `AgentQuestionHost` reads them). `listActiveDiagramLayers` leaves
+  (the bridges still write them, and `GET /agents/{id}/questions` serves them to `AgentQuestionHost`). `listActiveDiagramLayers` leaves
   `decisions/` layers out of the Diagrams tab. A question whose agent is stopped or gone is no longer
   answerable from the canvas; the bridges still remove the cards once a batch is delivered. Test:
   `displayPipeline.test.ts`, `CanvasDocView.test.tsx`, `diagramCatalog.test.ts`; the answer/skip/revise
   flow is covered on `ConnectedQuestionCard` in `questionFlow.test.tsx`.
 - `EngineClient`: `getOpenQuestions`, `answerQuestion`, `skipQuestion`, `reviseQuestion` (HTTP,
-  delegating, stub and `mockBridge.ts`, where the mock mutates element meta instead of using a broker).
+  delegating, stub and `mockBridge.ts`, where the mock mutates element meta instead of using a broker): the repo routes,
+  not used by the agent window.
 
 ## Tests
 
@@ -159,7 +166,8 @@ Python: `tests/unit/test_bridge_questions_route.py` (element meta, session steps
 refusals, answer/skip/request-diagram delivery into a fake live session, one wake-up per completed batch of one agent (none while another of its questions is open, never into another agent), no question or option diagram left after completion, step numbering kept across a cleared batch, non-blocking ask, `ask_user_result` read-back from the element, token
 forgery). Web (vitest): `QuestionCard.test.tsx`, `QuestionOptions.test.tsx`,
 `questionAdapter.test.ts`, `questionFlow.test.tsx`, `pickQuestionLayout.test.ts`, `QuestionDiagram.test.tsx`,
-`web/src/agents/AgentQuestionHost.test.tsx` (incl. the card disappearing once the bridge deletes the batch: the host and canvas render from `canvasDocStore`, which refetches on the `canvas` ping), `web/src/agents/agentQuestionSource.test.tsx` (an agent sharing `main` while `br_wt-1` is active: card and LED count come from main's doc, Send posts through main's client), plus the `question` case in `elementRules.test.ts`.
+`web/src/agents/AgentQuestionHost.test.tsx` (over `MockAgentClient`, incl. the card disappearing once the batch is deleted and the agent refetched), `web/src/agents/agentQuestions.test.tsx` (`br_wt-1` active: the card loads and Send posts through the agent routes, never the active engine client; one watch per agent; the mock mirror), `AgentWindowLayer.test.tsx` (an `agent-questions` ping sets the count and refetches), `AgentLed.test.tsx` (the "?" label from `open_questions`, kept across a payload without it), plus the `question` case in `elementRules.test.ts`.
+Agent-scoped routes and push: C# `Questions/AgentQuestionRoutesTests.cs` (shape over a shared tab workspace, history, option diagram, a neighbour's question left out; unknown agent 404 on all five; writes by agent id and a neighbour's 404; `open_questions` on `GET /agents`; `agent-questions` after an answer and an MCP ask), Python `tests/unit/test_agent_questions_route.py` (same, plus `announce` never raising), contract cases `an_agent_reads_its_questions_from_the_workspace_it_shares`, `an_agent_answers_by_its_own_id_and_every_canvas_hears_the_new_count`, `an_unknown_agent_has_no_questions_to_read_or_answer`.
 No-window refusal: `test_bridge_questions_route.py` (`test_ask_without_an_attached_window_is_refused_and_writes_nothing`, `test_ask_proceeds_only_for_an_agent_an_attached_window_shows`), `test_agent_sessions.py` (attach/detach count), C# `QuestionRoutesTests` (same two) and `WidenResumeTests.Attached_windows_counts_each_attach_until_its_detach`. Question tests that ask as `main` give the mcp one window (`QuestionTestKit.Host()`, Python `_mcp(bridge)`).
 Not yet written: the Playwright journey (ask in the docked panel, answer in the terminal, resize across the layout thresholds).
 
@@ -221,7 +229,8 @@ File map (`Questions/`):
 - `QuestionModels.cs` (`AskRequest`, `QuestionOption`, `QuestionResult`, strict `ArgReader`), `QuestionValidation.cs` (the contract, `RejectionText`, `RejectionTracker`), `QuestionDiagrams.cs` (`draw_option_diagram` budget, centre positions, `LayerFor`/`DraftPrefix`, canvas ops), `QuestionStore.cs` (all `question` element reads/writes through `ApplyBatch.Apply` + `CanvasWrite.Commit` under `CanvasWrite.LockFor`; adopts draft layers; `Reopen` sets `revised`; `Settle` sets `awaiting_delivery`; `ClaimBatch`/`PendingBatch`/`ClearBatch`/`ReleaseBatch` mirror `claim_batch`/`pending_batch`/`clear_batch`/`release_batch`; the delete goes through `ApplyBatch.ApplyChunked`).
 - `QuestionDelivery.cs`: `AnswerMessage`/`BatchMessage`/`DiagramRequestMessage` (same text as `delivery.py`), `DeliverSettled` (answer/skip: `QuestionStore.ClaimBatch`, one `InjectWhenIdle(Func<string?>)` whose builder reads `PendingBatch` at idle time, then `ClearBatch` when its `Task<bool>` reports typed, and always `ReleaseBatch`; errors go to stderr) and `Deliver` (the "Add diagram" request), which find the live `AgentSession` by `meta.agent_id` and call `InjectWhenIdle(text, IdleAttempts = 86400)`; overloads take an injector delegate for tests.
 - `QuestionMcp.cs` (HMAC token, `Ask`/`Result`/`DrawDiagram`, `HandleMcp`), `McpEndpoint.cs` (URL, env, `--mcp-config` file), `AskUserQuestionHook.cs` (see "C# hook").
-- `Routes/QuestionRoutes.cs`: `GET /repos/{id}/questions` (`waiting` = live session), `POST .../questions/ask` (bearer, 401/422), `.../{qid}/answer|skip|request-diagram|revise` (404 unknown, 409 settled, 422 refusals, same ack shape as Python; answer/skip wake the session once the batch completes, request-diagram types at once), and `POST /mcp/` (bearer = `workspace_id.hmac-sha256`, per-process random secret, constant-time compare; 401 on a forged or missing token). `GET`/`DELETE /mcp/` return 405 (the hook's 0.5 s probe accepts any status). Tools `ask_user`, `ask_user_result`, `draw_option_diagram`; results carry `structuredContent`. `initialize` issues an `Mcp-Session-Id`, which only keys the retry counter of a sessionless agent (the server stays stateless).
+- `Questions/AgentQuestions.cs`: `AgentQuestionView.Read`/`OpenCount` (the agent-scoped read over `WorkspaceRegistry.Resolve`, canvas read under the canvas lock without bringing the workspace up) and the `AgentQuestionEvents` singleton (`agent-questions` broadcast); Python twin `questions/agent_view.py`.
+- `Routes/QuestionRoutes.cs`: `GET /agents/{id}/questions` and `POST /agents/{id}/questions/{qid}/answer|skip|revise|request-diagram` (handlers shared with the repo routes, scoped to the agent's own questions), `GET /repos/{id}/questions` (`waiting` = live session), `POST .../questions/ask` (bearer, 401/422), `.../{qid}/answer|skip|request-diagram|revise` (404 unknown, 409 settled, 422 refusals, same ack shape as Python; answer/skip wake the session once the batch completes, request-diagram types at once), and `POST /mcp/` (bearer = `workspace_id.hmac-sha256`, per-process random secret, constant-time compare; 401 on a forged or missing token). `GET`/`DELETE /mcp/` return 405 (the hook's 0.5 s probe accepts any status). Tools `ask_user`, `ask_user_result`, `draw_option_diagram`; results carry `structuredContent`. `initialize` issues an `Mcp-Session-Id`, which only keys the retry counter of a sessionless agent (the server stays stateless).
 - Retry budget `MaxRejections` (3); the MCP config timeout is 60 s (`McpEndpoint`), as `ask_user` returns at once.
 - Consistency: `Ask` selects a diagram-requested card and commits its options under one canvas lock, shared with answer/skip/revise. `ask_user_result` verifies the question exists in the authenticated workspace under that lock; foreign or unknown ids return pending. Regression tests: `QuestionConcurrencyTests`, `QuestionResultScopeTests`.
 - 🔴 `CanvasDoc.RenderKinds` gained `question`, `NonDiagramLayers` gained `questions` and `decisions`, plus the `decisions/` canvas-only prefix rule (kept in step with `document.py`); without that the elements are rejected or written as a projection folder. Canvas op numbers must be JSON doubles (`ApplyBatch` reads positions with `TryGetValue<double>`, which fails on an int node).

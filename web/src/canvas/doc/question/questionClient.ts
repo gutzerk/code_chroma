@@ -1,10 +1,13 @@
 import type { EngineClient } from "../../../engine-client/EngineClient";
 import type { QuestionAck, QuestionView } from "./questionAdapter";
 
-/** Thin helpers over the EngineClient question routes so components don't hand-build bodies. */
+/** The four question writes a card needs: an EngineClient (repo routes) or an agent-bound adapter (agent routes). */
+export type QuestionActions = Pick<EngineClient, "answerQuestion" | "skipQuestion" | "reviseQuestion" | "requestQuestionDiagram">;
+
+/** Thin helpers over the question writes so components don't hand-build bodies. */
 
 export function answerOption(
-  client: EngineClient,
+  client: QuestionActions,
   q: QuestionView,
   optionId: string,
 ): Promise<QuestionAck> {
@@ -13,22 +16,22 @@ export function answerOption(
 }
 
 export function answerCustom(
-  client: EngineClient,
+  client: QuestionActions,
   q: QuestionView,
   text: string,
 ): Promise<QuestionAck> {
   return client.answerQuestion(q.questionId, { answer: text, option_id: null });
 }
 
-export function skipQuestion(client: EngineClient, q: QuestionView): Promise<QuestionAck> {
+export function skipQuestion(client: QuestionActions, q: QuestionView): Promise<QuestionAck> {
   return client.skipQuestion(q.questionId);
 }
 
-export function reviseQuestion(client: EngineClient, q: QuestionView): Promise<QuestionAck> {
+export function reviseQuestion(client: QuestionActions, q: QuestionView): Promise<QuestionAck> {
   return client.reviseQuestion(q.questionId);
 }
 
-export function requestDiagram(client: EngineClient, q: QuestionView): Promise<QuestionAck> {
+export function requestDiagram(client: QuestionActions, q: QuestionView): Promise<QuestionAck> {
   return client.requestQuestionDiagram(q.questionId);
 }
 

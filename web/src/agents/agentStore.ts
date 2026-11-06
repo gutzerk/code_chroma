@@ -83,8 +83,10 @@ class AgentStore extends Store {
 
   /** Inserts or replaces one card — the `agent-added` event and every mutating call land here. */
   upsert = (agent: AgentRecord): void => {
-    const clamped = clampToViewport(normalized(agent));
     const index = this.agents.findIndex((candidate) => candidate.id === agent.id);
+    // Only GET /agents rows and `agent-questions` carry the count; other payloads keep the last one.
+    const openQuestions = agent.open_questions ?? this.agents[index]?.open_questions;
+    const clamped = clampToViewport(normalized(openQuestions === undefined ? agent : { ...agent, open_questions: openQuestions }));
     this.agents =
       index === -1
         ? [...this.agents, clamped]
@@ -127,6 +129,13 @@ class AgentStore extends Store {
 
   countInWorkspace = (workspace: string): number =>
     this.agents.reduce((total, agent) => total + (agent.workspace === workspace ? 1 : 0), 0);
+
+  /** Lands an `agent-questions` event: the bridge's open ask_user count for one agent. */
+  setOpenQuestions = (id: string, count: number): void => {
+    if (this.getAgent(id)?.open_questions === count) return;
+    this.agents = this.agents.map((agent) => (agent.id === id ? { ...agent, open_questions: count } : agent));
+    this.emit();
+  };
 
   setStatus = (id: string, status: AgentStatus): void => {
     this.applyStatus(id, status, {});
@@ -295,6 +304,16 @@ export function useAgents(): AgentRecord[] {
 /** One agent's record; re-renders only when that record changes. */
 export function useAgent(id: string): AgentRecord | undefined {
   return useSyncExternalStore(agentStore.subscribe, () => agentStore.getAgent(id));
+}
+
+/** How many ask_user questions the bridge counts open for the agent (0 when unknown). */
+export function openQuestionCount(agent: Pick<AgentRecord, "open_questions"> | undefined): number {
+  return agent?.open_questions ?? 0;
+}
+
+/** The agent's open question count; re-renders only when that number changes. */
+export function useOpenQuestionCount(id: string): number {
+  return useSyncExternalStore(agentStore.subscribe, () => openQuestionCount(agentStore.getAgent(id)));
 }
 
 /** Whether the agent's terminal (and so its question host) is mounted: not stopped or failed. */

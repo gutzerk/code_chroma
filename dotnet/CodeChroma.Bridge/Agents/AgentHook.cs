@@ -15,6 +15,12 @@ public static class AgentHook
     /// <summary>The events that drive the status LED; PreToolUse, PostToolUse and PermissionRequest match every tool.</summary>
     public static readonly string[] Events = ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "Notification", "PermissionRequest"];
 
+    /// <summary>The SessionStart source (also its hook matcher) of a `/clear`, which clears the agent window's history.</summary>
+    public const string ClearSource = "clear";
+
+    /// <summary>Whether a report is the SessionStart that `/clear` or one of its aliases fires.</summary>
+    public static bool IsClear(JsonObject report) => Json.Str(report["hook_event_name"]) == "SessionStart" && Json.Str(report["source"]) == ClearSource;
+
     /// <summary>How long the bridge holds a PermissionRequest for a canvas decision; short, because the terminal dialog only shows once the hook returns.</summary>
     public const int PermissionWaitMs = 1000;
 
@@ -51,11 +57,11 @@ public static class AgentHook
         return 0;
     }
 
-    /// <summary>Only what the bridge reads off a report (never tool_response, which can be a whole file): the event, the tool, its target keys and the notification type.</summary>
+    /// <summary>Only what the bridge reads off a report (never tool_response, which can be a whole file): the event, the tool, its target keys, the notification type and the SessionStart source.</summary>
     public static JsonObject Slim(JsonObject report)
     {
         var slim = new JsonObject();
-        foreach (var key in new[] { "hook_event_name", "tool_name", "notification_type" })
+        foreach (var key in new[] { "hook_event_name", "tool_name", "notification_type", "source" })
             if (report.TryGetPropertyValue(key, out var value)) slim[key] = value?.DeepClone();
         if (report["tool_input"] is JsonObject input)
         {

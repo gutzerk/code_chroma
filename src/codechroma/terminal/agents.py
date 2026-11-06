@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
+from codechroma.bridge.agents.history_clear import ClearWatch, clear_watch_for
 from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV, hook_document
 from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
@@ -58,6 +59,8 @@ class AgentLaunch:
     argv: list[str]
     env: dict[str, str]
     detector_kind: str
+    # How the window notices a cleared conversation (the resolved adapter's definition), if at all.
+    clear: ClearWatch | None = None
 
 
 def agent_cli(
@@ -104,7 +107,8 @@ def agent_launch(
             **resolution.env_overrides, **_status_hook_env(is_claude, mcp), **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
             **_renderer_env(is_claude),
-        }, agent if stand_in else resolution.adapter_key)
+        }, agent if stand_in else resolution.adapter_key,
+            clear_watch_for(CLI_ADAPTERS.get(adapter or ""), is_claude and mcp is not None))
     argv_entry = ALLOWED_AGENTS.get(agent)
     if argv_entry is None:
         return None
@@ -125,7 +129,7 @@ def agent_launch(
             **_status_hook_env(is_claude, mcp), **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
             **_renderer_env(is_claude),
-        }, agent)
+        }, agent, clear_watch_for(CLI_ADAPTERS["claude"] if is_claude else None, mcp is not None))
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
     if resume_session_id:
         return AgentLaunch([*argv_entry, RESUME_FLAG, resume_session_id], {}, agent)

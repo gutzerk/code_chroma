@@ -47,11 +47,21 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private AgentError? _error;
     private (long Generation, string Title, string Progress, string? Process)? _screenKey;
     private DetectClassification _screenVerdict = DetectClassification.Hold;
+    private readonly ClearWatch? _clear;
+    private readonly TypedClearDetector? _typedClear;
+    private readonly object _typedGate = new();
+    private readonly Action<AgentSession>? _cleared;
 
-    public AgentSession(string agentId, PtyLaunch launch, string kind = "claude", string? banner = null, Action<AgentSession>? onExit = null)
+    /// <summary>Erases xterm's scrollback (and the tap's history) but not the visible screen.</summary>
+    public const string ClearScrollback = "\u001b[3J";
+
+    public AgentSession(string agentId, PtyLaunch launch, string kind = "claude", string? banner = null, Action<AgentSession>? onExit = null, ClearWatch? clear = null, Action<AgentSession>? onClear = null)
     {
         AgentId = agentId;
         _exited = onExit;
+        _clear = clear;
+        _cleared = onClear;
+        if (clear is { TypedCommands.Count: > 0 }) _typedClear = new TypedClearDetector(clear.TypedCommands);
         Argv = [.. launch.Argv];
         SessionTrackingFile = launch.Env?.GetValueOrDefault(AgentSessionOwnership.FileEnv);
         InitialSessionId = launch.Env?.GetValueOrDefault(AgentSessionOwnership.InitialIdEnv);
@@ -127,6 +137,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     public HookOutcome ApplyHook(JsonObject body)
     {
         if (!IsAlive) return new HookOutcome(false);
+        if (AgentHook.IsClear(body)) ClearHistory();
         lock (_detectorGate)
         {
             var outcome = _state.ApplyHook(body);
@@ -195,7 +206,34 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         lock (_gate) _consumers.Remove(consumer);
     }
 
-    public void Write(string data) => _pty.Write(data);
+    /// <summary>Types into the agent; a submitted clear command of a CLI without a clear hook also clears the window's history.</summary>
+    public void Write(string data)
+    {
+        _pty.Write(data);
+        if (_typedClear is null) return;
+        bool cleared;
+        lock (_typedGate) cleared = _typedClear.Feed(data);
+        if (cleared) ClearHistory();
+    }
+
+    /// <summary>The user cleared the conversation: the tap and every window drop their scrollback (sent down the output path, in order with the CLI's output), then the CLI repaints.</summary>
+    public void ClearHistory()
+    {
+        if (!IsAlive) return;
+        OnOutput(ClearScrollback);
+        if (_clear?.Repaint is { } repaint) _ = RepaintLater(repaint);
+        try { _cleared?.Invoke(this); }
+        catch (Exception error) { Console.Error.WriteLine($"agents: clear callback failed for {AgentId}: {error.Message}"); }
+    }
+
+    /// <summary>How long the CLI gets to finish its own clear before the repaint key, so the repaint draws the fresh conversation.</summary>
+    public static readonly TimeSpan RepaintDelay = TimeSpan.FromMilliseconds(300);
+
+    private async Task RepaintLater(string repaint)
+    {
+        await Task.Delay(RepaintDelay);
+        if (IsAlive) _pty.Write(repaint);
+    }
 
     public void WriteBytes(byte[] data) => _pty.WriteBytes(data);
 
@@ -314,6 +352,9 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
     /// <summary>Called with the agent id when a registered session's process exits on its own (not after Stop).</summary>
     public Action<string>? Exited { get; set; }
 
+    /// <summary>Called with the agent id when the user cleared a registered session's conversation.</summary>
+    public Action<string>? Cleared { get; set; }
+
     /// <summary>Every agent whose status payload just changed.</summary>
     public List<string> PollStatuses()
     {
@@ -323,7 +364,7 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
     }
 
     /// <summary>Spawns the agent, or returns the session already running for it.</summary>
-    public AgentSession Start(string agentId, IReadOnlyList<string> argv, string cwd, string kind = "claude", IReadOnlyDictionary<string, string>? env = null, Stores.UserPaths? paths = null, string? banner = null)
+    public AgentSession Start(string agentId, IReadOnlyList<string> argv, string cwd, string kind = "claude", IReadOnlyDictionary<string, string>? env = null, Stores.UserPaths? paths = null, string? banner = null, ClearWatch? clear = null)
     {
         var spawnEnv = runtime.TerminalEnv(env);
         lock (_lock)
@@ -336,7 +377,7 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
             if (!Directory.Exists(cwd)) throw new AgentStartException($"the agent's worktree is missing: {cwd}");
             try
             {
-                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, spawnEnv), kind, banner, OnSessionExit);
+                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, spawnEnv), kind, banner, OnSessionExit, clear, OnSessionClear);
                 _sessions[agentId] = session;
                 return session;
             }
@@ -352,6 +393,13 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
         bool current;
         lock (_lock) current = _sessions.GetValueOrDefault(session.AgentId) == session;
         if (current) Exited?.Invoke(session.AgentId);
+    }
+
+    private void OnSessionClear(AgentSession session)
+    {
+        bool current;
+        lock (_lock) current = _sessions.GetValueOrDefault(session.AgentId) == session;
+        if (current) Cleared?.Invoke(session.AgentId);
     }
 
     /// <summary>Kills one agent's PTY, keeping its worktree and branch; false if it was not running.</summary>

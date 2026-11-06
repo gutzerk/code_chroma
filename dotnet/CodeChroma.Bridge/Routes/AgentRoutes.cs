@@ -112,7 +112,7 @@ public static class AgentRoutes
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
             AgentSession session;
-            try { session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths, banner)); }
+            try { session = await Task.Run(() => sessions.Start(agentId, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths, banner, launch.Clear)); }
             catch (AgentStartException error)
             {
                 record.StartError = new AgentError(error.Message, DateTimeOffset.UtcNow);

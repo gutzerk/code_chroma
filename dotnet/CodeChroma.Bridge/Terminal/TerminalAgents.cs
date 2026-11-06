@@ -33,6 +33,9 @@ public sealed record AgentLaunch(IReadOnlyList<string> Argv, IReadOnlyDictionary
 {
     /// <summary>The status manifest to detect this window with; an `agent` window uses the CLI adapter it resolved to (detect/claude.toml for Claude), except behind a stand-in binary.</summary>
     public string? DetectorKind { get; init; }
+
+    /// <summary>How the window notices the user cleared the CLI's conversation (the resolved adapter's definition); null for a shell or a stand-in binary.</summary>
+    public ClearWatch? Clear { get; init; }
 }
 
 /// <summary>
@@ -65,9 +68,12 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             var isClaude = resolution.AdapterKey == "claude" && (resolution.ProviderAssigned || resolution.Binary == DefaultCli);
             // The claude adapter behind a stand-in binary is not the real CLI, so it gets no MCP server.
             var standIn = resolution.AdapterKey == "claude" && !isClaude;
-            var mcp = McpFor(standIn ? null : CliAdapters.All.GetValueOrDefault(resolution.AdapterKey), agentId, bridgeUrl, bare, workdir);
+            var adapter = standIn ? null : CliAdapters.All.GetValueOrDefault(resolution.AdapterKey);
+            var mcp = McpFor(adapter, agentId, bridgeUrl, bare, workdir);
             var argv = Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, ModelArgs(resolution));
-            return OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, isClaude ? HookEndpointFor(agentId, bridgeUrl) : null) with { DetectorKind = standIn ? null : resolution.AdapterKey };
+            var hooks = isClaude ? HookEndpointFor(agentId, bridgeUrl) : null;
+            return OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, hooks)
+                with { DetectorKind = standIn ? null : resolution.AdapterKey, Clear = ClearWatch.For(adapter, hooks is not null) };
         }
         if (!Allowed.TryGetValue(agent, out var entry)) return null;
         if (agent == "claude")
@@ -75,7 +81,9 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             var binary = AssistantRoutes.EffectiveCli(paths);
             var mcp = McpFor(binary == DefaultCli ? CliAdapters.All["claude"] : null, agentId, bridgeUrl, bare, workdir);
             var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args);
-            return OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, binary == DefaultCli ? HookEndpointFor(agentId, bridgeUrl) : null);
+            var hooks = binary == DefaultCli ? HookEndpointFor(agentId, bridgeUrl) : null;
+            return OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, hooks)
+                with { Clear = ClearWatch.For(binary == DefaultCli ? CliAdapters.All["claude"] : null, hooks is not null) };
         }
         return new AgentLaunch(string.IsNullOrEmpty(resumeSessionId) ? entry : [.. entry, ResumeFlag, resumeSessionId], new Dictionary<string, string>());
     }

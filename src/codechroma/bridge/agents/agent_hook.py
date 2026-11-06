@@ -20,6 +20,13 @@ POST_TIMEOUT_SECONDS = 2.0
 HOOK_TIMEOUT_SECONDS = 10
 # Stdlib-only, so a copy of live_status.TARGET_KEYS: the tool_input keys the bridge reads.
 TARGET_KEYS = ("file_path", "command", "pattern", "url")
+# The SessionStart source (also its hook matcher) of a `/clear`, which clears the window's history.
+CLEAR_SOURCE = "clear"
+
+
+def is_clear(report: dict) -> bool:
+    """Whether a report is the SessionStart that `/clear` or one of its aliases fires."""
+    return report.get("hook_event_name") == "SessionStart" and report.get("source") == CLEAR_SOURCE
 
 
 def env(name: str) -> str:
@@ -37,7 +44,7 @@ def decision_output(behavior: str) -> dict:
 
 def slim(report: dict) -> dict:
     """Only what the bridge reads off a report, never `tool_response` (it can be a whole file)."""
-    keys = ("hook_event_name", "tool_name", "notification_type")
+    keys = ("hook_event_name", "tool_name", "notification_type", "source")
     kept = {k: report[k] for k in keys if k in report}
     tool_input = report.get("tool_input")
     if isinstance(tool_input, dict):

@@ -57,6 +57,10 @@ def hook_document(session_tracking: bool = True, status_hooks: bool = False) -> 
         for name in agent_hook.EVENTS:
             entry: dict = {"matcher": "*"} if name in agent_hook.TOOL_EVENTS else {}
             hooks.setdefault(name, []).append({**entry, "hooks": [dict(command)]})
+        # Only a /clear reports, so startup, resume and compact start no extra process.
+        hooks.setdefault("SessionStart", []).append(
+            {"matcher": agent_hook.CLEAR_SOURCE, "hooks": [dict(command)]}
+        )
     return {"hooks": hooks}
 
 

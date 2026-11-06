@@ -29,6 +29,13 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from codechroma.bridge.agents.agent_hook import is_clear
+from codechroma.bridge.agents.history_clear import (
+    CLEAR_SCROLLBACK,
+    REPAINT_DELAY_SECONDS,
+    ClearWatch,
+    TypedClearDetector,
+)
 from codechroma.bridge.agents.live_status import (
     STATUS_ERROR,
     STATUS_IDLE,
@@ -113,8 +120,16 @@ class AgentSession(AgentSessionPort):
         kind: str = "claude",
         env: dict[str, str] | None = None,
         on_exit: Callable[[AgentSession], None] | None = None,
+        clear: ClearWatch | None = None,
+        on_clear: Callable[[AgentSession], None] | None = None,
     ) -> None:
         self.agent_id = agent_id
+        self._clear = clear
+        self._cleared = on_clear
+        self._typed_clear = (
+            TypedClearDetector(clear.typed_commands) if clear and clear.typed_commands else None
+        )
+        self._typed_lock = threading.Lock()
         self.argv = list(argv)
         self.session_tracking_file = (env or {}).get(FILE_ENV)
         self.initial_session_id = (env or {}).get(INITIAL_ID_ENV)
@@ -186,6 +201,8 @@ class AgentSession(AgentSessionPort):
         """Applies one Claude Code hook report and keeps the detector in step with it."""
         if self.exit_code is not None:
             return HookOutcome(False)
+        if is_clear(body):
+            self.clear_history()
         with self._detector_lock:
             outcome = self._state.apply_hook(body)
             self._sync()
@@ -236,7 +253,34 @@ class AgentSession(AgentSessionPort):
         self._pty.client_attached = bool(self._consumers)
 
     def write(self, data: str) -> None:
+        """Types into the agent; a submitted clear command of a CLI without a clear hook clears."""
         self._pty.write(data)
+        if self._typed_clear is None:
+            return
+        with self._typed_lock:
+            cleared = self._typed_clear.feed(data)
+        if cleared:
+            self.clear_history()
+
+    def clear_history(self) -> None:
+        """The user cleared the chat: windows drop their scrollback, then the CLI repaints."""
+        if self.exit_code is not None:
+            return
+        self._on_output(CLEAR_SCROLLBACK)
+        repaint = self._clear.repaint if self._clear is not None else None
+        if repaint:
+            timer = threading.Timer(REPAINT_DELAY_SECONDS, self._repaint, args=(repaint,))
+            timer.daemon = True
+            timer.start()
+        if self._cleared is not None:
+            try:
+                self._cleared(self)
+            except Exception:
+                logger.exception("agents: clear callback failed for %s", self.agent_id)
+
+    def _repaint(self, keys: str) -> None:
+        if self.exit_code is None:
+            self._pty.write(keys)
 
     def write_bytes(self, data: bytes) -> None:
         self._pty.write_bytes(data)
@@ -339,6 +383,8 @@ class AgentSessionRegistry:
         self._sessions: dict[str, AgentSession] = {}
         # Called with the agent id when a registered session exits on its own (not after stop()).
         self.on_exit: Callable[[str], None] | None = None
+        # Called with the agent id when the user cleared a registered session's conversation.
+        self.on_clear: Callable[[str], None] | None = None
 
     def get(self, agent_id: str) -> AgentSession | None:
         return self._sessions.get(agent_id)
@@ -360,6 +406,7 @@ class AgentSessionRegistry:
         cwd: Path,
         kind: str = "claude",
         env: dict[str, str] | None = None,
+        clear: ClearWatch | None = None,
     ) -> AgentSession:
         """Spawns the agent, or returns the session already running for it."""
         existing = self._sessions.get(agent_id)
@@ -377,7 +424,8 @@ class AgentSessionRegistry:
             raise AgentStartError(f"the agent's worktree is missing: {cwd}")
         try:
             session = AgentSession(
-                agent_id, argv, str(cwd), kind=kind, env=env, on_exit=self._session_exited
+                agent_id, argv, str(cwd), kind=kind, env=env, on_exit=self._session_exited,
+                clear=clear, on_clear=self._session_cleared,
             )
         except Exception as exc:
             launch_failed(exc)
@@ -388,6 +436,10 @@ class AgentSessionRegistry:
     def _session_exited(self, session: AgentSession) -> None:
         if self.on_exit is not None and self._sessions.get(session.agent_id) is session:
             self.on_exit(session.agent_id)
+
+    def _session_cleared(self, session: AgentSession) -> None:
+        if self.on_clear is not None and self._sessions.get(session.agent_id) is session:
+            self.on_clear(session.agent_id)
 
     def stop(self, agent_id: str) -> bool:
         """Kills one agent's PTY, keeping its worktree and branch; False if it wasn't running."""

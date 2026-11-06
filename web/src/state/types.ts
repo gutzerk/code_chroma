@@ -657,6 +657,8 @@ export type AgentEvent =
   | { type: "agent-added"; agent: AgentRecord }
   | { type: "agent-removed"; id: string }
   | ({ type: "agent-status"; id: string; status: AgentStatus; exit_code?: number | null } & AgentStatusFields)
+  /** The user cleared the agent's conversation (claude `/clear` hook, or a typed clear command). */
+  | { type: "agent-history-cleared"; id: string }
   | { type: "branch-removed"; id: string };
 
 /** How far a workspace's graph is from being drawable (GET /workspaces/{id}/status). A worktree is

@@ -173,7 +173,8 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     # An AgentStartError becomes a 409 via the table in bridge/errors.py.
     try:
         session = services.agent_sessions.start(
-            agent_id, argv, Path(record.worktree), kind=launch.detector_kind, env=run_env
+            agent_id, argv, Path(record.worktree), kind=launch.detector_kind, env=run_env,
+            clear=launch.clear,
         )
     except AgentStartError as exc:
         record.start_error = AgentError(str(exc), utc_now())

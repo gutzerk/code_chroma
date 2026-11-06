@@ -86,6 +86,20 @@ def _broadcast_exit(services: BridgeServices, agent_id: str) -> None:
     task.add_done_callback(_EXIT_BROADCASTS.discard)
 
 
+def _broadcast_cleared(services: BridgeServices, agent_id: str) -> None:
+    """Tells every canvas an agent's conversation was cleared, so its prompt list empties."""
+    from codechroma.bridge.agents.history_clear import HISTORY_CLEARED_EVENT
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    message = {"type": HISTORY_CLEARED_EVENT, "id": agent_id}
+    task = loop.create_task(services.connections.broadcast(message))
+    _EXIT_BROADCASTS.add(task)
+    task.add_done_callback(_EXIT_BROADCASTS.discard)
+
+
 async def _unload_idle_workspaces(services: BridgeServices) -> None:
     """Periodically drops workspaces nobody touched; graph.db keeps their work on disk."""
     while True:
@@ -143,6 +157,7 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     services = app.state.services
     app.state.question_mcp = QuestionMcp(services.registry.get)
     services.agent_sessions.on_exit = lambda agent_id: _broadcast_exit(services, agent_id)
+    services.agent_sessions.on_clear = lambda agent_id: _broadcast_cleared(services, agent_id)
 
     allowed_origins = os.environ.get(
         "codechroma_BRIDGE_CORS_ORIGINS",

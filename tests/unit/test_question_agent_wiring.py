@@ -65,7 +65,8 @@ def test_a_window_with_the_mcp_server_pre_approves_its_tools_so_no_worktree_asks
 
     settings = json.loads(argv[argv.index("--settings") + 1])
     assert settings["permissions"] == {"allow": ["mcp__codechroma"]}
-    assert "SessionStart" not in settings["hooks"]
+    # No session tracking without a file: SessionStart only carries the status hook's /clear report.
+    assert [e.get("matcher") for e in settings["hooks"]["SessionStart"]] == ["clear"]
 
 
 def test_claude_argv_is_unchanged_without_an_endpoint():

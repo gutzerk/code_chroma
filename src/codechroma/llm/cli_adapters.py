@@ -52,6 +52,11 @@ class CliAdapter(Protocol):
         ...
 
 
+def delivers_hidden_prompt_context(adapter: object) -> bool:
+    """Whether a window can get hidden context with the first prompt (UserPromptSubmit hook)."""
+    return getattr(adapter, "hidden_prompt_context", False) is True
+
+
 def supports_minimal_context_workers(adapter: CliAdapter) -> bool:
     """Whether `adapter` implements the zero-tool structured-output worker methods."""
     return hasattr(adapter, "build_worker_argv") and hasattr(adapter, "parse_structured_output")
@@ -73,6 +78,9 @@ def _parse_json_event(raw: bytes | str) -> dict | None:
 
 class ClaudeAdapter:
     """`claude -p ... --output-format stream-json` -- the shape skill_agent used to build inline."""
+
+    # Its UserPromptSubmit hook adds `additionalContext` to a prompt without showing it.
+    hidden_prompt_context = True
 
     def mcp_registration(
         self, endpoint: McpEndpoint, workdir: Path | None

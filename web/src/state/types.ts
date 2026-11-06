@@ -573,8 +573,8 @@ export interface AgentRecord extends AgentStatusFields {
   exit_code: number | null;
   /** The worktree directory is gone (deleted by hand); the card offers to recreate it. */
   worktree_lost: boolean;
-  /** `"task"` for an actionable first message (a "Draw a diagram" launch), `"view"` for the plain
-   * acknowledge-only line. Survives `consume_context`, which clears `context` but not this, so it
+  /** `"task"` for an actionable first message (a "Draw a diagram" launch), `"view"` for the hidden
+   * current-view context. Survives `consume_context`, which clears `context` but not this, so it
    * still identifies a task agent once it goes idle. Absent from a bridge older than the field. */
   context_kind?: string;
   /** The binary/adapter a provider-routed (`kind === "agent"`) window actually launched, e.g. a

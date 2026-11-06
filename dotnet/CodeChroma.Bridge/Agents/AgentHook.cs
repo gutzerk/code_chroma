@@ -34,7 +34,17 @@ public static class AgentHook
         },
     }.ToJsonString();
 
-    /// <summary>Posts stdin to the bridge; prints a decision only for an answered PermissionRequest; every error exits 0 silently.</summary>
+    /// <summary>Claude's answer to a UserPromptSubmit the bridge has pending context for: hidden context added to that prompt.</summary>
+    public static string PromptContextOutput(string context) => new JsonObject
+    {
+        ["hookSpecificOutput"] = new JsonObject
+        {
+            ["hookEventName"] = "UserPromptSubmit",
+            ["additionalContext"] = context,
+        },
+    }.ToJsonString();
+
+    /// <summary>Posts stdin to the bridge; prints a decision for an answered PermissionRequest or pending context for a UserPromptSubmit; every error exits 0 silently.</summary>
     public static int Run(TextReader input, TextWriter output, Func<string, string, string, int, string?>? post = null)
     {
         if (HookEnv.Wired() is not { } wiring) return 0;
@@ -46,6 +56,8 @@ public static class AgentHook
             var reply = (post ?? Post)(url, wiring.Token, report.ToJsonString(), permission ? PermissionWaitMs + PostTimeoutMs : PostTimeoutMs);
             var decision = permission && reply is not null ? Json.Str(JsonNode.Parse(reply)?["decision"]) : null;
             if (decision is "allow" or "deny") output.Write(DecisionOutput(decision));
+            var prompt = Json.Str(report["hook_event_name"]) == "UserPromptSubmit";
+            if (prompt && reply is not null && Json.Str(JsonNode.Parse(reply)?["additional_context"]) is { Length: > 0 } context) output.Write(PromptContextOutput(context));
         }
         catch (Exception) { }
         return 0;

@@ -25,6 +25,9 @@ public interface ICliAdapter
 
     /// <summary>How an interactive window run in <paramref name="workdir"/> reaches the bridge's ask_user MCP server; null when the CLI has no verified way.</summary>
     McpLaunch? Mcp(McpEndpoint endpoint, string? workdir) => null;
+
+    /// <summary>Whether an interactive window can receive hidden context with the user's first prompt (Claude's UserPromptSubmit additionalContext); false sends none.</summary>
+    bool HiddenPromptContext => false;
 }
 
 /// <summary>The options and env that register the bridge's MCP server with one CLI process.</summary>
@@ -69,6 +72,8 @@ public sealed class ClaudeAdapter : ICliAdapter
     public const string ForkSessionFlag = "--fork-session";
 
     public bool CanResume => true;
+
+    public bool HiddenPromptContext => true;
 
     public IReadOnlyList<string> ResumeArgs(string session, bool fork) => fork ? [ResumeFlag, session, ForkSessionFlag] : [ResumeFlag, session];
 

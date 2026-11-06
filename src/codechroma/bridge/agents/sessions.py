@@ -127,6 +127,8 @@ class AgentSession(AgentSessionPort):
         self._state = AgentStatusState()
         # The poll thread and hook requests both drive the detector, which is not thread-safe.
         self._detector_lock = threading.Lock()
+        self._prompt_context: str | None = None
+        self._prompt_context_lock = threading.Lock()
         self._consumers: set[asyncio.Queue] = set()
         self._inject_lock = asyncio.Lock()
         # Seeded with the PTY's own geometry, so the tap renders the screen the agent actually drew.
@@ -195,6 +197,17 @@ class AgentSession(AgentSessionPort):
         """Once hooks report, the detector holds whatever status they set."""
         if self._state.hooked:
             self._detector.force(self._state.live)
+
+    def hold_prompt_context(self, context: str) -> None:
+        """Holds hidden context for the next prompt the user submits; never typed into the PTY."""
+        with self._prompt_context_lock:
+            self._prompt_context = context
+
+    def take_prompt_context(self) -> str | None:
+        """The held prompt context, handed out once."""
+        with self._prompt_context_lock:
+            context, self._prompt_context = self._prompt_context, None
+            return context
 
     def mark_seen(self) -> bool:
         """Done becomes idle; True when that changed the status."""

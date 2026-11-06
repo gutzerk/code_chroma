@@ -392,46 +392,63 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   so never got its `ask_user` answers typed. Tests: `QuestionAgentWiringTests.cs`,
   `test_question_agent_wiring.py`.
 - **Current-view context on launch.** A user-launched agent (the canvas's single "Run agent" button,
-  always attached to the active workspace) gets a short acknowledge-only line telling it what the
-  user is currently looking at — active view and the
+  always attached to the active workspace) gets hidden context telling it what the user was looking
+  at — active view and the
   focused item (e.g. the epic open in the AI brief plus its `source_ref`, the C1 system name +
   description, the patterns count, or the custom-diagram title). It is built on the frontend from
   state already loaded at click time (`web/src/agents/viewContext.ts::buildViewContext`), kept in the
   workspace-scoped `viewContextStore`, and carried to the bridge as `POST /agents`' `context` field,
   which `AgentManager.create(..., context=...)` persists on the `AgentRecord`.
-  🔴 **Delivered once, only on a fresh start, only via the route.** `POST /agents/{id}/start` calls
-  `AgentManager.consume_context()` (which clears the field so a resume/restart never re-injects) and,
-  on a fresh (non-resume) start, calls `session.inject_when_idle(text)` — a public `AgentSession` /
-  `AgentSessionPort` method that spawns a background task polling the session's own rendered
-  `ScreenTap` tail for the Claude idle prompt (the `❯` line, the same rule `detect/claude.toml` uses)
-  and then types the line as a normal user message (text first, then Enter as a separate write
-  after `context_inject_submit_delay_seconds`, C# `AgentSession.SubmitDelay`, 0.3 s: Claude Code reads
-  one write of text plus Enter as a paste and does not submit it), giving up quietly (never typing into a
-  `working`/`blocked` agent) if it never idles. Because injection is wired only in the route,
-  `autostart.py` (which spawns via `agent_sessions.start` directly) never
-  injects — correct, since there's no live view at boot. Tunables: `agents_routes`
-  `context_inject_attempts` / `context_inject_interval_seconds` / `context_inject_submit_delay_seconds`.
-  The text may also be a builder (Python: async callable, C#: `Func<string?>`) run once the agent
-  idles; a null result types nothing and resolves `False` (question batches use this, see
-  [`ai-questions.md`](ai-questions.md)).
-  🔵 **`context_kind` now splits both the wrapping and the delivery.** `AgentRecord.context_kind`
+  🔴 **Hidden, and only with the user's first prompt.** Nothing is typed into the PTY and the agent
+  gets no turn of its own (the old "[Context] … Please acknowledge" idle inject is gone).
+  `POST /agents/{id}/start` calls `AgentManager.consume_context()` (which clears the field so a
+  resume/restart never re-delivers it) and, on a fresh start of a CLI that can take hidden context,
+  holds the wrapped line on the session (`AgentSession.HoldPromptContext` / `hold_prompt_context`,
+  text from `AgentRoutes.ViewContext` / `routes/agents.py::view_context`). The first
+  `UserPromptSubmit` status hook (`POST /agents/{id}/hook`) takes it (`TakePromptContext`, handed out
+  once) and replies `{"ok": true, "additional_context": "…"}`; the `agent-hook` subcommand
+  (`AgentHook.cs` / `agent_hook.py`) prints it as
+  `{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "…"}}`, which
+  Claude Code adds to that prompt without showing it. Later prompts get nothing. The hook stays
+  fail-open: any error prints nothing and never blocks the prompt. A held context lives in memory
+  only, so a bridge restart before the first prompt drops it.
+
+  | CLI | View context |
+  |---|---|
+  | Claude Code (`claude` kind, or `agent` kind resolving to the real `claude` CLI) | Hidden, added to the first prompt via the `UserPromptSubmit` hook |
+  | Codex, Gemini, Kimi, a stand-in binary behind the claude adapter, `shell` | None (no verified hidden channel; never typed as visible text) |
+
+  The capability is per adapter: `ICliAdapter.HiddenPromptContext` (C#, `Skills/CliAdapters.cs`,
+  true only for `ClaudeAdapter`) and `hidden_prompt_context` / `delivers_hidden_prompt_context`
+  (`llm/cli_adapters.py`); `TerminalAgents.Resolve` / `agent_launch` copy it onto
+  `AgentLaunch.HiddenPromptContext` / `hidden_prompt_context` for real-claude launches only. Tests:
+  `AgentLifecycleStatusTests.cs` (never typed into an idle window; first prompt only),
+  `AgentHookTests.cs`, `test_bridge_agents_route.py`, `test_agent_live_status.py`, contract case
+  `a_view_context_is_consumed_on_start_and_a_cli_without_hidden_context_gets_none`.
+  `AgentSession.inject_when_idle` / `InjectWhenIdle` still exists for question answers (see
+  [`ai-questions.md`](ai-questions.md)): it polls the session's `ScreenTap` for the idle prompt and
+  types text, then Enter as a separate write after `context_inject_submit_delay_seconds` (C#
+  `AgentSession.SubmitDelay`, 0.3 s: Claude Code reads one write of text plus Enter as a paste),
+  giving up quietly if the agent never idles. Tunables: `agents_routes` `context_inject_attempts` /
+  `context_inject_interval_seconds` / `context_inject_submit_delay_seconds`. The text may also be a
+  builder (Python: async callable, C#: `Func<string?>`) run once the agent idles; a null result types
+  nothing and resolves `False`.
+  🔵 **`context_kind` splits the delivery.** `AgentRecord.context_kind`
   (`"view"` default, or `"task"`) rides alongside `context`; `consume_context()` returns both as a
-  `(text, kind)` pair, called up front in `post_agent_start` (before argv is even built) rather than
-  after the PTY comes up. `"view"` keeps the acknowledge-only `inject_when_idle` path above. `"task"`
-  skips PTY injection entirely: its text is passed straight to `agent_cli(..., initial_prompt=text)`
+  `(text, kind)` pair, called up front in `post_agent_start` (before argv is even built). `"view"`
+  takes the hidden first-prompt path above. `"task"` is passed straight to
+  `agent_cli(..., initial_prompt=text)`
   (`terminal/agents.py`), which appends it as a positional argv entry for the `claude` binary — so the
   CLI process starts already answering it, and the window the user opens already shows the agent's
-  question instead of an empty prompt waiting on idle-detection. `DrawDiagramButton`'s "Draw…" button
+  question instead of an empty prompt. `DrawDiagramButton`'s "Draw…" button
   (now via `DrawDialog`, see `web-canvas-shell.md`) is the one caller today: `attachAgent`/`launchAgent` accept an optional `task`
   string that, when given, takes priority over `context` and is sent with `contextKind: "task"`.
   🔴 **`context` is control-character-free by construction** (`manager._clean_context`, applied in
   both `create()` and `AgentRecord.from_json`, so a record persisted by an older build is cleaned on
-  load too) — this still matters for `"view"`, whose text is typed into a **live PTY**: every C0 char
-  (CR, LF, ESC), DEL and C1 is a real keystroke, so a newline would submit the message early and an
-  ESC would drive the TUI itself. They're replaced with a space (not dropped — "a\nb" must stay two
-  words) and the result is whitespace-collapsed to one line, leaving an empty string as `None`.
-  `"task"` text no longer passes through a PTY at all — it's an OS argv entry, not keystrokes — but
-  stays just as clean since the same `_clean_context` runs on every `context` regardless of kind.
+  load too): every C0 char (CR, LF, ESC), DEL and C1 is replaced with a space (not dropped — "a\nb"
+  must stay two words) and the result is whitespace-collapsed to one line, leaving an empty string as
+  `None`. Neither kind passes through a PTY as keystrokes any more (`"task"` is an argv entry,
+  `"view"` hook output), but the same `_clean_context` runs on every `context` regardless of kind.
 - `status.py` + `detect/<kind>.toml` (C# `Agents/StatusDetector.cs`, same manifests embedded) — the
   LED. A port of herdr's rule engine (`src/detect/manifest.rs`, Apache-2.0): each manifest
   (`claude`, `codex`, `kimi` with alias `kimi-cli`, `gemini`) is a list of `[[rules]]` with a

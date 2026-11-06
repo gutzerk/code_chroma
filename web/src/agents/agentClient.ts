@@ -50,8 +50,8 @@ export interface AgentClient {
   list(workspace?: string): Promise<AgentList>;
   /** Creates an agent in worktree tab `workspace` (`br_*`). `attachTo` (an agent id or a PR id like "pr-282";
    * "main" is refused) shares that agent's worktree, or forks a new one from the PR's head commit.
-   * `context` is the agent's first message: `contextKind` "view" (default) only acknowledges the current
-   * view, "task" is an actionable prompt; `diagram` names the diagram a task draws. */
+   * `context` with `contextKind` "view" (default) rides hidden with the first prompt (Claude only),
+   * "task" is the actionable first message; `diagram` names the diagram a task draws. */
   create(
     title: string,
     kind?: string,

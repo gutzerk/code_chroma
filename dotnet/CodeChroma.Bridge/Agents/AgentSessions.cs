@@ -47,6 +47,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private AgentError? _error;
     private (long Generation, string Title, string Progress, string? Process)? _screenKey;
     private DetectClassification _screenVerdict = DetectClassification.Hold;
+    private string? _promptContext;
 
     public AgentSession(string agentId, PtyLaunch launch, string kind = "claude", string? banner = null, Action<AgentSession>? onExit = null)
     {
@@ -140,6 +141,12 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     {
         if (_state.Hooked) _detector.Force(_state.Live);
     }
+
+    /// <summary>Holds hidden context for the next prompt the user submits; it is never typed into the PTY.</summary>
+    public void HoldPromptContext(string context) => Volatile.Write(ref _promptContext, context);
+
+    /// <summary>The held prompt context, handed out once.</summary>
+    public string? TakePromptContext() => Interlocked.Exchange(ref _promptContext, null);
 
     /// <summary>Done becomes idle; true when that changed the status.</summary>
     public bool MarkSeen() => _state.MarkSeen();

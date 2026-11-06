@@ -23,7 +23,7 @@ from codechroma.assistant import DEFAULT_CLI, load_assistant_settings
 from codechroma.bridge.agents.session_ownership import FILE_ENV, INITIAL_ID_ENV, hook_document
 from codechroma.bridge.resources import resource_path
 from codechroma.config import settings
-from codechroma.llm.cli_adapters import CLI_ADAPTERS
+from codechroma.llm.cli_adapters import CLI_ADAPTERS, delivers_hidden_prompt_context
 from codechroma.questions.launch import CLAUDE_PERMISSION, McpEndpoint
 
 CLASSIC_RENDERER_ENV = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"
@@ -58,6 +58,8 @@ class AgentLaunch:
     argv: list[str]
     env: dict[str, str]
     detector_kind: str
+    # The status hook hands held context to the user's first prompt; False delivers none.
+    hidden_prompt_context: bool = False
 
 
 def agent_cli(
@@ -104,7 +106,7 @@ def agent_launch(
             **resolution.env_overrides, **_status_hook_env(is_claude, mcp), **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
             **_renderer_env(is_claude),
-        }, agent if stand_in else resolution.adapter_key)
+        }, agent if stand_in else resolution.adapter_key, _hidden_prompt_context(is_claude))
     argv_entry = ALLOWED_AGENTS.get(agent)
     if argv_entry is None:
         return None
@@ -125,7 +127,7 @@ def agent_launch(
             **_status_hook_env(is_claude, mcp), **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
             **_renderer_env(is_claude),
-        }, agent)
+        }, agent, _hidden_prompt_context(is_claude))
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
     if resume_session_id:
         return AgentLaunch([*argv_entry, RESUME_FLAG, resume_session_id], {}, agent)
@@ -155,6 +157,11 @@ def _settings_args(
     if has_mcp:
         document["permissions"] = {"allow": [CLAUDE_PERMISSION]}
     return ["--settings", json.dumps(document)]
+
+
+def _hidden_prompt_context(is_claude: bool) -> bool:
+    """Only the real claude CLI runs the status hooks that carry hidden first-prompt context."""
+    return is_claude and delivers_hidden_prompt_context(CLI_ADAPTERS["claude"])
 
 
 def _status_hook_env(is_claude: bool, mcp: McpEndpoint | None) -> dict[str, str]:

@@ -36,6 +36,8 @@ public sealed record AgentLaunch(IReadOnlyList<string> Argv, IReadOnlyDictionary
 
     /// <summary>How the window notices the user cleared the CLI's conversation (the resolved adapter's definition); null for a shell or a stand-in binary.</summary>
     public ClearWatch? Clear { get; init; }
+    /// <summary>Whether the window's status hook hands held context to the user's first prompt (hidden); false means none is delivered.</summary>
+    public bool HiddenPromptContext { get; init; }
 }
 
 /// <summary>
@@ -143,7 +145,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             ownedEnv[AgentSessionOwnership.InitialIdEnv] = (fresh ? newSessionId : resumeSessionId) ?? "";
         }
         // Options precede the prompt and the variadic --plugin-dir / --allowedTools options.
-        return new AgentLaunch([argv[0], .. options, .. argv.Skip(1)], ownedEnv);
+        return new AgentLaunch([argv[0], .. options, .. argv.Skip(1)], ownedEnv) { HiddenPromptContext = CliAdapters.All["claude"].HiddenPromptContext };
     }
 
     /// <summary>The label persisted on AgentRecord.ResolvedCli: only `agent` windows report one.</summary>

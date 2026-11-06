@@ -1622,6 +1622,108 @@
           }
         }
       ]
+    },
+    {
+      "id": "a_view_context_is_consumed_on_start_and_a_cli_without_hidden_context_gets_none",
+      "requires": [
+        "pty"
+      ],
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Viewer",
+              "kind": "shell",
+              "workspace": "{{ws}}",
+              "context": "the System context diagram"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.context",
+                "equals": "the System context diagram"
+              },
+              {
+                "path": "$.context_kind",
+                "equals": "view"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/viewer/start",
+            "json": {}
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "token": "viewer",
+          "as": "tok"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/viewer/hook",
+            "json": {
+              "hook_event_name": "UserPromptSubmit",
+              "prompt": "go"
+            },
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[0].context",
+                "equals": null
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/viewer/stop"
+          },
+          "expect": {
+            "status": 200
+          }
+        }
+      ]
     }
   ]
 }

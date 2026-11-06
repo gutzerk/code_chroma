@@ -93,6 +93,27 @@ public sealed class AgentHookTests : IDisposable
     }
 
     [Fact]
+    public void A_prompt_submit_with_pending_context_prints_it_as_hidden_additional_context()
+    {
+        var (code, output) = Run("""{"hook_event_name":"UserPromptSubmit","prompt":"go"}""", """{"ok":true,"additional_context":"looking at C1"}""");
+
+        var printed = JsonNode.Parse(output)!["hookSpecificOutput"]!;
+        Assert.Equal(0, code);
+        Assert.Equal(("UserPromptSubmit", "looking at C1"), ((string?)printed["hookEventName"], (string?)printed["additionalContext"]));
+    }
+
+    [Theory]
+    [InlineData("""{"ok":true}""")]
+    [InlineData(null)]
+    [InlineData("not json")]
+    public void A_prompt_submit_without_context_prints_nothing(string? reply)
+    {
+        var (code, output) = Run("""{"hook_event_name":"UserPromptSubmit"}""", reply);
+
+        Assert.Equal((0, ""), (code, output));
+    }
+
+    [Fact]
     public void An_unreachable_bridge_exits_zero_silently()
     {
         var output = new StringWriter();

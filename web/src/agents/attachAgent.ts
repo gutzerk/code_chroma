@@ -6,7 +6,7 @@ import { worktreeStore } from "./worktreeStore";
 
 /** What "Add agent here" does: same no-picker flow as launchAgent, but targets whatever workspace
  * the canvas is currently showing. For a worktree tab the agent joins that tab's worktree (`workspace`), no attach_to. For a PR review, it instead forks a fresh branch/worktree from the PR's head.
- * `context` is the current-view description, forwarded to the fresh agent (acknowledge-only);
+ * `context` is the current-view description, hidden context for the agent's first prompt;
  * `task`, if given, takes priority and is injected as a real actionable first message instead
  * (e.g. `DrawDiagramButton`'s "Draw…"). */
 export async function attachAgent(

@@ -313,6 +313,23 @@ def test_an_undecided_or_failed_permission_request_prints_nothing(monkeypatch, r
     assert (code, output) == (0, "")
 
 
+def test_a_prompt_submit_with_pending_context_prints_it_as_hidden_context(monkeypatch):
+    reply = '{"ok":true,"additional_context":"looking at C1"}'
+
+    code, output, _ = _run_hook(monkeypatch, '{"hook_event_name":"UserPromptSubmit"}', reply)
+
+    printed = json.loads(output)["hookSpecificOutput"]
+    assert code == 0
+    assert printed == {"hookEventName": "UserPromptSubmit", "additionalContext": "looking at C1"}
+
+
+@pytest.mark.parametrize("reply", ['{"ok":true}', None, "not json"])
+def test_a_prompt_submit_without_context_prints_nothing(monkeypatch, reply):
+    code, output, _ = _run_hook(monkeypatch, '{"hook_event_name":"UserPromptSubmit"}', reply)
+
+    assert (code, output) == (0, "")
+
+
 def test_the_hook_without_its_env_posts_nothing(monkeypatch):
     for name in ("CODECHROMA_QUESTION_TOKEN", "codechroma_QUESTION_TOKEN"):
         monkeypatch.delenv(name, raising=False)

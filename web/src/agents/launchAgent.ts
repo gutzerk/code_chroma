@@ -9,7 +9,7 @@ import { worktreeStore } from "./worktreeStore";
  * fresh agent, right away. `create("")` leans on the id-as-title fallback both clients already
  * apply, so there's nothing left to ask the user for. Every agent belongs to the active worktree tab (`workspace`); pass `attachTo` only to share
  * another agent's worktree or fork from a PR — see attachAgent for what that means. `context`
- * is the short "current view" description the fresh agent acknowledges (acknowledge-only; see
+ * is the short "current view" description, added hidden to the agent's first prompt (see
  * parallel-agents.md). `task`, if given, takes priority over `context` and is injected as a real,
  * actionable first message instead (e.g. the "Draw…" launch — see DrawDiagramButton.tsx). */
 export async function launchAgent(

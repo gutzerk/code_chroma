@@ -31,10 +31,19 @@ public sealed class AgentLifecycleStatusTests : IDisposable
     private void UseCli(string path) =>
         JsonFile.Write(_host.Factory.Services.GetRequiredService<UserPaths>().Runtime, new JsonObject { ["cli_paths"] = new JsonObject { ["claude"] = path } });
 
-    private async Task CreateAgent(string title)
+    private async Task CreateAgent(string title, string? context = null)
     {
         var tab = await TerminalSocketTests.EnsureTab(_host);
-        await _host.Client.PostAsync("/agents", Body($$"""{"title":"{{title}}","workspace":"{{tab}}"}"""));
+        var extra = context is null ? "" : ",\"context\":" + JsonValue.Create(context).ToJsonString();
+        await _host.Client.PostAsync("/agents", Body($$"""{"title":"{{title}}","workspace":"{{tab}}"{{extra}}}"""));
+    }
+
+    private async Task<JsonNode> PromptSubmit(string agentId)
+    {
+        var token = _host.Factory.Services.GetRequiredService<QuestionMcp>().TokenFor(agentId);
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/agents/{agentId}/hook") { Content = Body("""{"hook_event_name":"UserPromptSubmit"}""") };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return JsonNode.Parse(await (await _host.Client.SendAsync(request)).Content.ReadAsStringAsync())!;
     }
 
     private async Task<JsonNode> Agent()
@@ -149,5 +158,48 @@ public sealed class AgentLifecycleStatusTests : IDisposable
         var argv = launch.Argv.ToList();
         Assert.Contains(AgentHook.Command, argv[argv.IndexOf("--settings") + 1]);
         Assert.Equal("painter", mcp.WorkspaceIdFor(launch.Env[McpEndpoint.TokenEnv]));
+    }
+
+    [Fact]
+    public async Task A_view_context_is_never_typed_into_an_idle_claude_window()
+    {
+        _cli.Script(Stdout("\u001b]0;\u2733 Claude\u0007"), Hang());
+        UseCli(_cli.ExePath);
+        await CreateAgent("viewer", "the System context diagram");
+        var sessions = _host.Factory.Services.GetRequiredService<AgentSessionRegistry>();
+
+        await _host.Client.PostAsync("/agents/viewer/start", Body("{}"));
+        var session = sessions.Get("viewer")!;
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (!session.Screen.Render().Contains("System context") && DateTime.UtcNow < deadline) await Task.Delay(100);
+
+        Assert.True(session.DetectsIdle);
+        Assert.DoesNotContain("System context", session.Screen.Render());
+    }
+
+    [Fact]
+    public async Task Only_the_first_prompt_of_a_claude_window_carries_the_view_context()
+    {
+        _cli.Script(Hang());
+        UseCli(_cli.ExePath);
+        await CreateAgent("reader", "the System context diagram");
+        await _host.Client.PostAsync("/agents/reader/start", Body("{}"));
+
+        var first = await PromptSubmit("reader");
+        var second = await PromptSubmit("reader");
+
+        var context = (string?)first["additional_context"];
+        Assert.Contains("the System context diagram", context);
+        Assert.DoesNotContain("acknowledge", context, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(second["additional_context"]);
+        Assert.True((bool?)second["ok"]);
+    }
+
+    [Fact]
+    public void Only_the_claude_adapter_delivers_hidden_prompt_context()
+    {
+        var delivers = CodeChroma.Bridge.Skills.CliAdapters.All.Where(kv => kv.Value.HiddenPromptContext).Select(kv => kv.Key);
+
+        Assert.Equal(["claude"], delivers);
     }
 }

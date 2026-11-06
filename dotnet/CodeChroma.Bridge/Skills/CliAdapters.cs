@@ -34,6 +34,8 @@ public interface ICliAdapter
 
     /// <summary>Input that makes the CLI repaint its screen without the old conversation after the bridge dropped the scrollback; null when it repaints on its own.</summary>
     string? RepaintInput => null;
+    /// <summary>Whether an interactive window can receive hidden context with the user's first prompt (Claude's UserPromptSubmit additionalContext); false sends none.</summary>
+    bool HiddenPromptContext => false;
 }
 
 /// <summary>The options and env that register the bridge's MCP server with one CLI process.</summary>
@@ -86,6 +88,7 @@ public sealed class ClaudeAdapter : ICliAdapter
 
     /// <summary>Ctrl+L: /clear leaves the old turns on screen, while Ctrl+L wipes the visible rows and redraws the prompt.</summary>
     public string? RepaintInput => "\f";
+    public bool HiddenPromptContext => true;
 
     public IReadOnlyList<string> ResumeArgs(string session, bool fork) => fork ? [ResumeFlag, session, ForkSessionFlag] : [ResumeFlag, session];
 

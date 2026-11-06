@@ -142,6 +142,14 @@ async def post_agent(request: Request, services: Services) -> dict:
     return payload
 
 
+def view_context(view: str) -> str:
+    """The hidden context a canvas launch adds to the user's first prompt."""
+    return (
+        f"This agent was launched from the CodeChroma canvas while the user was looking at: "
+        f"{view}. Use it as background for the user's message."
+    )
+
+
 @router.post("/agents/{agent_id}/start")
 async def post_agent_start(agent_id: str, request: Request, services: Services) -> dict:
     """Brings up the agent's PTY in its worktree; `{resume: true}` continues its last chat."""
@@ -186,14 +194,9 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
         agent_id, session.pid, resolved_cli=resolved_cli_for(record.kind, argv)
     )
     services.agent_manager.record_session_launch(agent_id, session)
-    if pending and pending[1] != "task":
-        text, _kind = pending
-        session.inject_when_idle(
-            f"[Context] You were just launched from the CodeChroma canvas. "
-            f"The user is currently looking at: {text}. "
-            f"Please acknowledge you understand this context. Do not act on it or "
-            f"start any work — just confirm you've read it and say you're ready.",
-        )
+    # A view context rides hidden with the user's first prompt; a CLI without that gets none.
+    if pending and pending[1] != "task" and launch.hidden_prompt_context:
+        session.hold_prompt_context(view_context(pending[0]))
     payload = agent_payload(services, updated)
     await broadcast_agent_status(services, updated)
     return payload
@@ -361,10 +364,12 @@ async def post_agent_hook(agent_id: str, request: Request, services: Services) -
     if session is None:
         return {"ok": True}
     outcome = session.apply_hook(body)
+    prompt = body.get("hook_event_name") == "UserPromptSubmit"
+    context = session.take_prompt_context() if prompt else None
     if outcome.changed:
         await broadcast_agent_status(services, record)
     if outcome.decision is None:
-        return {"ok": True}
+        return {"ok": True} if context is None else {"ok": True, "additional_context": context}
     try:
         decision = await asyncio.wait_for(
             asyncio.shield(asyncio.wrap_future(outcome.decision)), PERMISSION_WAIT_SECONDS

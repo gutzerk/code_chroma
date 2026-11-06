@@ -569,9 +569,9 @@ counts as ready.
 `DrawDiagramButton` is now always clickable, not conditionally shown — clicking it calls `attachAgent`
 with the fixed `DRAW_DIAGRAM_TASK` string and `{type: "any"}` (a bare agent's window shows the bridge-printed
 "What do you want to see?" question instead; the string is only the non-bare fallback), which `launchAgent` forwards to
-`AgentClient.create(..., contextKind: "task")` instead of the ordinary acknowledge-only `context` —
+`AgentClient.create(..., contextKind: "task")` instead of the ordinary hidden current-view `context` —
 see `parallel-agents.md`'s "Current-view context on launch" for the `context_kind` split this reuses.
-Unlike `"view"`, that `task` text is never typed into the PTY after boot: `post_agent_start` bakes it
+Like `"view"`, that `task` text is never typed into the PTY after boot: `post_agent_start` bakes it
 straight into the `claude` process's own argv (`terminal/agents.py::agent_cli(..., initial_prompt=...)`),
 so the agent's window opens already showing its question ("which kind would you like...") instead of
 an idle prompt waiting on injection — the user never has to already know a skill name or the right

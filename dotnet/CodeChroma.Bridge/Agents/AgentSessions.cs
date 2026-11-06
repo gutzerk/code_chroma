@@ -60,6 +60,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private readonly TypedClearDetector? _typedClear;
     private readonly object _typedGate = new();
     private readonly Action<AgentSession>? _cleared;
+    private string? _promptContext;
 
     /// <summary>Erases xterm's scrollback (and the tap's history) but not the visible screen.</summary>
     public const string ClearScrollback = "\u001b[3J";
@@ -161,6 +162,12 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     {
         if (_state.Hooked) _detector.Force(_state.Live);
     }
+
+    /// <summary>Holds hidden context for the next prompt the user submits; it is never typed into the PTY.</summary>
+    public void HoldPromptContext(string context) => Volatile.Write(ref _promptContext, context);
+
+    /// <summary>The held prompt context, handed out once.</summary>
+    public string? TakePromptContext() => Interlocked.Exchange(ref _promptContext, null);
 
     /// <summary>Done becomes idle; true when that changed the status.</summary>
     public bool MarkSeen() => _state.MarkSeen();

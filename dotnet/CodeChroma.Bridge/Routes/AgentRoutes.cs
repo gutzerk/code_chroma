@@ -25,6 +25,10 @@ public static class AgentRoutes
     // one status read-and-send at a time, so a stale snapshot is never broadcast after a newer one
     private static readonly object StatusGate = new();
 
+    /// <summary>The hidden context a canvas launch adds to the user's first prompt.</summary>
+    public static string ViewContext(string view) =>
+        $"This agent was launched from the CodeChroma canvas while the user was looking at: {view}. Use it as background for the user's message.";
+
     public static void Map(WebApplication app, string repoRoot)
     {
         app.MapGet("/agents/git-preflight", () => Reply.GuardBlocking(() => Reply.Json(AgentBootstrap.Preflight(repoRoot))));
@@ -121,10 +125,8 @@ public static class AgentRoutes
             }
             record.StartError = null;
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
-            if (pending is { Kind: not "task" } view)
-                _ = session.InjectWhenIdle(
-                    $"[Context] You were just launched from the CodeChroma canvas. The user is currently looking at: {view.Text}. "
-                    + "Please acknowledge you understand this context. Do not act on it or start any work — just confirm you've read it and say you're ready.");
+            // a view context rides hidden with the user's first prompt (UserPromptSubmit hook); a CLI without that gets none
+            if (pending is { Kind: not "task" } view && launch.HiddenPromptContext) session.HoldPromptContext(ViewContext(view.Text));
             agents.RecordSessionLaunch(agentId, session);
             var payload = Payload(sessions, updated);
             await BroadcastStatus(connections, sessions, updated);
@@ -141,8 +143,10 @@ public static class AgentRoutes
             var session = sessions.Get(agentId);
             if (session is null) return Reply.Json(new JsonObject { ["ok"] = true });
             var outcome = session.ApplyHook(body);
+            var context = Json.Str(body["hook_event_name"]) == "UserPromptSubmit" ? session.TakePromptContext() : null;
             if (outcome.Changed) await BroadcastStatus(connections, sessions, record);
-            if (outcome.Decision is not { } waiting) return Reply.Json(new JsonObject { ["ok"] = true });
+            if (outcome.Decision is not { } waiting)
+                return Reply.Json(context is null ? new JsonObject { ["ok"] = true } : new JsonObject { ["ok"] = true, ["additional_context"] = context });
             var decision = await WaitForDecision(waiting, request.HttpContext.RequestAborted);
             if (decision is null)
             {

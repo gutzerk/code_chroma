@@ -42,6 +42,13 @@ def decision_output(behavior: str) -> dict:
     }}
 
 
+def prompt_context_output(context: str) -> dict:
+    """Claude's answer to a UserPromptSubmit with pending context: hidden, for that prompt."""
+    return {"hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit", "additionalContext": context,
+    }}
+
+
 def slim(report: dict) -> dict:
     """Only what the bridge reads off a report, never `tool_response` (it can be a whole file)."""
     keys = ("hook_event_name", "tool_name", "notification_type", "source")
@@ -66,7 +73,7 @@ def post(url: str, token: str, body: str, timeout: float) -> str | None:
 
 
 def run(input_stream: TextIO, output: TextIO, sender=post) -> int:
-    """Posts stdin; prints a decision only for an answered PermissionRequest; errors exit 0."""
+    """Posts stdin; prints a canvas decision or pending prompt context; errors exit 0."""
     base_url = env("CODECHROMA_BRIDGE_URL").rstrip("/")
     token, agent_id = env("CODECHROMA_QUESTION_TOKEN"), env("CODECHROMA_WORKSPACE_ID")
     if not (base_url and token and agent_id):
@@ -82,6 +89,10 @@ def run(input_stream: TextIO, output: TextIO, sender=post) -> int:
         decision = json.loads(reply).get("decision") if permission and reply else None
         if decision in ("allow", "deny"):
             output.write(json.dumps(decision_output(decision)))
+        prompt = report.get("hook_event_name") == "UserPromptSubmit"
+        context = json.loads(reply).get("additional_context") if prompt and reply else None
+        if isinstance(context, str) and context:
+            output.write(json.dumps(prompt_context_output(context)))
     except Exception:
         return 0
     return 0

@@ -38,8 +38,17 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private readonly List<AgentConsumer> _consumers = [];
     private readonly ScreenTap _tap = new(PtyLaunch.DefaultRows, PtyLaunch.DefaultCols);
     private readonly StatusDetector _detector;
-    private readonly PtyHost _pty;
-    private readonly ForegroundProcess _foreground;
+    private PtyHost _pty;
+    private ForegroundProcess _foreground;
+    // which PTY of this session is current; callbacks of a replaced one are ignored
+    private long _spawn;
+    private int _cols = PtyLaunch.DefaultCols;
+    private int _narrowestPrinted = int.MaxValue;
+    private DateTimeOffset _resizedAt = DateTimeOffset.MinValue;
+    private DateTimeOffset _typedAt = DateTimeOffset.MinValue;
+    private DateTimeOffset _widenNotBefore = DateTimeOffset.MinValue;
+    private bool _draft;
+    private int _injecting;
     private readonly AgentStatusState _state = new();
     private readonly Action<AgentSession>? _exited;
     private int? _exitCode;
@@ -59,7 +68,8 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         // callbacks take _gate, so none can observe _pty before it is assigned
         lock (_gate)
         {
-            _pty = PtyHost.Start(launch, OnOutput, OnExit);
+            _cols = launch.Cols;
+            _pty = PtyHost.Start(launch, chunk => OnOutput(0, chunk), () => OnExit(0));
             if (banner is not null) _tap.Feed(banner);
         }
         _foreground = new ForegroundProcess(_pty.Pid);
@@ -67,10 +77,10 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 
     public string AgentId { get; }
 
-    public IReadOnlyList<string> Argv { get; }
+    public IReadOnlyList<string> Argv { get; private set; }
 
-    public string? SessionTrackingFile { get; }
-    public string? InitialSessionId { get; }
+    public string? SessionTrackingFile { get; private set; }
+    public string? InitialSessionId { get; private set; }
 
     public int Pid => _pty.Pid;
 
@@ -195,14 +205,97 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         lock (_gate) _consumers.Remove(consumer);
     }
 
-    public void Write(string data) => _pty.Write(data);
+    public void Write(string data)
+    {
+        NoteTyping(data);
+        _pty.Write(data);
+    }
 
     public void WriteBytes(byte[] data) => _pty.WriteBytes(data);
 
     public void Resize(int rows, int cols)
     {
-        _pty.Resize(rows, cols);
-        _tap.Resize(rows, cols);
+        lock (_gate)
+        {
+            _pty.Resize(rows, cols);
+            _tap.Resize(rows, cols);
+            _cols = cols;
+            _resizedAt = DateTimeOffset.UtcNow;
+        }
+    }
+
+    /// <summary>Erases the screen and the scrollback, so a resumed process reprints the conversation into an empty terminal.</summary>
+    public const string ClearScrollback = "\u001b[0m\u001b[H\u001b[2J\u001b[3J";
+
+    /// <summary>Whether a claude launch that can be resumed in place: tracked by CodeChroma and not a bare skill window.</summary>
+    public bool ResumesOnWiden => SessionTrackingFile is not null && !Argv.Contains("--system-prompt");
+
+    /// <summary>True once the window settled WidenResume.MinGainCols wider than the narrowest width this process printed at, while it is idle with nothing typed or queued.</summary>
+    public bool WidenDue(DateTimeOffset now)
+    {
+        if (!ResumesOnWiden || Volatile.Read(ref _injecting) > 0) return false;
+        var live = _state.Snapshot();
+        if (live.Status is not (AgentStatus.Idle or AgentStatus.Done) || live.Pending is not null) return false;
+        lock (_gate)
+            return _exitCode is null && !_draft && _narrowestPrinted != int.MaxValue && _cols >= _narrowestPrinted + WidenResume.MinGainCols
+                && now - _resizedAt >= WidenResume.Settle && now - _typedAt >= WidenResume.TypingQuiet && now >= _widenNotBefore;
+    }
+
+    /// <summary>Takes the current width as printed, so a widen that cannot be resumed is not retried.</summary>
+    public void SettleWidth()
+    {
+        lock (_gate) _narrowestPrinted = _cols;
+    }
+
+    /// <summary>Holds a due widen until `until`, for a check that may pass later (an open question).</summary>
+    public void PostponeWiden(DateTimeOffset until)
+    {
+        lock (_gate) _widenNotBefore = until;
+    }
+
+    /// <summary>Starts `argv` on a new PTY at the current size in place of the running one, keeping status and windows; false (old process untouched) when it cannot start.</summary>
+    public bool Respawn(IReadOnlyList<string> argv, string? cwd, IReadOnlyDictionary<string, string>? env)
+    {
+        PtyHost old;
+        lock (_gate)
+        {
+            if (_exitCode is not null || _closing) return false;
+            var next = _spawn + 1;
+            PtyHost fresh;
+            try { fresh = PtyHost.Start(new PtyLaunch(argv, cwd, env, _tap.Rows, _cols), chunk => OnOutput(next, chunk), () => OnExit(next)); }
+            catch (Exception error) when (error is not OutOfMemoryException)
+            {
+                Console.Error.WriteLine($"agents: could not restart {AgentId} at the new width: {error.Message}");
+                return false;
+            }
+            old = _pty;
+            _pty = fresh;
+            _spawn = next;
+            _foreground = new ForegroundProcess(fresh.Pid);
+            Argv = [.. argv];
+            SessionTrackingFile = env?.GetValueOrDefault(AgentSessionOwnership.FileEnv);
+            InitialSessionId = env?.GetValueOrDefault(AgentSessionOwnership.InitialIdEnv);
+            _narrowestPrinted = int.MaxValue;
+            _draft = false;
+            // the clear goes out before any byte of the new process, which waits on _gate
+            _tap.Feed(ClearScrollback);
+            foreach (var consumer in _consumers) consumer.Channel.Writer.TryWrite(ClearScrollback);
+        }
+        // reaping waits for the old child, so it runs off the caller's thread
+        _ = Task.Run(old.Dispose);
+        return true;
+    }
+
+    /// <summary>Tracks typed input: text without Enter is a draft a restart would lose; escape sequences (keys, focus, mouse) are not typing.</summary>
+    private void NoteTyping(string data)
+    {
+        if (data.Length == 0 || (data[0] == '\u001b' && !data.StartsWith("\u001b[200~", StringComparison.Ordinal))) return;
+        lock (_gate)
+        {
+            _typedAt = DateTimeOffset.UtcNow;
+            var cleared = data.LastIndexOfAny(['\r', '\u0003', '\u0015']);
+            _draft = cleared < 0 ? true : data[(cleared + 1)..].Any(c => !char.IsControl(c));
+        }
     }
 
     /// <summary>
@@ -218,7 +311,9 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         var wait = interval ?? TimeSpan.FromMilliseconds(500);
         lock (_injectGate)
         {
+            Interlocked.Increment(ref _injecting);
             var typed = _injectChain.ContinueWith(_ => InjectOnce(text, attempts, wait), TaskScheduler.Default).Unwrap();
+            typed.ContinueWith(_ => Interlocked.Decrement(ref _injecting), TaskScheduler.Default);
             _injectChain = typed;
             return typed;
         }
@@ -274,19 +369,23 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 
     public void Dispose() => _pty.Dispose();
 
-    private void OnOutput(string chunk)
+    private void OnOutput(long spawn, string chunk)
     {
-        _tap.Feed(chunk);
-        AgentConsumer[] targets;
-        lock (_gate) targets = [.. _consumers];
-        foreach (var consumer in targets) consumer.Channel.Writer.TryWrite(chunk);
+        lock (_gate)
+        {
+            if (spawn != _spawn) return;
+            _tap.Feed(chunk);
+            _narrowestPrinted = Math.Min(_narrowestPrinted, _cols);
+            foreach (var consumer in _consumers) consumer.Channel.Writer.TryWrite(chunk);
+        }
     }
 
-    private void OnExit()
+    private void OnExit(long spawn)
     {
         AgentConsumer[] targets;
         lock (_gate)
         {
+            if (spawn != _spawn) return;
             _exitCode = _pty?.ExitCode ?? 0;
             if (_exitCode != 0 && !_closing)
                 _error = new AgentError($"{Path.GetFileNameWithoutExtension(Argv.FirstOrDefault() ?? "agent")} exited with code {_exitCode}", DateTimeOffset.UtcNow);
@@ -372,6 +471,22 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
         string[] ids;
         lock (_lock) ids = [.. _sessions.Keys];
         foreach (var id in ids) Stop(id);
+    }
+
+    /// <summary>Restarts a live agent's process in place (WidenResume); false when it cannot start, leaving the old process running.</summary>
+    public bool Respawn(string agentId, IReadOnlyList<string> argv, string cwd, IReadOnlyDictionary<string, string>? env, Stores.UserPaths? paths = null)
+    {
+        if (Get(agentId) is not { IsAlive: true } session || argv.Count == 0 || !Directory.Exists(cwd)) return false;
+        string executable;
+        try { executable = CliResolver.Resolve(argv[0], paths); }
+        catch (CliLookupException) { return false; }
+        return session.Respawn([executable, .. argv.Skip(1)], cwd, runtime.TerminalEnv(env));
+    }
+
+    /// <summary>Every registered session, live or exited.</summary>
+    public List<AgentSession> All()
+    {
+        lock (_lock) return [.. _sessions.Values];
     }
 
     public void Dispose() => StopAll();

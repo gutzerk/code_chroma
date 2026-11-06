@@ -2,6 +2,7 @@ using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Prs;
+using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Routes;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
@@ -37,6 +38,11 @@ public sealed class AgentRuntime(
 
     private CancellationTokenSource? _stop;
     private Task? _poller;
+    private readonly WidenResume _widen = new(agents, sessions, terminalAgents, paths, id => AsksUser(registry, id));
+
+    /// <summary>Whether the agent has an ask_user question on its canvas, answered or not, that is not yet typed back to it.</summary>
+    private static bool AsksUser(WorkspaceRegistry registry, string agentId) =>
+        QuestionStore.ListQuestions(registry.Get(agentId)).Any(e => Json.Str(e.Meta["agent_id"]) == agentId);
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -156,6 +162,7 @@ public sealed class AgentRuntime(
                 try
                 {
                     foreach (var id in sessions.PollStatuses()) await BroadcastAgent(id);
+                    foreach (var id in _widen.Sweep(DateTimeOffset.UtcNow)) await BroadcastAgent(id);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {

@@ -26,10 +26,12 @@ import logging
 import threading
 import time
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from codechroma.bridge.agents.live_status import (
+    STATUS_DONE,
     STATUS_ERROR,
     STATUS_IDLE,
     STATUS_STOPPED,
@@ -49,6 +51,16 @@ from codechroma.terminal.pty_session import PtySession, default_cols, default_ro
 from codechroma.terminal.screen_tap import ScreenTap
 
 logger = logging.getLogger("uvicorn.error")
+
+# Columns a window must grow past the narrowest printed width before a resume reprints it.
+WIDEN_MIN_GAIN_COLS = 8
+# Quiet time after the last resize, so dragging a window edge restarts at most once.
+WIDEN_SETTLE = timedelta(seconds=1.5)
+# Quiet time after the last keystroke, so a restart never lands mid-typing.
+WIDEN_TYPING_QUIET = timedelta(seconds=3)
+# Erases screen and scrollback before a resumed process reprints the conversation.
+CLEAR_SCROLLBACK = "\x1b[0m\x1b[H\x1b[2J\x1b[3J"
+_NEVER = datetime.min.replace(tzinfo=UTC)
 
 def context_inject_attempts() -> int:
     return settings.agents_routes.context_inject_attempts
@@ -132,8 +144,24 @@ class AgentSession(AgentSessionPort):
         # Seeded with the PTY's own geometry, so the tap renders the screen the agent actually drew.
         self._tap = ScreenTap(rows=default_rows(), cols=default_cols())
         self._detector = StatusDetector(load_manifest_for(kind))
-        self._pty = PtySession(
-            argv, on_output=self._on_output, on_exit=self._on_exit, cwd=cwd, env=env
+        # Which PTY of this session is current; callbacks of a replaced one are ignored.
+        self._spawn = 0
+        self._rows = default_rows()
+        self._cols = default_cols()
+        self._narrowest_printed: int | None = None
+        self._resized_at = _NEVER
+        self._typed_at = _NEVER
+        self._widen_not_before = _NEVER
+        self._draft = False
+        self._injecting = 0
+        self._pty = self._spawn_pty(argv, cwd, env)
+
+    def _spawn_pty(self, argv: list[str], cwd: str, env: dict[str, str] | None) -> PtySession:
+        spawn = self._spawn
+        return PtySession(
+            argv, on_output=lambda chunk: self._on_output(chunk, spawn),
+            on_exit=lambda: self._on_exit(spawn), cwd=cwd, env=env,
+            rows=self._rows, cols=self._cols,
         )
 
     @property
@@ -236,7 +264,69 @@ class AgentSession(AgentSessionPort):
         self._pty.client_attached = bool(self._consumers)
 
     def write(self, data: str) -> None:
+        self._note_typing(data)
         self._pty.write(data)
+
+    def _note_typing(self, data: str) -> None:
+        """Text without Enter is a draft a restart would lose; escape sequences are not typing."""
+        if not data or (data[0] == "\x1b" and not data.startswith("\x1b[200~")):
+            return
+        self._typed_at = utc_now()
+        cleared = max(data.rfind(c) for c in ("\r", "\x03", "\x15"))
+        self._draft = any(c.isprintable() for c in data[cleared + 1:])
+
+    @property
+    def resumes_on_widen(self) -> bool:
+        """A tracked claude launch that is not a bare skill window can be resumed in place."""
+        return self.session_tracking_file is not None and "--system-prompt" not in self.argv
+
+    def widen_due(self, now: datetime) -> bool:
+        """True once the window settled wider than the narrowest printed width, idle and untyped."""
+        if not self.resumes_on_widen or self._injecting or self.exit_code is not None:
+            return False
+        live = self._state.snapshot()
+        if live.status not in (STATUS_IDLE, STATUS_DONE) or live.pending is not None:
+            return False
+        narrowest = self._narrowest_printed
+        return (
+            not self._draft and narrowest is not None
+            and self._cols >= narrowest + WIDEN_MIN_GAIN_COLS
+            and now - self._resized_at >= WIDEN_SETTLE
+            and now - self._typed_at >= WIDEN_TYPING_QUIET and now >= self._widen_not_before
+        )
+
+    def settle_width(self) -> None:
+        """Takes the current width as printed, so a widen that cannot resume is not retried."""
+        self._narrowest_printed = self._cols
+
+    def postpone_widen(self, until: datetime) -> None:
+        """Holds a due widen until `until`, for a check that may pass later (an open question)."""
+        self._widen_not_before = until
+
+    def respawn(self, argv: list[str], cwd: str, env: dict[str, str] | None) -> bool:
+        """Runs `argv` on a new PTY at the current size in place of the old; False keeps the old."""
+        if self.exit_code is not None or self._closing:
+            return False
+        old = self._pty
+        self._spawn += 1
+        try:
+            self._pty = self._spawn_pty(argv, cwd, env)
+        except Exception as exc:
+            self._spawn -= 1
+            logger.warning("agents: could not restart %s at the new width: %s", self.agent_id, exc)
+            return False
+        self.argv = list(argv)
+        self.session_tracking_file = (env or {}).get(FILE_ENV)
+        self.initial_session_id = (env or {}).get(INITIAL_ID_ENV)
+        self._narrowest_printed = None
+        self._draft = False
+        self._pty.client_attached = bool(self._consumers)
+        # Single-threaded loop: the clear goes out before any byte of the new process.
+        self._tap.feed(CLEAR_SCROLLBACK)
+        for queue in list(self._consumers):
+            queue.put_nowait(CLEAR_SCROLLBACK)
+        old.close()
+        return True
 
     def write_bytes(self, data: bytes) -> None:
         self._pty.write_bytes(data)
@@ -254,10 +344,13 @@ class AgentSession(AgentSessionPort):
         True once the text was typed; it never raises.
         """
         async def run() -> bool:
-            async with self._inject_lock:
-                return await self._inject_once(text, attempts)
+            try:
+                async with self._inject_lock:
+                    return await self._inject_once(text, attempts)
+            finally:
+                self._injecting -= 1
 
-
+        self._injecting += 1
         task = asyncio.create_task(run())
         return task
 
@@ -300,6 +393,9 @@ class AgentSession(AgentSessionPort):
     def resize(self, rows: int, cols: int) -> None:
         self._pty.resize(rows, cols)
         self._tap.resize(rows, cols)
+        self._rows = rows
+        self._cols = cols
+        self._resized_at = utc_now()
 
     def close(self) -> None:
         """Kills the process from the event loop; a deliberate kill is no error."""
@@ -311,13 +407,18 @@ class AgentSession(AgentSessionPort):
         if self.exit_code is None:
             self._pty.terminate_process()
 
-    def _on_output(self, chunk: str) -> None:
+    def _on_output(self, chunk: str, spawn: int = 0) -> None:
+        if spawn != self._spawn:
+            return
+        self._narrowest_printed = min(self._narrowest_printed or self._cols, self._cols)
         # The detector reads the rendered screen, and so does a reattach; same chunks as the socket.
         self._tap.feed(chunk)
         for queue in list(self._consumers):
             queue.put_nowait(chunk)
 
-    def _on_exit(self) -> None:
+    def _on_exit(self, spawn: int = 0) -> None:
+        if spawn != self._spawn:
+            return
         self.exit_code = self._pty.returncode if self._pty.returncode is not None else 0
         if self.exit_code != 0 and not self._closing:
             name = Path(self.argv[0]).stem if self.argv else "agent"
@@ -384,6 +485,23 @@ class AgentSessionRegistry:
             raise AgentStartError(runtime.launch_error(exc)) from exc
         self._sessions[agent_id] = session
         return session
+
+    def all(self) -> list[AgentSession]:
+        """Every registered session, live or exited."""
+        return list(self._sessions.values())
+
+    def respawn(
+        self, agent_id: str, argv: list[str], cwd: Path, env: dict[str, str] | None = None
+    ) -> bool:
+        """Restarts a live agent's process in place; False leaves the old process running."""
+        session = self._sessions.get(agent_id)
+        if session is None or not session.is_alive or not argv or not cwd.is_dir():
+            return False
+        try:
+            runtime = resolve_runtime_cli(argv[0], env)
+        except CliLookupError:
+            return False
+        return session.respawn([runtime.executable, *argv[1:]], str(cwd), dict(runtime.env))
 
     def _session_exited(self, session: AgentSession) -> None:
         if self.on_exit is not None and self._sessions.get(session.agent_id) is session:

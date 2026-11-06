@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
 using CodeChroma.Bridge.Workspaces;
@@ -20,10 +21,16 @@ public static class WorkspaceAndSocketRoutes
             return Results.Json(new WorkspaceStatus(id, state.State, state.Progress, state.Error, registry.IsReadOnly(id)), BridgeJson.Default.WorkspaceStatus);
         });
 
-        app.MapPost("/workspaces/{id}/activate", (string id, WorkspaceRegistry registry) =>
+        app.MapPost("/workspaces/{id}/activate", (string id, WorkspaceRegistry registry, AgentManager agents) =>
         {
             if (id != Workspace.MainId && !registry.IsRegistered(id))
                 return Results.Json(new ErrorDetail($"unknown workspace: {id}"), BridgeJson.Default.ErrorDetail, statusCode: 404);
+            // Persisted so a reopened project draws the same workspace again, a PR review included.
+            try { agents.SetActiveWorkspace(id); }
+            catch (UnknownAgentException)
+            {
+                return Results.Json(new ErrorDetail($"unknown workspace: {id}"), BridgeJson.Default.ErrorDetail, statusCode: 404);
+            }
             var state = registry.EnsureAsync(id);
             return Results.Json(new WorkspaceActivation(id, state.State, state.Progress, state.Error), BridgeJson.Default.WorkspaceActivation);
         });

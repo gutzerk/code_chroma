@@ -21,6 +21,9 @@ public static class AgentHook
     /// <summary>Whether a report is the SessionStart that `/clear` or one of its aliases fires.</summary>
     public static bool IsClear(JsonObject report) => Json.Str(report["hook_event_name"]) == "SessionStart" && Json.Str(report["source"]) == ClearSource;
 
+    /// <summary>Whether a report is the UserPromptSubmit that can carry hidden prompt context.</summary>
+    public static bool IsPromptSubmit(JsonObject report) => Json.Str(report["hook_event_name"]) == "UserPromptSubmit";
+
     /// <summary>How long the bridge holds a PermissionRequest for a canvas decision; short, because the terminal dialog only shows once the hook returns.</summary>
     public const int PermissionWaitMs = 1000;
 
@@ -60,10 +63,11 @@ public static class AgentHook
             var permission = Json.Str(report["hook_event_name"]) == "PermissionRequest";
             var url = $"{wiring.BaseUrl}/agents/{Uri.EscapeDataString(wiring.WorkspaceId)}/hook";
             var reply = (post ?? Post)(url, wiring.Token, report.ToJsonString(), permission ? PermissionWaitMs + PostTimeoutMs : PostTimeoutMs);
-            var decision = permission && reply is not null ? Json.Str(JsonNode.Parse(reply)?["decision"]) : null;
+            if (reply is null) return 0;
+            var answer = JsonNode.Parse(reply);
+            var decision = permission ? Json.Str(answer?["decision"]) : null;
             if (decision is "allow" or "deny") output.Write(DecisionOutput(decision));
-            var prompt = Json.Str(report["hook_event_name"]) == "UserPromptSubmit";
-            if (prompt && reply is not null && Json.Str(JsonNode.Parse(reply)?["additional_context"]) is { Length: > 0 } context) output.Write(PromptContextOutput(context));
+            if (IsPromptSubmit(report) && Json.Str(answer?["additional_context"]) is { Length: > 0 } context) output.Write(PromptContextOutput(context));
         }
         catch (Exception) { }
         return 0;

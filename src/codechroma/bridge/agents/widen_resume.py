@@ -15,10 +15,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from codechroma.bridge.agents.manager import AgentManager, UnknownAgentError
+from codechroma.bridge.agents.manager import AgentManager, AgentRecord, UnknownAgentError
 from codechroma.bridge.agents.session_ownership import FILE_ENV, file_for
 from codechroma.bridge.agents.sessions import AgentSession, AgentSessionRegistry, agent_run_env
-from codechroma.terminal.agents import agent_launch, resolved_cli_for
+from codechroma.terminal.agents import AgentLaunch, agent_launch, resolved_cli_for
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -75,12 +75,24 @@ class WidenResume:
         if self._asking(agent_id):
             session.postpone_widen(now + QUESTION_RETRY)
             return False
+        launch = self._respawn_resumed(session, record)
+        if launch is None:
+            session.settle_width()
+            return False
+        self._agents.mark_started(
+            agent_id, session.pid, resolved_cli=resolved_cli_for(record.kind, launch.argv)
+        )
+        self._agents.record_session_launch(agent_id, session)
+        return True
+
+    def _respawn_resumed(self, session: AgentSession, record: AgentRecord) -> AgentLaunch | None:
+        """Restarts the agent on a resume of its own session; None when it cannot."""
+        agent_id = session.agent_id
         session_id = None if record.worktree_lost else self._agents.capture_session_id(agent_id)
         root = self._projects_root or projects_dir()
         # A session with no transcript yet cannot be resumed, and its banner is not worth a restart.
         if not session_id or not has_transcript(session_id, root):
-            session.settle_width()
-            return False
+            return None
         mcp = self._mcp_for(agent_id) if self._mcp_for is not None else None
         launch = agent_launch(
             record.kind, session_id, mcp=mcp,
@@ -89,17 +101,11 @@ class WidenResume:
         )
         # The CLI may have changed since launch; only a tracked claude resumes the same session.
         if launch is None or FILE_ENV not in launch.env:
-            session.settle_width()
-            return False
+            return None
         env = agent_run_env(agent_id, extra=launch.env)
         if not self._sessions.respawn(agent_id, launch.argv, Path(record.worktree), env):
-            session.settle_width()
-            return False
-        self._agents.mark_started(
-            agent_id, session.pid, resolved_cli=resolved_cli_for(record.kind, launch.argv)
-        )
-        self._agents.record_session_launch(agent_id, session)
-        return True
+            return None
+        return launch
 
     def _asking(self, agent_id: str) -> bool:
         """An unreadable canvas counts as asking, so the agent is left alone."""

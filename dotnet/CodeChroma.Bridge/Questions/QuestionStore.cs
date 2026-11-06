@@ -121,6 +121,12 @@ public static class QuestionStore
     /// <summary>Every `question` element, in canvas insertion order.</summary>
     public static List<CanvasElement> ListQuestions(Workspace ws) => Load(ws).Elements.Values.Where(e => e.Render == "question").ToList();
 
+    /// <summary>Every `question` element one agent asked, in canvas insertion order.</summary>
+    public static List<CanvasElement> AgentQuestions(Workspace ws, string agentId) => AgentQuestions(Load(ws), agentId);
+
+    private static List<CanvasElement> AgentQuestions(CanvasDoc doc, string agentId) =>
+        doc.Elements.Values.Where(e => e.Render == "question" && Json.Str(e.Meta["agent_id"]) == agentId).ToList();
+
     /// <summary>Writes the answered/skipped state onto the element's meta and marks it for the agent's next wake-up.</summary>
     public static void Settle(Workspace ws, string elementId, string state, QuestionResult result) =>
         Commit(ws, _ => [Update(elementId, new JsonObject { ["state"] = state, ["answer"] = result.Answer, ["option_id"] = result.OptionId, [AwaitingDelivery] = true })]);
@@ -128,7 +134,7 @@ public static class QuestionStore
     /// <summary>The agent's undelivered answers, or none while any of its questions is still open.</summary>
     private static List<CanvasElement> ReadyBatch(CanvasDoc doc, string agentId)
     {
-        var mine = doc.Elements.Values.Where(e => e.Render == "question" && Json.Str(e.Meta["agent_id"]) == agentId).ToList();
+        var mine = AgentQuestions(doc, agentId);
         return mine.Any(e => Json.Str(e.Meta["state"]) == "open") ? [] : mine.Where(e => Json.Truthy(e.Meta[AwaitingDelivery])).ToList();
     }
 

@@ -13,7 +13,7 @@ def _attach_frame(stream: str) -> str:
 
     async def run() -> str:
         session = AgentSession("runner", ECHO, cwd=".")
-        session._on_output(stream)
+        session._on_output(stream, 0)
         queue = session.attach()
         session.close()
         return queue.get_nowait()

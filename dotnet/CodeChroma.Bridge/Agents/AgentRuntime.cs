@@ -45,7 +45,7 @@ public sealed class AgentRuntime(
 
     /// <summary>Whether the agent has an ask_user question on its canvas, answered or not, that is not yet typed back to it.</summary>
     private static bool AsksUser(WorkspaceRegistry registry, string agentId) =>
-        QuestionStore.ListQuestions(registry.Get(agentId)).Any(e => Json.Str(e.Meta["agent_id"]) == agentId);
+        QuestionStore.AgentQuestions(registry.Get(agentId), agentId).Count > 0;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {

@@ -65,6 +65,9 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     /// <summary>Erases xterm's scrollback (and the tap's history) but not the visible screen.</summary>
     public const string ClearScrollback = "\u001b[3J";
 
+    /// <summary>Erases the screen and the scrollback, so a resumed process reprints the conversation into an empty terminal.</summary>
+    public const string ResetScreen = "\u001b[0m\u001b[H\u001b[2J" + ClearScrollback;
+
     public AgentSession(string agentId, PtyLaunch launch, string kind = "claude", string? banner = null, Action<AgentSession>? onExit = null, ClearWatch? clear = null, Action<AgentSession>? onClear = null)
     {
         AgentId = agentId;
@@ -238,7 +241,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     public void ClearHistory()
     {
         if (!IsAlive) return;
-        lock (_gate) OnOutput(_spawn, ClearScrollback);
+        lock (_gate) Emit(ClearScrollback);
         if (_clear?.Repaint is { } repaint) _ = RepaintLater(repaint);
         try { _cleared?.Invoke(this); }
         catch (Exception error) { Console.Error.WriteLine($"agents: clear callback failed for {AgentId}: {error.Message}"); }
@@ -265,9 +268,6 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
             _resizedAt = DateTimeOffset.UtcNow;
         }
     }
-
-    /// <summary>Erases the screen and the scrollback, so a resumed process reprints the conversation into an empty terminal.</summary>
-    public const string ResetScreen = "\u001b[0m\u001b[H\u001b[2J\u001b[3J";
 
     /// <summary>Whether a claude launch that can be resumed in place: tracked by CodeChroma and not a bare skill window.</summary>
     public bool ResumesOnWiden => SessionTrackingFile is not null && !Argv.Contains("--system-prompt");
@@ -320,8 +320,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
             _narrowestPrinted = int.MaxValue;
             _draft = false;
             // the clear goes out before any byte of the new process, which waits on _gate
-            _tap.Feed(ResetScreen);
-            foreach (var consumer in _consumers) consumer.Channel.Writer.TryWrite(ResetScreen);
+            Emit(ResetScreen);
         }
         // reaping waits for the old child, so it runs off the caller's thread
         _ = Task.Run(old.Dispose);
@@ -331,7 +330,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     /// <summary>Tracks typed input: text without Enter is a draft a restart would lose; escape sequences (keys, focus, mouse) are not typing.</summary>
     private void NoteTyping(string data)
     {
-        if (data.Length == 0 || (data[0] == '\u001b' && !data.StartsWith("\u001b[200~", StringComparison.Ordinal))) return;
+        if (data.Length == 0 || (data[0] == '\u001b' && !data.StartsWith("\u001b" + TypedClearDetector.PasteStart, StringComparison.Ordinal))) return;
         lock (_gate)
         {
             _typedAt = DateTimeOffset.UtcNow;
@@ -416,10 +415,16 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         lock (_gate)
         {
             if (spawn != _spawn) return;
-            _tap.Feed(chunk);
             _narrowestPrinted = Math.Min(_narrowestPrinted, _cols);
-            foreach (var consumer in _consumers) consumer.Channel.Writer.TryWrite(chunk);
+            Emit(chunk);
         }
+    }
+
+    /// <summary>Feeds the tap and every window; the caller holds _gate, so chunks reach both in order.</summary>
+    private void Emit(string chunk)
+    {
+        _tap.Feed(chunk);
+        foreach (var consumer in _consumers) consumer.Channel.Writer.TryWrite(chunk);
     }
 
     private void OnExit(long spawn)
@@ -473,14 +478,11 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
         lock (_lock)
         {
             if (_sessions.TryGetValue(agentId, out var existing) && existing.IsAlive) return existing;
-            if (argv.Count == 0) throw new AgentStartException("no command configured for this agent kind");
-            string executable;
-            try { executable = CliResolver.Resolve(argv[0], paths); }
-            catch (CliLookupException error) { throw new AgentStartException(error.Message); }
-            if (!Directory.Exists(cwd)) throw new AgentStartException($"the agent's worktree is missing: {cwd}");
+            if (ResolveLaunch(argv, cwd, paths, out var launchArgv) is { } problem) throw new AgentStartException(problem);
+            var executable = launchArgv[0];
             try
             {
-                var session = new AgentSession(agentId, new PtyLaunch([executable, .. argv.Skip(1)], cwd, spawnEnv), kind, banner, OnSessionExit, clear, OnSessionClear);
+                var session = new AgentSession(agentId, new PtyLaunch(launchArgv, cwd, spawnEnv), kind, banner, OnSessionExit, clear, OnSessionClear);
                 _sessions[agentId] = session;
                 return session;
             }
@@ -491,18 +493,29 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
         }
     }
 
-    private void OnSessionExit(AgentSession session)
+    /// <summary>`argv` with its CLI resolved to an executable, checked against `cwd`; returns why it cannot start, or null.</summary>
+    private static string? ResolveLaunch(IReadOnlyList<string> argv, string cwd, Stores.UserPaths? paths, out string[] launchArgv)
     {
-        bool current;
-        lock (_lock) current = _sessions.GetValueOrDefault(session.AgentId) == session;
-        if (current) Exited?.Invoke(session.AgentId);
+        launchArgv = [];
+        if (argv.Count == 0) return "no command configured for this agent kind";
+        string executable;
+        try { executable = CliResolver.Resolve(argv[0], paths); }
+        catch (CliLookupException error) { return error.Message; }
+        if (!Directory.Exists(cwd)) return $"the agent's worktree is missing: {cwd}";
+        launchArgv = [executable, .. argv.Skip(1)];
+        return null;
     }
 
-    private void OnSessionClear(AgentSession session)
+    private void OnSessionExit(AgentSession session) => IfCurrent(session, Exited);
+
+    private void OnSessionClear(AgentSession session) => IfCurrent(session, Cleared);
+
+    /// <summary>Calls `callback` with the agent id only while `session` is still the one registered for it.</summary>
+    private void IfCurrent(AgentSession session, Action<string>? callback)
     {
         bool current;
         lock (_lock) current = _sessions.GetValueOrDefault(session.AgentId) == session;
-        if (current) Cleared?.Invoke(session.AgentId);
+        if (current) callback?.Invoke(session.AgentId);
     }
 
     /// <summary>Kills one agent's PTY, keeping its worktree and branch; false if it was not running.</summary>
@@ -528,11 +541,8 @@ public sealed class AgentSessionRegistry(Skills.RuntimeEnvironment runtime) : ID
     /// <summary>Restarts a live agent's process in place (WidenResume); false when it cannot start, leaving the old process running.</summary>
     public bool Respawn(string agentId, IReadOnlyList<string> argv, string cwd, IReadOnlyDictionary<string, string>? env, Stores.UserPaths? paths = null)
     {
-        if (Get(agentId) is not { IsAlive: true } session || argv.Count == 0 || !Directory.Exists(cwd)) return false;
-        string executable;
-        try { executable = CliResolver.Resolve(argv[0], paths); }
-        catch (CliLookupException) { return false; }
-        return session.Respawn([executable, .. argv.Skip(1)], cwd, runtime.TerminalEnv(env));
+        if (Get(agentId) is not { IsAlive: true } session || ResolveLaunch(argv, cwd, paths, out var launchArgv) is not null) return false;
+        return session.Respawn(launchArgv, cwd, runtime.TerminalEnv(env));
     }
 
     /// <summary>Every registered session, live or exited.</summary>

@@ -14,9 +14,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,16 +54,15 @@ def default_repo_root() -> Path:
     return PROJECT_ROOT / os.environ.get("codechroma_BRIDGE_REPO_PATH", ".")
 
 
-# Strong references, so a pending exit broadcast is never garbage-collected mid-flight.
-_EXIT_BROADCASTS: set[asyncio.Task] = set()
+# Strong references, so a pending broadcast is never garbage-collected mid-flight.
+_PENDING_BROADCASTS: set[asyncio.Task] = set()
 
 
 def _asks_user(services: BridgeServices, agent_id: str) -> bool:
     """Whether the agent has an ask_user question on its canvas not yet typed back to it."""
-    from codechroma.questions.store import list_questions
+    from codechroma.questions.store import agent_questions
 
-    ws = services.registry.get(agent_id)
-    return any(e.meta.get("agent_id") == agent_id for e in list_questions(ws))
+    return bool(agent_questions(services.registry.get(agent_id), agent_id))
 
 
 async def _poll_agent_statuses(services: BridgeServices, question_mcp=None) -> None:
@@ -97,27 +97,26 @@ def _broadcast_exit(services: BridgeServices, agent_id: str) -> None:
     """Pushes an agent's exit at once; the PTY reaper calls this on the bridge's event loop."""
     from codechroma.bridge.routes.agents import broadcast_agent
 
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return
-    task = loop.create_task(broadcast_agent(services, agent_id))
-    _EXIT_BROADCASTS.add(task)
-    task.add_done_callback(_EXIT_BROADCASTS.discard)
+    _spawn_broadcast(lambda: broadcast_agent(services, agent_id))
 
 
 def _broadcast_cleared(services: BridgeServices, agent_id: str) -> None:
     """Tells every canvas an agent's conversation was cleared, so its prompt list empties."""
     from codechroma.bridge.agents.history_clear import HISTORY_CLEARED_EVENT
 
+    message = {"type": HISTORY_CLEARED_EVENT, "id": agent_id}
+    _spawn_broadcast(lambda: services.connections.broadcast(message))
+
+
+def _spawn_broadcast(make: Callable[[], Coroutine[Any, Any, Any]]) -> None:
+    """Runs a broadcast in the background on the running loop; without one there is none."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return
-    message = {"type": HISTORY_CLEARED_EVENT, "id": agent_id}
-    task = loop.create_task(services.connections.broadcast(message))
-    _EXIT_BROADCASTS.add(task)
-    task.add_done_callback(_EXIT_BROADCASTS.discard)
+    task = loop.create_task(make())
+    _PENDING_BROADCASTS.add(task)
+    task.add_done_callback(_PENDING_BROADCASTS.discard)
 
 
 async def _unload_idle_workspaces(services: BridgeServices) -> None:

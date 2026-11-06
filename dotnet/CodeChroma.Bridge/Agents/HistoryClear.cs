@@ -15,7 +15,8 @@ public sealed record ClearWatch(IReadOnlyList<string> TypedCommands, string? Rep
 public sealed class TypedClearDetector(IReadOnlyList<string> commands)
 {
     private const int MaxLine = 256;
-    private const string PasteStart = "[200~";
+    /// <summary>The bracketed-paste start marker, after its ESC.</summary>
+    internal const string PasteStart = "[200~";
     private const string PasteEnd = "[201~";
 
     private readonly StringBuilder _line = new();

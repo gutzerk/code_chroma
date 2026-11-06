@@ -152,6 +152,11 @@ def list_questions(ws: Workspace) -> list[Element]:
     return [e for e in doc.elements.values() if e.render == "question"]
 
 
+def agent_questions(ws: Workspace, agent_id: str) -> list[Element]:
+    """Every `question` element one agent asked, in canvas insertion order."""
+    return _agent_questions(CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root), agent_id)
+
+
 def settle(ws: Workspace, element: Element, state: str, result: QuestionResult) -> Element:
     """Writes the settled state onto the element's meta and marks it for the next wake-up."""
     meta = {

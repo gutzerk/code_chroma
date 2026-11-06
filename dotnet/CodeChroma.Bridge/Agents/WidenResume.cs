@@ -40,24 +40,7 @@ public sealed class WidenResume(AgentManager agents, AgentSessionRegistry sessio
             session.PostponeWiden(now + QuestionRetry);
             return false;
         }
-        var sessionId = record.WorktreeLost ? null : agents.CaptureSessionId(agentId);
-        // a session with no transcript yet (nothing said) cannot be resumed, and its banner is not worth a restart
-        if (string.IsNullOrEmpty(sessionId) || Transcripts.Locate(sessionId, record.Worktree, projectsRoot) is null)
-        {
-            session.SettleWidth();
-            return false;
-        }
-        var launch = terminalAgents.Resolve(record.Kind, sessionId, agentId: agentId, bridgeUrl: BareSkill.BridgeUrl, newSessionId: Guid.NewGuid().ToString(),
-            sessionTrackingFile: AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString()), workdir: record.Worktree);
-        // the CLI may have changed since launch; only a tracked claude can resume the same session
-        if (launch is null || !launch.Env.ContainsKey(AgentSessionOwnership.FileEnv))
-        {
-            session.SettleWidth();
-            return false;
-        }
-        var env = new Dictionary<string, string>(launch.Env);
-        BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
-        if (!sessions.Respawn(agentId, launch.Argv, record.Worktree, env, paths))
+        if (RespawnResumed(session, record) is not { } launch)
         {
             session.SettleWidth();
             return false;
@@ -65,6 +48,22 @@ public sealed class WidenResume(AgentManager agents, AgentSessionRegistry sessio
         agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
         agents.RecordSessionLaunch(agentId, session);
         return true;
+    }
+
+    /// <summary>Restarts the agent on a resume of its own session; the launch used, or null when there is nothing to resume or it cannot restart.</summary>
+    private AgentLaunch? RespawnResumed(AgentSession session, AgentRecord record)
+    {
+        var agentId = session.AgentId;
+        var sessionId = record.WorktreeLost ? null : agents.CaptureSessionId(agentId);
+        // a session with no transcript yet (nothing said) cannot be resumed, and its banner is not worth a restart
+        if (string.IsNullOrEmpty(sessionId) || Transcripts.Locate(sessionId, record.Worktree, projectsRoot) is null) return null;
+        var launch = terminalAgents.Resolve(record.Kind, sessionId, agentId: agentId, bridgeUrl: BareSkill.BridgeUrl, newSessionId: Guid.NewGuid().ToString(),
+            sessionTrackingFile: AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString()), workdir: record.Worktree);
+        // the CLI may have changed since launch; only a tracked claude can resume the same session
+        if (launch is null || !launch.Env.ContainsKey(AgentSessionOwnership.FileEnv)) return null;
+        var env = new Dictionary<string, string>(launch.Env);
+        BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
+        return sessions.Respawn(agentId, launch.Argv, record.Worktree, env, paths) ? launch : null;
     }
 
     /// <summary>Whether the agent still has an ask_user question on the canvas; an unreadable canvas counts as asking.</summary>

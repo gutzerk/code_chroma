@@ -8,11 +8,16 @@ from dataclasses import dataclass
 HISTORY_CLEARED_EVENT = "agent-history-cleared"
 # Erases xterm's scrollback (and a tap's history) but not the visible screen.
 CLEAR_SCROLLBACK = "\x1b[3J"
+# Erases screen and scrollback before a resumed process reprints the conversation.
+RESET_SCREEN = "\x1b[0m\x1b[H\x1b[2J" + CLEAR_SCROLLBACK
 # How long the CLI gets to finish its own clear before the repaint key.
 REPAINT_DELAY_SECONDS = 0.3
 
+# The bracketed-paste start marker, after its ESC.
+PASTE_START = "[200~"
+
 _MAX_LINE = 256
-_PASTE_MARKERS = ("[200~", "[201~")
+_PASTE_MARKERS = (PASTE_START, "[201~")
 
 
 @dataclass(frozen=True)

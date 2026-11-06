@@ -33,7 +33,9 @@ from typing import Protocol, runtime_checkable
 from codechroma.bridge.agents.agent_hook import is_clear
 from codechroma.bridge.agents.history_clear import (
     CLEAR_SCROLLBACK,
+    PASTE_START,
     REPAINT_DELAY_SECONDS,
+    RESET_SCREEN,
     ClearWatch,
     TypedClearDetector,
 )
@@ -52,7 +54,12 @@ from codechroma.bridge.agents.status import Classification, StatusDetector, load
 from codechroma.config import settings
 from codechroma.errors import codechromaError
 from codechroma.io import utc_now
-from codechroma.llm.runtime_env import CliLookupError, launch_failed, resolve_runtime_cli
+from codechroma.llm.runtime_env import (
+    CliLookupError,
+    RuntimeCli,
+    launch_failed,
+    resolve_runtime_cli,
+)
 from codechroma.questions.launch import identity_env
 from codechroma.terminal.pty_session import PtySession, default_cols, default_rows
 from codechroma.terminal.screen_tap import ScreenTap
@@ -65,8 +72,6 @@ WIDEN_MIN_GAIN_COLS = 8
 WIDEN_SETTLE = timedelta(seconds=1.5)
 # Quiet time after the last keystroke, so a restart never lands mid-typing.
 WIDEN_TYPING_QUIET = timedelta(seconds=3)
-# Erases screen and scrollback before a resumed process reprints the conversation.
-RESET_SCREEN = "\x1b[0m\x1b[H\x1b[2J\x1b[3J"
 _NEVER = datetime.min.replace(tzinfo=UTC)
 
 def context_inject_attempts() -> int:
@@ -308,7 +313,7 @@ class AgentSession(AgentSessionPort):
         """The user cleared the chat: windows drop their scrollback, then the CLI repaints."""
         if self.exit_code is not None:
             return
-        self._on_output(CLEAR_SCROLLBACK, self._spawn)
+        self._emit(CLEAR_SCROLLBACK)
         repaint = self._clear.repaint if self._clear is not None else None
         if repaint:
             timer = threading.Timer(REPAINT_DELAY_SECONDS, self._repaint, args=(repaint,))
@@ -326,7 +331,7 @@ class AgentSession(AgentSessionPort):
 
     def _note_typing(self, data: str) -> None:
         """Text without Enter is a draft a restart would lose; escape sequences are not typing."""
-        if not data or (data[0] == "\x1b" and not data.startswith("\x1b[200~")):
+        if not data or (data[0] == "\x1b" and not data.startswith("\x1b" + PASTE_START)):
             return
         self._typed_at = utc_now()
         cleared = max(data.rfind(c) for c in ("\r", "\x03", "\x15"))
@@ -379,9 +384,7 @@ class AgentSession(AgentSessionPort):
         self._draft = False
         self._pty.client_attached = bool(self._consumers)
         # Single-threaded loop: the clear goes out before any byte of the new process.
-        self._tap.feed(RESET_SCREEN)
-        for queue in list(self._consumers):
-            queue.put_nowait(RESET_SCREEN)
+        self._emit(RESET_SCREEN)
         old.close()
         return True
 
@@ -464,11 +467,14 @@ class AgentSession(AgentSessionPort):
         if self.exit_code is None:
             self._pty.terminate_process()
 
-    def _on_output(self, chunk: str, spawn: int = 0) -> None:
+    def _on_output(self, chunk: str, spawn: int) -> None:
         if spawn != self._spawn:
             return
         self._narrowest_printed = min(self._narrowest_printed or self._cols, self._cols)
-        # The detector reads the rendered screen, and so does a reattach; same chunks as the socket.
+        self._emit(chunk)
+
+    def _emit(self, chunk: str) -> None:
+        """Feeds the tap and every window; the detector and a reattach read the same chunks."""
         self._tap.feed(chunk)
         for queue in list(self._consumers):
             queue.put_nowait(chunk)
@@ -488,6 +494,19 @@ class AgentSession(AgentSessionPort):
                 self._exited(self)
             except Exception:
                 logger.exception("agents: exit callback failed for %s", self.agent_id)
+
+
+def _resolve_launch(argv: list[str], cwd: Path, env: dict[str, str] | None) -> RuntimeCli:
+    """The agent's CLI resolved for `env`; raises AgentStartError when it cannot start in `cwd`."""
+    if not argv:
+        raise AgentStartError("no command configured for this agent kind")
+    try:
+        runtime = resolve_runtime_cli(argv[0], env)
+    except CliLookupError as exc:
+        raise AgentStartError(str(exc)) from exc
+    if not cwd.is_dir():
+        raise AgentStartError(f"the agent's worktree is missing: {cwd}")
+    return runtime
 
 
 class AgentSessionRegistry:
@@ -526,16 +545,9 @@ class AgentSessionRegistry:
         existing = self._sessions.get(agent_id)
         if existing is not None and existing.is_alive:
             return existing
-        if not argv:
-            raise AgentStartError("no command configured for this agent kind")
-        try:
-            runtime = resolve_runtime_cli(argv[0], env)
-        except CliLookupError as exc:
-            raise AgentStartError(str(exc)) from exc
+        runtime = _resolve_launch(argv, cwd, env)
         argv = [runtime.executable, *argv[1:]]
         env = dict(runtime.env)
-        if not cwd.is_dir():
-            raise AgentStartError(f"the agent's worktree is missing: {cwd}")
         try:
             session = AgentSession(
                 agent_id, argv, str(cwd), kind=kind, env=env, on_exit=self._session_exited,
@@ -556,11 +568,11 @@ class AgentSessionRegistry:
     ) -> bool:
         """Restarts a live agent's process in place; False leaves the old process running."""
         session = self._sessions.get(agent_id)
-        if session is None or not session.is_alive or not argv or not cwd.is_dir():
+        if session is None or not session.is_alive:
             return False
         try:
-            runtime = resolve_runtime_cli(argv[0], env)
-        except CliLookupError:
+            runtime = _resolve_launch(argv, cwd, env)
+        except AgentStartError:
             return False
         return session.respawn([runtime.executable, *argv[1:]], str(cwd), dict(runtime.env))
 

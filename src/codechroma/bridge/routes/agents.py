@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from codechroma.bridge.agents import bootstrap, publish
 from codechroma.bridge.agents import worktree as worktree_ops
-from codechroma.bridge.agents.agent_hook import PERMISSION_WAIT_SECONDS
+from codechroma.bridge.agents.agent_hook import PERMISSION_WAIT_SECONDS, is_prompt_submit
 from codechroma.bridge.agents.live_status import (
     STATUS_ERROR,
     STATUS_STOPPED,
@@ -364,12 +364,14 @@ async def post_agent_hook(agent_id: str, request: Request, services: Services) -
     if session is None:
         return {"ok": True}
     outcome = session.apply_hook(body)
-    prompt = body.get("hook_event_name") == "UserPromptSubmit"
-    context = session.take_prompt_context() if prompt else None
+    context = session.take_prompt_context() if is_prompt_submit(body) else None
     if outcome.changed:
         await broadcast_agent_status(services, record)
     if outcome.decision is None:
-        return {"ok": True} if context is None else {"ok": True, "additional_context": context}
+        reply: dict = {"ok": True}
+        if context is not None:
+            reply["additional_context"] = context
+        return reply
     try:
         decision = await asyncio.wait_for(
             asyncio.shield(asyncio.wrap_future(outcome.decision)), PERMISSION_WAIT_SECONDS

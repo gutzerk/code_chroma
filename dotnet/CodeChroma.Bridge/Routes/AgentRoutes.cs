@@ -143,10 +143,14 @@ public static class AgentRoutes
             var session = sessions.Get(agentId);
             if (session is null) return Reply.Json(new JsonObject { ["ok"] = true });
             var outcome = session.ApplyHook(body);
-            var context = Json.Str(body["hook_event_name"]) == "UserPromptSubmit" ? session.TakePromptContext() : null;
+            var context = AgentHook.IsPromptSubmit(body) ? session.TakePromptContext() : null;
             if (outcome.Changed) await BroadcastStatus(connections, sessions, record);
             if (outcome.Decision is not { } waiting)
-                return Reply.Json(context is null ? new JsonObject { ["ok"] = true } : new JsonObject { ["ok"] = true, ["additional_context"] = context });
+            {
+                var reply = new JsonObject { ["ok"] = true };
+                if (context is not null) reply["additional_context"] = context;
+                return Reply.Json(reply);
+            }
             var decision = await WaitForDecision(waiting, request.HttpContext.RequestAborted);
             if (decision is null)
             {

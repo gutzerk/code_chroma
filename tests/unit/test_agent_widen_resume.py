@@ -9,12 +9,9 @@ from types import SimpleNamespace
 import pytest
 
 from codechroma.bridge.agents import widen_resume
+from codechroma.bridge.agents.history_clear import RESET_SCREEN
 from codechroma.bridge.agents.session_ownership import FILE_ENV
-from codechroma.bridge.agents.sessions import (
-    RESET_SCREEN,
-    AgentSession,
-    AgentSessionRegistry,
-)
+from codechroma.bridge.agents.sessions import AgentSession, AgentSessionRegistry
 from codechroma.io import utc_now
 from codechroma.terminal.agents import AgentLaunch
 

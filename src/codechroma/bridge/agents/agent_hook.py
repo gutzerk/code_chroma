@@ -29,6 +29,11 @@ def is_clear(report: dict) -> bool:
     return report.get("hook_event_name") == "SessionStart" and report.get("source") == CLEAR_SOURCE
 
 
+def is_prompt_submit(report: dict) -> bool:
+    """Whether a report is the UserPromptSubmit that can carry hidden prompt context."""
+    return report.get("hook_event_name") == "UserPromptSubmit"
+
+
 def env(name: str) -> str:
     """The CODECHROMA_* variable, falling back to the lower-cased spelling older builds used."""
     legacy = name.replace("CODECHROMA_", "codechroma_", 1)
@@ -86,11 +91,13 @@ def run(input_stream: TextIO, output: TextIO, sender=post) -> int:
         timeout = POST_TIMEOUT_SECONDS + (PERMISSION_WAIT_SECONDS if permission else 0.0)
         body = json.dumps(report, ensure_ascii=False, separators=(",", ":"))
         reply = sender(url, token, body, timeout)
-        decision = json.loads(reply).get("decision") if permission and reply else None
+        if not reply:
+            return 0
+        answer = json.loads(reply)
+        decision = answer.get("decision") if permission else None
         if decision in ("allow", "deny"):
             output.write(json.dumps(decision_output(decision)))
-        prompt = report.get("hook_event_name") == "UserPromptSubmit"
-        context = json.loads(reply).get("additional_context") if prompt and reply else None
+        context = answer.get("additional_context") if is_prompt_submit(report) else None
         if isinstance(context, str) and context:
             output.write(json.dumps(prompt_context_output(context)))
     except Exception:

@@ -1,19 +1,21 @@
 import { useMemo, useSyncExternalStore } from "react";
-import type { CanvasElement } from "../../../state/types";
+import type { CanvasDoc, CanvasElement } from "../../../state/types";
 import { canvasDocStore, useCanvasDoc } from "../canvasDocStore";
 import { questionAgentId } from "./questionAdapter";
+import { workspaceQuestionDocs } from "./workspaceQuestionDocs";
 
-/** The open `question` elements an agent asked, oldest step first (the queue shown one at a time). */
-export function useOpenAgentQuestions(agentId: string): CanvasElement[] {
-  const doc = useCanvasDoc();
+/** The open `question` elements an agent asked in `doc` (the active canvas by default), oldest step first. */
+export function useOpenAgentQuestions(agentId: string, doc?: CanvasDoc): CanvasElement[] {
+  const activeDoc = useCanvasDoc();
+  const elements = (doc ?? activeDoc).elements;
   return useMemo(
     () =>
-      Object.values(doc.elements)
+      Object.values(elements)
         .filter(
           (el) => questionAgentId(el) === agentId && (el.meta.state ?? "open") === "open",
         )
         .sort((a, b) => Number(a.meta.step ?? 0) - Number(b.meta.step ?? 0)),
-    [doc.elements, agentId],
+    [elements, agentId],
   );
 }
 
@@ -33,15 +35,41 @@ export function openQuestionCounts(elements: Record<string, CanvasElement>): Rea
   return counts;
 }
 
-/** `openQuestionCounts` over the live canvas doc, recomputed only when its elements change. */
-export function useOpenQuestionCounts(): ReadonlyMap<string, number> {
-  return openQuestionCounts(useCanvasDoc().elements);
+let merged: { active: Record<string, CanvasElement>; others: CanvasDoc[]; counts: ReadonlyMap<string, number> } | null = null;
+
+/** Open question counts per agent across the active canvas and every other agent workspace, so a badge never depends on the active tab. */
+export function agentOpenQuestionCounts(): ReadonlyMap<string, number> {
+  const active = canvasDocStore.getDoc().elements;
+  const others = workspaceQuestionDocs.getDocs();
+  if (merged && merged.active === active && merged.others === others) return merged.counts;
+  let counts = openQuestionCounts(active);
+  if (others.length > 0) {
+    const sum = new Map(counts);
+    for (const doc of others) {
+      openQuestionCounts(doc.elements).forEach((n, id) => sum.set(id, (sum.get(id) ?? 0) + n));
+    }
+    counts = sum;
+  }
+  merged = { active, others, counts };
+  return counts;
 }
 
-/** How many open questions `agentId` has; re-renders only when that number changes. */
+/** Subscribes to every doc `agentOpenQuestionCounts` reads. */
+export function subscribeQuestionDocs(listener: () => void): () => void {
+  const active = canvasDocStore.subscribe(listener);
+  const others = workspaceQuestionDocs.subscribe(listener);
+  return () => {
+    active();
+    others();
+  };
+}
+
+/** `agentOpenQuestionCounts` as a hook, recomputed only when a doc's elements change. */
+export function useOpenQuestionCounts(): ReadonlyMap<string, number> {
+  return useSyncExternalStore(subscribeQuestionDocs, agentOpenQuestionCounts);
+}
+
+/** How many open questions `agentId` has in any workspace; re-renders only when that number changes. */
 export function useOpenQuestionCount(agentId: string): number {
-  return useSyncExternalStore(
-    canvasDocStore.subscribe,
-    () => openQuestionCounts(canvasDocStore.getDoc().elements).get(agentId) ?? 0,
-  );
+  return useSyncExternalStore(subscribeQuestionDocs, () => agentOpenQuestionCounts().get(agentId) ?? 0);
 }

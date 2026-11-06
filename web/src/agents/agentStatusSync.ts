@@ -1,5 +1,4 @@
-import { canvasDocStore } from "../canvas/doc/canvasDocStore";
-import { openQuestionCounts } from "../canvas/doc/question/useOpenAgentQuestions";
+import { agentOpenQuestionCounts, subscribeQuestionDocs } from "../canvas/doc/question/useOpenAgentQuestions";
 import { layoutStore } from "../canvas/layout/layoutStore";
 import type { AgentRecord, AgentStatus, WorktreeRecord } from "../state/types";
 import type { AgentClient } from "./agentClient";
@@ -74,7 +73,7 @@ export interface StatusSnapshot {
 
 /** Every agent's raw and effective status right now. */
 function statusSnapshot(): Map<string, StatusSnapshot> {
-  const questions = openQuestionCounts(canvasDocStore.getDoc().elements);
+  const questions = agentOpenQuestionCounts();
   return new Map(
     agentStore.getAgents().map((agent) => [
       agent.id,
@@ -110,7 +109,7 @@ function isInTerminal(event: KeyboardEvent): boolean {
 
 /** Open question counts as a comparable string, so a drag that moves elements but asks nothing is skipped. */
 function questionKey(): string {
-  const counts = openQuestionCounts(canvasDocStore.getDoc().elements);
+  const counts = agentOpenQuestionCounts();
   return [...counts].sort(([a], [b]) => a.localeCompare(b)).join(";");
 }
 
@@ -182,7 +181,7 @@ export function startAgentStatusSync(client: AgentClient): () => void {
     agentStore.subscribe(onStoreChange),
     layoutStore.subscribe(onStoreChange),
     worktreeStore.subscribe(onStoreChange),
-    canvasDocStore.subscribe(onStoreChange),
+    subscribeQuestionDocs(onStoreChange),
   ];
   window.addEventListener("focus", onChange);
   document.addEventListener("visibilitychange", onChange);

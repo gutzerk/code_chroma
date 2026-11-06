@@ -4,6 +4,7 @@ import { useEngineClient } from "../engine-client/EngineClientContext";
 import { ensureNotificationPermission, statusChangeKind } from "./agentNotifications";
 import { useAgentClient } from "./AgentClientContext";
 import { flagDiagramsReady } from "./agentDiagramsReady";
+import { useAgentQuestionSync } from "./agentQuestionSource";
 import { startAgentStatusSync } from "./agentStatusSync";
 import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingClose } from "./agentStore";
 import { agentDockStore } from "./agentDockStore";
@@ -54,6 +55,9 @@ export function AgentWindowLayer() {
 
   // Seen marking, toast clean-up, the desktop shell's agent summary and commands, ⌘⇧J in a browser.
   useEffect(() => startAgentStatusSync(agentClient), [agentClient]);
+
+  // Agent windows and badges read each agent's own workspace, whatever tab the canvas draws.
+  useAgentQuestionSync();
 
   // A monitor unplugged mid-session shrinks the browser window in place -- pull any window that
   // landed off-screen back into view (see agentStore.reclampToViewport).

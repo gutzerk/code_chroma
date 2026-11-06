@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLayoutState } from "../canvas/layout/layoutStore";
-import { useCanvasDoc } from "../canvas/doc/canvasDocStore";
 import { ConnectedQuestionCard } from "../canvas/doc/question/ConnectedQuestionCard";
 import { pickQuestionLayout } from "../canvas/doc/question/pickQuestionLayout";
 import { resolveSelection, toQuestionView } from "../canvas/doc/question/questionAdapter";
 import { QuestionDiagram } from "../canvas/doc/question/QuestionDiagram";
 import { useOpenAgentQuestions } from "../canvas/doc/question/useOpenAgentQuestions";
+import { useAgentQuestionSource } from "./agentQuestionSource";
 
-/** Wraps an agent's terminal and shows its oldest open question beside it in the layout that fits the host. */
+/** Wraps an agent's terminal and shows its oldest open question (from the agent's own workspace) beside it in the layout that fits the host. */
 export function AgentQuestionHost({
   agentId,
   onFocusTerminal,
@@ -22,8 +22,9 @@ export function AgentQuestionHost({
   const [width, setWidth] = useState(0);
   const [pick, setPick] = useState<{ questionId: string; optionId: string } | null>(null);
   const { agentsMode } = useLayoutState();
-  const doc = useCanvasDoc();
-  const current = useOpenAgentQuestions(agentId)[0];
+  // The agent's own workspace, not the active tab's: an agent asks into its workspace's canvas doc.
+  const { doc, client } = useAgentQuestionSource(agentId);
+  const current = useOpenAgentQuestions(agentId, doc)[0];
   const question = useMemo(() => (current ? toQuestionView(current) : null), [current]);
   const selectedId = question
     ? resolveSelection(question, pick?.questionId === question.questionId ? pick.optionId : null)
@@ -81,6 +82,8 @@ export function AgentQuestionHost({
           <ConnectedQuestionCard
             key={current.id}
             question={question}
+            client={client}
+            doc={doc}
             variant={layout === "B1" ? "full" : "compact"}
             selectedId={selectedId}
             onSelectedIdChange={setSelectedId}

@@ -1,5 +1,4 @@
-import { canvasDocStore } from "../canvas/doc/canvasDocStore";
-import { openQuestionCounts } from "../canvas/doc/question/useOpenAgentQuestions";
+import { agentOpenQuestionCounts } from "../canvas/doc/question/useOpenAgentQuestions";
 import { layoutStore } from "../canvas/layout/layoutStore";
 import type { AgentRecord, AgentStatus, WorktreeRecord } from "../state/types";
 import { agentStore } from "./agentStore";
@@ -51,7 +50,7 @@ export function isLookingAtAgent(id: string): boolean {
 
 /** Every agent's effective status right now, open ask_user questions included. */
 export function currentEffectiveStatuses(): Map<string, AgentStatus> {
-  const questions = openQuestionCounts(canvasDocStore.getDoc().elements);
+  const questions = agentOpenQuestionCounts();
   return new Map(
     agentStore.getAgents().map((agent) => [agent.id, effectiveStatus(agent, questions.get(agent.id) ?? 0)]),
   );

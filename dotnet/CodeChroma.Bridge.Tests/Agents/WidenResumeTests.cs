@@ -124,6 +124,24 @@ public sealed class WidenResumeTests : IDisposable
     }
 
     [Fact]
+    public void Attached_windows_counts_each_attach_until_its_detach()
+    {
+        _cli.Script(Stdout("ready"), Hang());
+        var session = Launch();
+        WaitFor(() => Shows(session, "ready"));
+        var before = session.AttachedWindows;
+
+        var first = session.Attach();
+        var second = session.Attach();
+        var both = session.AttachedWindows;
+        session.Detach(first);
+        var one = session.AttachedWindows;
+        session.Detach(second);
+
+        Assert.Equal((0, 2, 1, 0), (before, both, one, session.AttachedWindows));
+    }
+
+    [Fact]
     public void Respawn_clears_the_old_screen_and_streams_the_new_process_to_attached_windows()
     {
         _cli.ScriptRuns([Stdout("first run"), Hang()], [Stdout("second run"), Hang()]);

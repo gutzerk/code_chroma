@@ -12,4 +12,4 @@
 - Show what this option adds or changes versus today: existing parts plain, the option's additions
   `status: "new"`, so the user sees the delta rather than the whole system.
 - All options of one question land on one option-diagram layer (`decisions/<question_id>`), one root each.
-  The user sees them only inside the question, never on the canvas.
+  The user sees them only inside the question in their CodeChroma agent window, never on the canvas.

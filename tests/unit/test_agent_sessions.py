@@ -4,7 +4,12 @@ import asyncio
 
 import pytest
 
-from codechroma.bridge.agents.sessions import AgentSession, AgentSessionPort, agent_run_env
+from codechroma.bridge.agents.sessions import (
+    AgentSession,
+    AgentSessionPort,
+    AgentSessionRegistry,
+    agent_run_env,
+)
 from tests.unit.portable_commands import ECHO
 
 
@@ -44,6 +49,28 @@ def test_resyncing_an_unknown_queue_is_a_no_op_rather_than_an_error():
         return stranger.qsize()
 
     assert asyncio.run(run()) == 0
+
+
+def test_attached_windows_counts_each_attach_until_its_detach():
+    async def run() -> tuple[int, int, int, int]:
+        session = AgentSession("runner", ECHO, cwd=".")
+        before = session.attached_windows
+        first, second = session.attach(), session.attach()
+        both = session.attached_windows
+        session.detach(first)
+        one = session.attached_windows
+        session.detach(second)
+        after = session.attached_windows
+        session.close()
+        return before, both, one, after
+
+    assert asyncio.run(run()) == (0, 2, 1, 0)
+
+
+def test_the_registry_reports_no_windows_for_an_agent_without_a_session():
+    registry = AgentSessionRegistry()
+
+    assert registry.attached_windows("ghost") == 0
 
 
 def test_agent_session_satisfies_the_terminal_port():

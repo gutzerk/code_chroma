@@ -1435,6 +1435,71 @@
           }
         }
       ]
+    },
+    {
+      "id": "asking_without_an_attached_window_is_refused_and_writes_nothing",
+      "steps": [
+        {
+          "token": "main",
+          "as": "tok"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ask",
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            },
+            "json": {
+              "question": "Which plan?",
+              "options": [
+                {
+                  "id": "a",
+                  "title": "A",
+                  "description": "d",
+                  "pro": "p",
+                  "con": "c",
+                  "why": "w",
+                  "rank": 1
+                },
+                {
+                  "id": "b",
+                  "title": "B",
+                  "description": "d",
+                  "pro": "p",
+                  "con": "c",
+                  "why": "w",
+                  "rank": 2
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 422,
+            "checks": [
+              {
+                "path": "$.detail",
+                "contains": "No CodeChroma window is showing this agent"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

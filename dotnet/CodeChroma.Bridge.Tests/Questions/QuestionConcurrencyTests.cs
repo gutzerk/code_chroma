@@ -12,7 +12,7 @@ public class QuestionConcurrencyTests
     [Fact]
     public async Task An_answer_before_a_diagram_reask_keeps_its_options_and_result()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var ws = Main(host);
         var mcp = Mcp(host);
         var questionId = Open(host, Request(sessionId: "session"));
@@ -41,7 +41,7 @@ public class QuestionConcurrencyTests
     [InlineData("skip")]
     public async Task Competing_decisions_settle_once_and_the_result_matches_the_element(string competingAction)
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var questionId = Open(host, Request());
         var mcp = Mcp(host);
         Task<HttpResponseMessage> first;

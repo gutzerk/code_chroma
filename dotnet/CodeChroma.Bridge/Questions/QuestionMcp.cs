@@ -7,18 +7,26 @@ using CodeChroma.Bridge.Workspaces;
 namespace CodeChroma.Bridge.Questions;
 
 /// <summary>One MCP server for every workspace: the bearer token names and authorizes the workspace; `ask_user` returns at once and the answer is typed into the agent terminal.</summary>
-public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, int maxRejections = 3)
+public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, int maxRejections = 3, Func<string, int>? attachedWindows = null)
 {
     public const string SessionHeader = "Mcp-Session-Id";
     public const string Instructions =
-        "Ask every decision question through ask_user, never in chat text and never with another question tool. Each call needs: question, and 2-4 options that each have id, title, description, pro, con and why; exactly one option has rank 1 (your recommendation), the others a unique rank. A call that breaks this is rejected with the list of problems: fix them and call again with the same intent. For a question that changes structure (boundaries, data flow, ownership, a new component) use kind \"diagram\": first draw one small diagram per option with draw_option_diagram, then pass each returned diagram_ref on its option. ask_user returns at once with {asked: true}: end your turn then. Once every question you asked is answered or skipped, all answers arrive together as your next message, one [CodeChroma answer] part per question. If the next message says the user wants diagrams, draw them with draw_option_diagram and call ask_user again with the same session_id and question. Never poll and never repeat the question in chat. ask_user_result(question_id) reads an answer back if you need it.";
+        "Ask every decision question through ask_user, never in chat text and never with another question tool. Each call needs: question, and 2-4 options that each have id, title, description, pro, con and why; exactly one option has rank 1 (your recommendation), the others a unique rank. A call that breaks this is rejected with the list of problems: fix them and call again with the same intent. For a question that changes structure (boundaries, data flow, ownership, a new component) use kind \"diagram\": first draw one small diagram per option with draw_option_diagram, then pass each returned diagram_ref on its option. ask_user returns at once with {asked: true}; the question appears in the user's CodeChroma agent window above this terminal, so tell the user that in one line, then end your turn. If ask_user is refused because no CodeChroma window shows you, ask in chat instead. Once every question you asked is answered or skipped, all answers arrive together as your next message, one [CodeChroma answer] part per question. If the next message says the user wants diagrams, draw them with draw_option_diagram and call ask_user again with the same session_id and question. Never poll and never repeat the question in chat. ask_user_result(question_id) reads an answer back if you need it.";
 
     private const string DrawDescription =
         "Draw a small decision diagram (max 12 nodes) for one option; returns its diagram_ref. "
         + "Nodes are {id, label, description?, status?}; status \"new\" marks a part that does not exist yet. "
         + "Edges are {from, to, label?}. Pass the returned diagram_ref on the option in ask_user.";
 
-    public const string NextText = "End your turn now. The user's answer will arrive as your next message.";
+    public const string NextText =
+        "The question appears in the user's CodeChroma agent window above this terminal. Tell the user that in one line, then end your turn now. The user's answer will arrive as your next message.";
+
+    /// <summary>The refusal when no window shows the asking agent: the question would sit unseen, so the agent asks in chat.</summary>
+    public const string NoWindowText =
+        "No CodeChroma window is showing this agent, so the user cannot see an ask_user question. Ask in chat instead: write the question and its options as plain text, then end your turn.";
+
+    private const string AskDescription =
+        "Ask the user a decision question; it appears in the user's CodeChroma agent window above this terminal. Returns at once: tell the user in one line that the question is in that window, then end your turn. The answer arrives as your next message. Refused when no CodeChroma window shows this agent: ask in chat then.";
 
     private readonly byte[] _secret = RandomNumberGenerator.GetBytes(32);
 
@@ -61,11 +69,13 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, int maxRej
 
     private string Sign(string workspaceId) => Convert.ToHexString(HMACSHA256.HashData(_secret, Encoding.UTF8.GetBytes(workspaceId))).ToLowerInvariant();
 
-    /// <summary>Opens (or re-asks) the question on the canvas and returns at once; the answer is typed into the agent terminal later.</summary>
+    /// <summary>Opens (or re-asks) the question for the agent window and returns at once; refused when no window shows the agent; the answer is typed into the agent terminal later.</summary>
     public async Task<JsonObject> Ask(string workspaceId, AskRequest request, string? connection = null, CancellationToken cancellation = default)
     {
         var ws = workspaceFor(workspaceId);
         var extra = await Check(ws, workspaceId, request, connection);
+        // An agent no window shows (closed, or not a bridge session) would wait hours on a question nobody sees.
+        if (attachedWindows is not null && attachedWindows(workspaceId) <= 0) throw new QuestionRejected(NoWindowText);
         request.AgentId = workspaceId;
         var questionId = await Task.Run(() =>
         {
@@ -214,7 +224,7 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, int maxRej
         var edge = Obj(("from", Str()), ("to", Str()), ("label", Str()));
         edge["required"] = new JsonArray("from", "to");
         return new JsonArray(
-            Tool("ask_user", "Ask the user a question on the canvas; returns at once, then end your turn: the answer arrives as your next message.",
+            Tool("ask_user", AskDescription,
                 Obj(
                     ("question", Str()), ("options", new JsonObject { ["type"] = "array", ["items"] = option }),
                     ("kind", new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("choices", "diagram") }),

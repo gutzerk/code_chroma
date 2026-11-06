@@ -280,6 +280,11 @@ class AgentSession(AgentSessionPort):
         self._exit_error = None
         return had
 
+    @property
+    def attached_windows(self) -> int:
+        """How many windows are attached right now; 0 means nobody can see this agent."""
+        return len(self._consumers)
+
     def attach(self) -> asyncio.Queue:
         """A queue seeded with a screen redraw, so a reattach can never start mid-sequence."""
         queue: asyncio.Queue = asyncio.Queue()
@@ -521,6 +526,11 @@ class AgentSessionRegistry:
 
     def get(self, agent_id: str) -> AgentSession | None:
         return self._sessions.get(agent_id)
+
+    def attached_windows(self, agent_id: str) -> int:
+        """Windows attached to the agent's session; 0 without a session (not a bridge agent)."""
+        session = self._sessions.get(agent_id)
+        return session.attached_windows if session is not None else 0
 
     def is_running(self, agent_id: str) -> bool:
         """Whether the process is alive — not what the LED says, which is a screen reading."""

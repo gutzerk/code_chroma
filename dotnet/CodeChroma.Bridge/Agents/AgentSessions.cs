@@ -105,6 +105,12 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 
     public bool IsAlive => ExitCode is null;
 
+    /// <summary>How many windows are attached right now (Attach adds one, Detach drops it); 0 means nobody can see this agent.</summary>
+    public int AttachedWindows
+    {
+        get { lock (_gate) return _consumers.Count; }
+    }
+
     /// <summary>Whether the detector can ever report idle, so an InjectWhenIdle can ever type.</summary>
     public bool DetectsIdle => _detector.Rules.Classifies;
 

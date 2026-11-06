@@ -174,7 +174,9 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     app.state.services = BridgeServices.create(root)
     services = app.state.services
-    app.state.question_mcp = QuestionMcp(services.registry.get)
+    app.state.question_mcp = QuestionMcp(
+        services.registry.get, attached_windows=services.agent_sessions.attached_windows
+    )
     services.agent_sessions.on_exit = lambda agent_id: _broadcast_exit(services, agent_id)
     services.agent_sessions.on_clear = lambda agent_id: _broadcast_cleared(services, agent_id)
 

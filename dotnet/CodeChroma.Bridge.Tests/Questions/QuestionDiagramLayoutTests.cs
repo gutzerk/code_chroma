@@ -20,7 +20,7 @@ public class QuestionDiagramLayoutTests
     [Fact]
     public void Positions_are_centres_and_the_root_wraps_its_nodes()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
 
         var doc = Draw(host);
 
@@ -35,7 +35,7 @@ public class QuestionDiagramLayoutTests
     [Fact]
     public void A_diagram_without_a_question_goes_on_a_draft_layer_below_decisions()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
 
         var doc = Draw(host);
 
@@ -46,7 +46,7 @@ public class QuestionDiagramLayoutTests
     [Fact]
     public void A_diagram_for_a_question_option_uses_that_questions_layer()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var questionId = Open(host, Request());
 
         var doc = Draw(host, questionId, "a");
@@ -57,7 +57,7 @@ public class QuestionDiagramLayoutTests
     [Fact]
     public void A_new_diagram_starts_below_the_lowest_existing_decisions_element_with_a_gap()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var first = Draw(host);
         var bottom = first.Elements.Values.Max(e => e.Position.Y + (e.Size?.H ?? 0) / 2);
 
@@ -70,7 +70,7 @@ public class QuestionDiagramLayoutTests
     [Fact]
     public async Task Asking_with_a_drawn_diagram_ref_moves_the_draft_diagram_onto_the_question_layer()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var root = Draw(host).Elements.Values.Single(IsRoot);
 
         var asked = await Mcp(host).Ask("main", Request([Option("a", 1, diagramRef: root.Id), Option("b", 2)], kind: "diagram"));
@@ -84,7 +84,7 @@ public class QuestionDiagramLayoutTests
     [Fact]
     public void Decisions_layers_write_no_projection_file()
     {
-        using var host = new BridgeHost();
+        using var host = Host();
         var questionId = Open(host, Request());
 
         Draw(host, questionId, "a");

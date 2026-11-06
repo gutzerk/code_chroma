@@ -42,7 +42,9 @@ def _node(node_id: str, **overrides) -> diagrams.DiagramNode:
 
 
 def _mcp(bridge) -> QuestionMcp:
-    return bridge.app.state.question_mcp
+    mcp = bridge.app.state.question_mcp
+    mcp.attached_windows = lambda _agent_id: 1
+    return mcp
 
 
 def test_a_complete_question_has_no_problems():

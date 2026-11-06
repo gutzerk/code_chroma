@@ -38,7 +38,10 @@ _INSTRUCTIONS = (
     "them and call again with the same intent. For a question that changes structure "
     "(boundaries, data flow, ownership, a new component) use kind \"diagram\": first draw one "
     "small diagram per option with draw_option_diagram, then pass each returned diagram_ref on "
-    "its option. ask_user returns at once with {asked: true}: end your turn then. Once every "
+    "its option. ask_user returns at once with {asked: true}; the question appears in the "
+    "user's CodeChroma agent window above this terminal, so tell the user that in one line, then "
+    "end your turn. If ask_user is refused because no CodeChroma window shows you, ask in chat "
+    "instead. Once every "
     "question you asked is answered or skipped, all answers arrive together as your next "
     "message, one [CodeChroma answer] part per question. If the next "
     "message says the user wants diagrams, draw them with draw_option_diagram and call ask_user "
@@ -46,7 +49,21 @@ _INSTRUCTIONS = (
     "chat. ask_user_result(question_id) reads an answer back if you need it."
 )
 
-NEXT_STEP = "End your turn now. The user's answer will arrive as your next message."
+NEXT_STEP = (
+    "The question appears in the user's CodeChroma agent window above this terminal. Tell the "
+    "user that in one line, then end your turn now. The user's answer will arrive as your next "
+    "message."
+)
+NO_WINDOW = (
+    "No CodeChroma window is showing this agent, so the user cannot see an ask_user question. "
+    "Ask in chat instead: write the question and its options as plain text, then end your turn."
+)
+_ASK_DESCRIPTION = (
+    "Ask the user a decision question; it appears in the user's CodeChroma agent window above "
+    "this terminal. Returns at once: tell the user in one line that the question is in that "
+    "window, then end your turn. The answer arrives as your next message. Refused when no "
+    "CodeChroma window shows this agent: ask in chat then."
+)
 MISSING_DESCRIPTIONS = (
     "More than half the nodes have no description; say what changes for each node under "
     "this option."
@@ -83,13 +100,19 @@ class _Delegate:
 class QuestionMcp:
     """One MCP server for every workspace; the bearer token names and authorizes the workspace."""
 
-    def __init__(self, workspace_for: Callable[[str], Workspace]) -> None:
+    def __init__(
+        self,
+        workspace_for: Callable[[str], Workspace],
+        attached_windows: Callable[[str], int] | None = None,
+    ) -> None:
         self.rejections = RejectionTracker()
         self._workspace_for = workspace_for
+        # Windows showing an agent id; None skips the check (a bare QuestionMcp outside the app).
+        self.attached_windows = attached_windows
         self._secret = secrets.token_bytes(32)
         self._server = MCPServer(SERVER_NAME, instructions=_INSTRUCTIONS)
         # Claude pre-approves every tool here (CLAUDE_PERMISSION): never add one that edits files.
-        self._server.tool(name="ask_user")(self._ask_user_tool)
+        self._server.tool(name="ask_user", description=_ASK_DESCRIPTION)(self._ask_user_tool)
         self._server.tool(name="ask_user_result")(self._ask_user_result_tool)
         self._server.tool(name="draw_option_diagram", description=_DRAW_DESCRIPTION)(
             self._draw_option_diagram_tool
@@ -141,9 +164,12 @@ class QuestionMcp:
     async def ask(
         self, workspace_id: str, request: AskRequest, connection: str | None = None
     ) -> dict[str, Any]:
-        """Opens (or re-opens) the question and returns at once; the answer is typed in later."""
+        """Opens (or re-opens) the question unless no window shows the agent; returns at once."""
         ws = self._workspace_for(workspace_id)
         extra = await self._check(ws, workspace_id, request, connection)
+        # An agent no window shows (closed, or no bridge session) would wait on an unseen question.
+        if self.attached_windows is not None and self.attached_windows(workspace_id) <= 0:
+            raise QuestionRejected(NO_WINDOW)
         request.agent_id = workspace_id
         found = await asyncio.to_thread(store.find_diagram_requested, ws, request)
         reasked, stale = found if found else (None, [])
@@ -216,7 +242,7 @@ class QuestionMcp:
         allow_skip: bool = True,
         total: int | None = None,
     ) -> dict[str, Any]:
-        """Ask the user a question on the canvas; returns at once, so end your turn."""
+        """Ask the user a question in their CodeChroma agent window; returns at once."""
         request = AskRequest(
             question=question, options=options or [], kind=kind, session_id=session_id,
             allow_custom=allow_custom, allow_skip=allow_skip, total=total,

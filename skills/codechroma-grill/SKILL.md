@@ -1,11 +1,12 @@
 ---
 name: codechroma-grill
-description: Ask the user decisions on the CodeChroma canvas instead of in chat text. Use whenever the user must choose, decide or pick which approach to take, or asks you to "grill me", interview them, or walk through design decisions one question at a time -- you ask through the `ask_user` MCP tool of the `codechroma` server, then end your turn.
+description: Ask the user decisions in their CodeChroma agent window instead of in chat text. Use whenever the user must choose, decide or pick which approach to take, or asks you to "grill me", interview them, or walk through design decisions one question at a time -- you ask through the `ask_user` MCP tool of the `codechroma` server, then end your turn.
 ---
 
-When you need a decision from the user, ask it on the CodeChroma canvas with the `ask_user` MCP tool
-(server `codechroma`, so the tool may appear as `mcp__codechroma__ask_user`). Never type the
-question as chat text, and do not use `AskUserQuestion` when `ask_user` is available.
+When you need a decision from the user, ask it with the `ask_user` MCP tool (server `codechroma`,
+so the tool may appear as `mcp__codechroma__ask_user`). The question appears in the user's
+CodeChroma agent window above this terminal, not on the canvas. Never type the question as chat
+text, and do not use `AskUserQuestion` when `ask_user` is available.
 
 ## How to ask
 
@@ -21,13 +22,15 @@ question as chat text, and do not use `AskUserQuestion` when `ask_user` is avail
   `kind: "diagram"` and each option's `diagram_ref`.
 - Keep `allow_custom` and `allow_skip` true unless a free-form answer makes no sense.
 - For a multi-question session reuse one `session_id` and set `total` to the number of questions
-  you expect, so the canvas can show progress.
+  you expect, so the agent window can show progress.
 
 ## After asking
 
-`ask_user` returns at once with `{"asked": true, "question_id": "...", "next": "End your turn now..."}`.
+`ask_user` returns at once with `{"asked": true, "question_id": "...", "next": "The question appears..."}`.
 
-- **Stop and end your turn right away.** Do not poll, do not wait, and never repeat the question in
+- Tell the user in one line that the question is in their CodeChroma agent window above this
+  terminal, for example: "I asked in the agent window above: <question>".
+- **Then stop and end your turn right away.** Do not poll, do not wait, and never repeat the question in
   chat. CodeChroma types the answers into this terminal as your next message once the user has
   answered or skipped every question you have open, so you resume without the user typing anything.
 - That message holds one part per question, in the order you asked. Each part starts with
@@ -44,4 +47,6 @@ question as chat text, and do not use `AskUserQuestion` when `ask_user` is avail
   Once the answers are typed in, their cards and option diagrams are deleted, so
   the message is the only record: keep what you need from it.
 
-Only if the `ask_user` tool is not available in this session, ask in chat instead.
+Only if the `ask_user` tool is not available in this session, ask in chat instead. Ask in chat
+too when `ask_user` refuses because no CodeChroma window is showing this agent: the user could not
+see the question.

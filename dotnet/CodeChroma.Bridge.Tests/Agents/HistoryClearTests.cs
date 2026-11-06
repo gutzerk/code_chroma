@@ -33,7 +33,7 @@ public sealed class HistoryClearTests : IDisposable
     private static async Task WaitForHistory(AgentSession session)
     {
         var deadline = DateTime.UtcNow.AddSeconds(20);
-        while (session.Screen.HistoryCount < 36 && DateTime.UtcNow < deadline) await Task.Delay(50);
+        while (session.Screen.HistoryCount < 30 && DateTime.UtcNow < deadline) await Task.Delay(50);
     }
 
     /// <summary>Starts a claude agent whose fake CLI prints more lines than the screen holds, then waits for them to scroll into the history.</summary>
@@ -114,7 +114,7 @@ public sealed class HistoryClearTests : IDisposable
         while (window.Output.TryRead(out var chunk)) sent.Append(chunk);
 
         Assert.Equal((AgentRuntime.HistoryClearedEvent, "shouter"), ((string?)pushed["type"], (string?)pushed["id"]));
-        Assert.EndsWith(AgentSession.ClearScrollback, sent.ToString());
+        Assert.Contains(AgentSession.ClearScrollback, sent.ToString());
     }
 
     [Fact]

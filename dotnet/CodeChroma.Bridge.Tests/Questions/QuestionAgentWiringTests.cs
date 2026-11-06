@@ -13,7 +13,7 @@ public sealed class QuestionAgentWiringTests : IDisposable
 {
     private const string BridgeUrl = "http://127.0.0.1:8123";
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "cc-qwire-" + Guid.NewGuid().ToString("N")[..8]);
-    private readonly QuestionMcp _mcp = new(_ => throw new InvalidOperationException("no workspace in this test"));
+    private readonly QuestionMcp _mcp = new(_ => throw new InvalidOperationException("no workspace in this test"), attachedWindows: _ => 1);
     private readonly TerminalAgents _agents;
     private readonly ProviderStore _providers;
     private readonly CallSiteStore _callSites;

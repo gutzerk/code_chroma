@@ -226,7 +226,7 @@ def test_loopback_url_needs_an_explicit_port(given, expected):
 
 def test_endpoint_for_signs_a_token_that_names_the_workspace(monkeypatch):
     monkeypatch.delenv("CODECHROMA_BRIDGE_URL", raising=False)
-    mcp = QuestionMcp(workspace_for=lambda _id: None)
+    mcp = QuestionMcp(workspace_for=lambda _id: None, attached_windows=lambda _id: 1)
     mcp.remember_base_url("http://localhost:8765/")
 
     endpoint = mcp.endpoint_for("agent-7")

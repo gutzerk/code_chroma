@@ -16,7 +16,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Open_question_writes_a_question_element_with_the_documented_meta()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request(sessionId: "s1", total: 3));
 
         var canvas = await Body(await host.Client.GetAsync("/repos/main/canvas"));
@@ -35,7 +35,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public void A_second_question_in_a_session_gets_the_next_step()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         Open(host, Request(sessionId: "s1"));
 
         var second = Open(host, Request(sessionId: "s1"));
@@ -46,7 +46,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Get_questions_lists_open_ones_as_not_waiting_without_a_live_agent()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request());
 
         var body = await Body(await host.Client.GetAsync("/repos/main/questions"));
@@ -60,7 +60,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Answer_with_an_option_records_its_title_on_the_element()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request());
 
         var response = await host.Client.PostAsync($"/repos/main/questions/{questionId}/answer", JsonBody(new JsonObject { ["option_id"] = "a" }));
@@ -76,7 +76,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task A_custom_answer_is_accepted_and_empty_or_unknown_option_is_refused()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request());
         var url = $"/repos/main/questions/{questionId}/answer";
 
@@ -93,7 +93,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task A_custom_answer_is_refused_when_not_allowed()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request(allowCustom: false));
 
         var response = await host.Client.PostAsync($"/repos/main/questions/{questionId}/answer", JsonBody(new JsonObject { ["answer"] = "mine" }));
@@ -104,7 +104,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Skip_marks_the_element_skipped_and_a_second_settle_conflicts()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request());
 
         var first = await host.Client.PostAsync($"/repos/main/questions/{questionId}/skip", null);
@@ -118,7 +118,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Skip_is_refused_when_not_allowed_and_an_unknown_question_is_404()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request(allowSkip: false));
 
         var refused = await host.Client.PostAsync($"/repos/main/questions/{questionId}/skip", null);
@@ -133,7 +133,7 @@ public sealed class QuestionRoutesTests
     [InlineData("agent", false)]
     public async Task Waiting_is_true_only_for_a_live_session_that_can_look_idle(string detectorKind, bool waiting)
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         host.Factory.Services.GetRequiredService<AgentSessionRegistry>().Start("agent-1", ["/bin/sh", "-c", "sleep 30"], host.Root, detectorKind);
         var request = Request();
         request.AgentId = "agent-1";
@@ -179,7 +179,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Result_reads_a_skipped_element()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request());
         await host.Client.PostAsync($"/repos/main/questions/{questionId}/skip", null);
 
@@ -191,7 +191,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public void A_token_names_its_workspace_and_a_forged_one_is_refused()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var mcp = Mcp(host);
         var token = mcp.TokenFor("main");
 
@@ -203,7 +203,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Revise_reopens_the_question_and_deletes_later_steps_of_its_session()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var first = Open(host, Request(sessionId: "s1"));
         var second = Open(host, Request(sessionId: "s1"));
         await host.Client.PostAsync($"/repos/main/questions/{first}/answer", JsonBody(new JsonObject { ["option_id"] = "a" }));
@@ -223,7 +223,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Request_diagram_marks_the_element_and_counts_the_request()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request());
 
         var response = await Body(await host.Client.PostAsync($"/repos/main/questions/{questionId}/request-diagram", null));
@@ -238,7 +238,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Request_diagram_is_refused_when_every_option_has_a_diagram()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request([Question(1, "x"), Question(2, "x")]));
 
         var response = await host.Client.PostAsync($"/repos/main/questions/{questionId}/request-diagram", null);
@@ -251,7 +251,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Repeated_request_diagram_clicks_count_once_and_report_no_live_agent()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request());
         var url = $"/repos/main/questions/{questionId}/request-diagram";
 
@@ -266,7 +266,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public void Find_diagram_requested_ignores_an_unrelated_ask_from_another_session()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request(sessionId: "s1"));
         QuestionStore.RequestDiagram(Main(host), QuestionStore.FindElement(Main(host), questionId)!, "now");
 
@@ -276,7 +276,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public void Find_diagram_requested_ignores_a_different_text_without_a_session()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request());
         QuestionStore.RequestDiagram(Main(host), QuestionStore.FindElement(Main(host), questionId)!, "now");
 
@@ -286,7 +286,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public void Find_diagram_requested_returns_the_newest_card_and_its_older_duplicates()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var old = Open(host, Request(sessionId: "s1"));
         var fresh = Open(host, Request(sessionId: "s1"));
         foreach (var id in new[] { old, fresh }) QuestionStore.RequestDiagram(Main(host), QuestionStore.FindElement(Main(host), id)!, "now");
@@ -300,7 +300,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public void Reask_skips_stale_duplicates_and_refreshes_label_and_meta()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var ws = Main(host);
         var old = Open(host, Request(sessionId: "s1"));
         var fresh = Open(host, Request(sessionId: "s1"));
@@ -332,7 +332,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Draw_diagram_starts_below_every_existing_option_diagram_after_one_is_deleted()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var ws = Main(host);
         DiagramNode[] nodes = [new("a", "a")];
         var roots = new[] { QuestionStore.DrawDiagram(ws, "T", nodes, [], null, null), QuestionStore.DrawDiagram(ws, "T", nodes, [], null, null) };
@@ -348,7 +348,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public void Draw_diagram_with_an_unknown_option_leaves_no_orphan_diagram()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request());
 
         Assert.Throws<QuestionWriteException>(() => QuestionStore.DrawDiagram(Main(host), "T", [new DiagramNode("a", "a")], [], questionId, "nope"));
@@ -372,7 +372,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task The_mcp_endpoint_refuses_a_missing_or_forged_token()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var ping = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = 1, ["method"] = "ping" };
 
         var missing = await host.Client.SendAsync(Rpc(null, ping));
@@ -385,7 +385,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task The_mcp_endpoint_initializes_with_a_session_header_lists_tools_and_acks_notifications()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var token = Mcp(host).TokenFor("main");
 
         var init = await host.Client.SendAsync(Rpc(token, new JsonObject { ["jsonrpc"] = "2.0", ["id"] = 1, ["method"] = "initialize", ["params"] = new JsonObject { ["protocolVersion"] = "2025-03-26" } }));
@@ -498,7 +498,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Draw_diagram_over_the_node_budget_or_with_an_empty_title_is_rejected()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var mcp = Mcp(host);
         var many = Enumerable.Range(0, QuestionDiagrams.MaxNodes + 1).Select(i => new DiagramNode(i.ToString(), "n")).ToList();
 
@@ -510,7 +510,7 @@ public sealed class QuestionRoutesTests
     [Fact]
     public async Task Draw_diagram_attaches_the_ref_to_the_question_option()
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request());
 
         var root = await Mcp(host).DrawDiagram("main", "T", [new DiagramNode("a", "a")], [], questionId, "b");

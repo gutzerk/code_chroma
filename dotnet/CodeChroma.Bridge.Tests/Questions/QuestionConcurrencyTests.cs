@@ -41,7 +41,7 @@ public class QuestionConcurrencyTests
     [InlineData("skip")]
     public async Task Competing_decisions_settle_once_and_the_result_matches_the_element(string competingAction)
     {
-        using var host = Host();
+        using var host = new BridgeHost();
         var questionId = Open(host, Request());
         var mcp = Mcp(host);
         Task<HttpResponseMessage> first;

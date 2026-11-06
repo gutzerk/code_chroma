@@ -27,10 +27,10 @@ OPTIONS = [
 ]
 
 
-def _mcp(bridge, windows: int = 1):
-    mcp = bridge.app.state.question_mcp
-    mcp.attached_windows = lambda _agent_id: windows
-    return mcp
+@pytest.fixture
+def mcp(bridge) -> QuestionMcp:
+    """A QuestionMcp over the bridge's workspaces, with a window showing every agent."""
+    return QuestionMcp(bridge.registry.get, attached_windows=lambda _agent_id: 1)
 
 
 def _ask(bridge, **overrides) -> str:
@@ -212,9 +212,7 @@ def _ask_for(bridge, agent_id: str = "agent-1", **overrides) -> str:
     return question_id
 
 
-def test_ask_returns_at_once_and_tells_the_agent_to_end_its_turn(bridge):
-    mcp = _mcp(bridge)
-
+def test_ask_returns_at_once_and_tells_the_agent_to_end_its_turn(bridge, mcp):
     result = asyncio.run(mcp.ask("main", AskRequest(question="Pick", options=OPTIONS)))
 
     element = store.list_questions(bridge.main)[0]
@@ -489,8 +487,7 @@ def test_answer_message_is_one_line_even_for_a_multiline_custom_answer(bridge):
     assert text.endswith("→ a b [31m c")
 
 
-def test_result_reads_a_settled_answer_from_the_element(bridge):
-    mcp = _mcp(bridge)
+def test_result_reads_a_settled_answer_from_the_element(bridge, mcp):
     question_id = _ask(bridge)
     with TestClient(bridge.app) as client:
         client.post(f"/repos/main/questions/{question_id}/skip")
@@ -500,8 +497,7 @@ def test_result_reads_a_settled_answer_from_the_element(bridge):
     assert result == {"answer": None, "option_id": None, "skipped": True}
 
 
-def test_result_is_pending_while_the_question_is_open(bridge):
-    mcp = _mcp(bridge)
+def test_result_is_pending_while_the_question_is_open(bridge, mcp):
     question_id = _ask(bridge)
 
     result = asyncio.run(mcp.result("main", question_id))
@@ -509,9 +505,7 @@ def test_result_is_pending_while_the_question_is_open(bridge):
     assert result == {"pending": True, "question_id": question_id}
 
 
-def test_token_names_its_workspace_and_a_forged_one_is_refused(bridge):
-    mcp = _mcp(bridge)
-
+def test_token_names_its_workspace_and_a_forged_one_is_refused(mcp):
     token = mcp.token_for("main")
 
     assert mcp.workspace_id_for(token) == "main"
@@ -624,16 +618,13 @@ def test_reask_skips_stale_duplicates_and_refreshes_label_and_meta(bridge):
     assert store.find_element(bridge.main, old).meta["state"] == "skipped"
 
 
-def test_ask_stamps_the_authenticated_workspace_as_agent_id(bridge):
-    mcp = _mcp(bridge)
-
+def test_ask_stamps_the_authenticated_workspace_as_agent_id(bridge, mcp):
     asyncio.run(mcp.ask("main", AskRequest(question="Pick", options=OPTIONS, agent_id="spoofed")))
 
     assert store.list_questions(bridge.main)[0].meta["agent_id"] == "main"
 
 
-def test_reask_keeps_the_question_id_and_returns_it(bridge):
-    mcp = _mcp(bridge)
+def test_reask_keeps_the_question_id_and_returns_it(bridge, mcp):
     question_id = _ask(bridge, session_id="s1")
     store.request_diagram(bridge.main, store.find_element(bridge.main, question_id), "now")
 
@@ -732,10 +723,9 @@ def test_draw_diagram_with_an_unknown_option_leaves_no_orphan_diagram(bridge):
     assert not [e for e in _doc(bridge).elements.values() if e.meta.get("diagram_root")]
 
 
-def test_draw_option_diagram_warns_when_most_nodes_lack_a_description(bridge):
+def test_draw_option_diagram_warns_when_most_nodes_lack_a_description(mcp):
     from codechroma.questions import diagrams
 
-    mcp = _mcp(bridge)
     plain = _nodes(3)
     described = [diagrams.DiagramNode(id=n.id, label=n.label, description="adds X") for n in plain]
 

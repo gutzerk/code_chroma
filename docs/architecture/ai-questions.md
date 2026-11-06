@@ -25,7 +25,7 @@ user click ─► POST /repos/{id}/questions/{qid}/answer|skip ─► store.sett
 agent resumes with "[CodeChroma answer · Q1/3 · <qid>] <question> → <answer> [CodeChroma answer · Q2/3 · ...] ..." as its next user message
 ```
 
-🔴 **No window, no question.** `ask_user` (and the `POST /questions/ask` hook route) checks the asking agent's attached windows after validation: `QuestionMcp(…, attached_windows=…)` (C# `attachedWindows:`) reads `AgentSessionRegistry.attached_windows(agent_id)` (C# `AgentSession.AttachedWindows`, the consumer count `attach`/`detach` keep; 0 without a session). At 0 it raises `QuestionRejected(NO_WINDOW)` (C# `QuestionMcp.NoWindowText`: "No CodeChroma window is showing this agent ... Ask in chat instead"), an MCP tool error or a 422, and writes nothing, so the agent asks in chat instead of waiting about 12 hours on a card nobody sees. A minimized window stays mounted, so it still counts. Without `attached_windows` (a bare `QuestionMcp` in tests) the check is skipped. Contract case `asking_without_an_attached_window_is_refused_and_writes_nothing`.
+🔴 **No window, no question.** `ask_user` (and the `POST /questions/ask` hook route) checks the asking agent's attached windows after validation: `QuestionMcp(…, attached_windows=…)` (C# `attachedWindows:`) reads `AgentSessionRegistry.attached_windows(agent_id)` (C# `AgentSession.AttachedWindows`, the consumer count `attach`/`detach` keep; 0 without a session). At 0 it raises `QuestionRejected(NO_WINDOW)` (C# `QuestionMcp.NoWindowText`: "No CodeChroma window is showing this agent ... Ask in chat instead"), an MCP tool error or a 422, and writes nothing, so the agent asks in chat instead of waiting about 12 hours on a card nobody sees. A minimized window stays mounted, so it still counts. `attached_windows` is a required constructor argument (Python keeps it private as `_attached_windows`); tests pass their own (`QuestionTestKit.Host()` in C#, the `mcp` fixture in Python). Contract case `asking_without_an_attached_window_is_refused_and_writes_nothing`.
 
 There is no broker and nothing waits: `ask_user` never blocks, so the agent is never "running" while a question is open (#281). `ask_user_result(question_id)` still reads an answer back from the element meta for clients without a terminal (only while the element exists, i.e. when no live session took the batch).
 
@@ -54,7 +54,7 @@ There is no broker and nothing waits: `ask_user` never blocks, so the agent is n
   `MOUNT_PATH = "/mcp"` in `create_app` before the SPA catch-all, served through a `_Delegate` ASGI
   shim (503 while not running). Its session manager runs inside the bridge `lifespan`
   (`async with app.state.question_mcp.running()`); a fresh `streamable_http_app` is built per run.
-  Tools: `ask_user(question, options, kind, session_id, allow_custom, allow_skip, total)` (returns `{asked: true, question_id, next}` at once, `next` = `NEXT_STEP` / C# `NextText`: the question is in the user's CodeChroma agent window above this terminal, say so in one line and end the turn; refused with `NO_WINDOW` when no window shows the agent; `agent_id` is not a tool argument; its description, `_ASK_DESCRIPTION` / C# `AskDescription`, says the same), `ask_user_result(question_id)` (settled answer from the element, else `{pending: true, question_id}`) and `draw_option_diagram`.
+  Tools: `ask_user(question, options, kind, session_id, allow_custom, allow_skip, total)` (returns `{asked: true, question_id, next}` at once, `next` = `NEXT_STEP` / C# `NextText`: the question is in the user's CodeChroma agent window above this terminal, say so in one line and end the turn — one `WINDOW_NOTE` / C# `WindowNote` sentence shared with the instructions and the tool description; refused with `NO_WINDOW` when no window shows the agent; `agent_id` is not a tool argument; its description, `_ASK_DESCRIPTION` / C# `AskDescription`, says the same), `ask_user_result(question_id)` (settled answer from the element, else `{pending: true, question_id}`) and `draw_option_diagram`.
 - `settings.questions.answer_inject_attempts` (default 86400, `config.py` `QuestionsConfig`). `ask_wait_seconds` was removed with the blocking design.
 - `routes/questions.py` (registered in `routes/__init__.py`).
 
@@ -118,8 +118,9 @@ agent), and agent windows are listed across every workspace, so the single `canv
 wrong source whenever that tab differs. `agents/agentQuestionSource.ts`: `questionWorkspaceOf(agentId, agents)` follows
 `shares_workspace_with` (through other agents) else returns the agent id; `useAgentQuestionSync()` (mounted once in
 `AgentWindowLayer`) keeps `canvas/doc/question/workspaceQuestionDocs.ts` watching every agent workspace other than the
-active one: one `EngineClient` per repo id (`createEngineClientForUrl`), `getCanvas` on start and on each `canvas` ping of
-that repo, disposed when no agent needs it. `useAgentQuestionSource(agentId)` returns that workspace's `{doc, client}`, or the
+active one: one `EngineClient` per repo id (`createEngineClient`), `getCanvas` on start and on each `canvas` ping of
+that repo (at most one in flight; pings during it coalesce into one more fetch), disposed when no agent needs it. A fetch
+whose question elements and open-question option diagrams are unchanged is not republished. `useAgentQuestionSource(agentId)` returns that workspace's `{doc, client}`, or the
 active `canvasDocStore` doc and client when the agent asks into the active workspace (or is unknown). The host passes the
 doc to `useOpenAgentQuestions(agentId, doc)` and `QuestionDiagram`, and `{client, doc}` to `ConnectedQuestionCard`, so
 answer/skip/revise/"Add diagram" post to the agent's own repo id. `agentOpenQuestionCounts()` sums the active doc and every

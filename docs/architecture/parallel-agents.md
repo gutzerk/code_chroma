@@ -294,7 +294,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
 - `bootstrap.py` — why the feature works on a folder that isn't under git. `git worktree add` is
   impossible without a commit, and an *empty* first commit would hand the agent an empty directory,
   so initialization has to commit real code. `preflight()` returns `ready` / `no-git` / `not-a-repo`
-  / `no-commits` / `nested`; `commit_plan()` reports what would land **in its default state** (every
+  / `no-commits` / `nested`. ⚠ `nested` compares symlink-resolved paths on both sides (Python
+  `Path.resolve()`, C# `Workspaces/RealPaths.Resolve`): git reports the real toplevel, so a project
+  opened via `/tmp`, `/var` or a linked folder must not read as nested. `commit_plan()` reports what would land **in its default state** (every
   suspicious path pre-ticked for exclusion, `include=[...]` to keep one). 🔴 An existing `.gitignore`
   is never rewritten — the plan is computed against it and it is left alone.
 - `manager.py` — `AgentRecord`/`AgentManager`: atomic (temp+rename) writes, the hard limit of

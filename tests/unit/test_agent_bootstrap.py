@@ -54,6 +54,23 @@ def test_preflight_reports_ready_on_a_normal_repository(project):
     assert result["state"] == bootstrap.STATE_READY
 
 
+def _link_to(target: Path, link: Path) -> Path:
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("this OS refuses to create a directory symlink")
+    return link
+
+
+def test_preflight_reports_ready_for_a_repository_reached_through_a_symlink(project, tmp_path):
+    _init_repo(project)
+    link = _link_to(project, tmp_path / "linked")
+
+    result = bootstrap.preflight(link)
+
+    assert result["state"] == bootstrap.STATE_READY
+
+
 def test_preflight_refuses_a_directory_inside_someone_elses_repository(project):
     _init_repo(project)
     nested = project / "sub" / "inner"

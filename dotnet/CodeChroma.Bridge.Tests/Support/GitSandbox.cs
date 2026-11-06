@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Tests.Support;
 
@@ -9,7 +10,7 @@ public sealed class GitSandbox : IDisposable
 
     public GitSandbox(bool initGit = true, bool commit = true)
     {
-        _base = Path.Combine(Path.GetTempPath(), "cc-git-" + Guid.NewGuid().ToString("N")[..10]);
+        _base = Path.Combine(RealPaths.Resolve(Path.GetTempPath()), "cc-git-" + Guid.NewGuid().ToString("N")[..10]);
         Root = Path.Combine(_base, "project");
         Directory.CreateDirectory(Root);
         File.WriteAllText(Path.Combine(Root, "app.py"), "value = 1\n");
@@ -25,6 +26,15 @@ public sealed class GitSandbox : IDisposable
     }
 
     public string Root { get; }
+
+    /// <summary>A symlink to the project root, or null where the OS refuses to create one (unprivileged Windows).</summary>
+    public string? LinkToRoot()
+    {
+        var link = Path.Combine(Sibling("links"), "project");
+        try { Directory.CreateSymbolicLink(link, Root); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
+        return link;
+    }
 
     /// <summary>A sibling directory of the project, for worktrees and remotes that must live outside it.</summary>
     public string Sibling(string name)

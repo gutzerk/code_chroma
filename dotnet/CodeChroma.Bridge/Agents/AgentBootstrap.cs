@@ -38,7 +38,7 @@ public static class AgentBootstrap
         var toplevel = GitRunner.Run(root, "rev-parse", "--show-toplevel");
         if (toplevel is null) return new JsonObject { ["state"] = StateNotARepo, ["root"] = root, ["plan"] = CommitPlan(root) };
         var resolved = Full(toplevel.Trim());
-        if (!SamePath(resolved, root)) return new JsonObject { ["state"] = StateNested, ["root"] = root, ["parent_repo"] = resolved };
+        if (!SamePath(RealPaths.Resolve(resolved), RealPaths.Resolve(root))) return new JsonObject { ["state"] = StateNested, ["root"] = root, ["parent_repo"] = resolved };
         if (GitRunner.Run(root, "rev-parse", "--verify", "--quiet", "HEAD") is null)
             return new JsonObject { ["state"] = StateNoCommits, ["root"] = root, ["plan"] = CommitPlan(root) };
         return new JsonObject { ["state"] = StateReady, ["root"] = root };

@@ -16,6 +16,24 @@ const MIN_ROWS = 1;
 
 let clipboardTail: Promise<unknown> | null = null;
 
+interface LiveTerminal {
+  term: Terminal;
+  webgl: WebglAddon | null;
+  hidden: RefObject<boolean>;
+}
+
+// xterm shares one WebGL glyph atlas between terminals with the same font/theme/DPR, so clearing it is global.
+const liveTerminals = new Set<LiveTerminal>();
+
+/** Clears the shared glyph atlas and rebuilds every visible terminal's render model in the same tick. */
+function repaintVisibleTerminals(): void {
+  for (const live of liveTerminals) {
+    if (live.hidden.current) continue;
+    live.webgl?.clearTextureAtlas();
+    live.term.refresh(0, live.term.rows - 1);
+  }
+}
+
 /** Writes a terminal selection to the native (desktop) or browser clipboard, one write at a time and in order. */
 function copySelection(text: string): void {
   const desktop = getDesktopWorkspaceApi();
@@ -96,7 +114,6 @@ export function useXtermSession(
   const terminalClient = useTerminalClient();
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const webglRef = useRef<WebglAddon | null>(null);
   const hiddenRef = useRef(hidden);
   hiddenRef.current = hidden;
   const sessionRef = useRef<TerminalSession | null>(null);
@@ -121,13 +138,11 @@ export function useXtermSession(
     session.resize(term.rows, term.cols);
   }, []);
 
-  // Re-rasterize every glyph and redraw the screen: a stale WebGL atlas drops glyphs (blank cells) and no resize fixes it.
+  // Re-rasterize every glyph and redraw every visible terminal: a stale WebGL atlas drops glyphs and no resize fixes it.
   // A hidden terminal skips it; the un-hide effect repaints it then.
   const repaint = useCallback(() => {
-    const term = termRef.current;
-    if (!term || hiddenRef.current) return;
-    webglRef.current?.clearTextureAtlas();
-    term.refresh(0, term.rows - 1);
+    if (!termRef.current || hiddenRef.current) return;
+    repaintVisibleTerminals();
   }, []);
 
   // Debounce it: during a drag the ResizeObserver fires on every pointermove (~60-120x/sec).
@@ -174,19 +189,21 @@ export function useXtermSession(
     // WebGL is the difference between a repaint and a smear on a dense TUI, but a lost context
     // renders nothing at all — dispose on loss and let xterm fall back to the DOM renderer.
     let webgl: WebglAddon | null = null;
+    const live: LiveTerminal = { term, webgl: null, hidden: hiddenRef };
     try {
       webgl = new WebglAddon();
       webgl.onContextLoss(() => {
         webgl?.dispose();
         webgl = null;
-        webglRef.current = null;
+        live.webgl = null;
         repaint();
       });
       term.loadAddon(webgl);
     } catch {
       webgl = null;
     }
-    webglRef.current = webgl;
+    live.webgl = webgl;
+    liveTerminals.add(live);
 
     fitAddon.fit();
     termRef.current = term;
@@ -247,6 +264,7 @@ export function useXtermSession(
 
     return () => {
       disposed = true;
+      liveTerminals.delete(live);
       detachConsumer?.();
       dprQuery?.removeEventListener("change", onDprChange);
       document.fonts?.removeEventListener("loadingdone", repaint);
@@ -259,7 +277,6 @@ export function useXtermSession(
       term.dispose();
       termRef.current = null;
       fitAddonRef.current = null;
-      webglRef.current = null;
       sessionRef.current = null;
     };
   }, [containerRef, terminalClient, agent, workspace, enabled, closedNotice, refit, scheduleRefit, repaint]);

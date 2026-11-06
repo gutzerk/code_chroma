@@ -9,7 +9,7 @@ const { terminals, fit, MEASURED, atlas } = vi.hoisted(() => {
   const MEASURED = { rows: 24, cols: 80 };
   return {
     MEASURED,
-    atlas: { cleared: 0 },
+    atlas: { cleared: 0, perAddon: [] as number[] },
     terminals: [] as {
       rows: number;
       cols: number;
@@ -67,9 +67,11 @@ vi.mock("@xterm/addon-fit", () => ({
 vi.mock("@xterm/addon-unicode11", () => ({ Unicode11Addon: class {} }));
 vi.mock("@xterm/addon-webgl", () => ({
   WebglAddon: class {
+    index = atlas.perAddon.push(0) - 1;
     onContextLoss(): void {}
     clearTextureAtlas(): void {
       atlas.cleared += 1;
+      atlas.perAddon[this.index] += 1;
     }
     dispose(): void {}
   },
@@ -114,6 +116,7 @@ afterEach(() => {
   fit.count = 0;
   fit.proposed = MEASURED;
   atlas.cleared = 0;
+  atlas.perAddon.length = 0;
   handle = null;
   vi.useRealTimers();
 });
@@ -137,6 +140,45 @@ describe("useXtermSession", () => {
 
     expect(atlas.cleared).toBe(1);
     expect(terminals[0].refreshed).toContainEqual([0, 23]);
+  });
+
+  it("repaints every other visible terminal when one clears the shared glyph atlas", () => {
+    const client = { connect: () => fakeSession().session };
+    const hosts = (firstHidden: boolean) => (
+      <TerminalClientProvider client={client}>
+        <Host options={{ agent: "shell", closedNotice: "[closed]", hidden: firstHidden }} />
+        <Host options={{ agent: "claude", closedNotice: "[closed]" }} />
+        <Host options={{ agent: "codex", closedNotice: "[closed]", hidden: true }} />
+      </TerminalClientProvider>
+    );
+    const view = render(hosts(true));
+    atlas.perAddon.fill(0);
+    terminals.forEach((term) => { term.refreshed = []; });
+
+    view.rerender(hosts(false));
+
+    expect(atlas.perAddon).toEqual([1, 1, 0]);
+    expect(terminals[1].refreshed).toContainEqual([0, 23]);
+    expect(terminals[2].refreshed).toEqual([]);
+  });
+
+  it("drops an unmounted terminal from the shared repaint", () => {
+    const client = { connect: () => fakeSession().session };
+    const hosts = (firstHidden: boolean, withSecond: boolean) => (
+      <TerminalClientProvider client={client}>
+        <Host options={{ agent: "shell", closedNotice: "[closed]", hidden: firstHidden }} />
+        {withSecond && <Host options={{ agent: "claude", closedNotice: "[closed]" }} />}
+      </TerminalClientProvider>
+    );
+    const view = render(hosts(true, true));
+    view.rerender(hosts(true, false));
+    atlas.perAddon.fill(0);
+    terminals[1].refreshed = [];
+
+    view.rerender(hosts(false, false));
+
+    expect(atlas.perAddon).toEqual([1, 0]);
+    expect(terminals[1].refreshed).toEqual([]);
   });
 
   it("connects with the agent and workspace and sends the initial size", () => {

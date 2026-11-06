@@ -36,7 +36,10 @@ to revive if it comes back, it would be rebuilt from scratch.
     redraws all rows; it runs when the window moves between a Retina and an external display
     (`matchMedia("(resolution: Ndppx)")`), when a hidden terminal is shown again (agent switch),
     and on `document.fonts` `loadingdone`. A stale atlas shows as blank cells in place of glyphs,
-    and a resize alone does not fix it.
+    and a resize alone does not fix it. ⚠ xterm shares one atlas between every terminal with the
+    same font/theme/DPR (`CharAtlasCache`), so `repaint()` rebuilds **every** visible terminal (a
+    module-level `liveTerminals` registry), not just its own; clearing only one left the others
+    drawing stale glyph coordinates into the emptied atlas (a near-blank screen with stray glyphs).
   - **No `convertEol`** — a raw PTY already emits `\r\n`, and converting bare `\n` fights the TUI's
     own cursor model.
   - The debounced, size-deduped `refit`, the 0x0 guard for a hidden host box, and `onBinary`.

@@ -150,7 +150,7 @@ into a `ClearWatch` (`Agents/HistoryClear.cs`, Python `bridge/agents/history_cle
 | CLI (adapter) | Commands | Signal | Repaint |
 |---|---|---|---|
 | Claude Code (`claude`) | `/clear`, `/reset`, `/new` | `SessionStart` hook, source `clear` (menu picks too) | Ctrl+L |
-| Claude without the hooks (no bridge URL/agent id) | same | typed input | Ctrl+L |
+| Claude without the status hooks (no bridge URL/agent id, or no `--settings` emitted) | same | typed input | Ctrl+L |
 | Codex (`codex`) | `/clear`, `/new` | typed input | — |
 | Kimi Code (`kimi-cli`) | `/new`, `/clear` | typed input | — |
 | Gemini CLI (`gemini`) | `/clear` | typed input | — |
@@ -158,16 +158,28 @@ into a `ClearWatch` (`Agents/HistoryClear.cs`, Python `bridge/agents/history_cle
 
 - Clear: `AgentSession.ClearHistory()` (Python `clear_history()`) sends `ESC[3J` down the output path,
   so the tap's history (C#) and every attached xterm's scrollback are erased in order with the CLI's
-  output, writes the repaint input after `RepaintDelay` (300 ms), and fires `Cleared` / `on_clear`,
+  output. ⚠ A PTY chunk can end mid-sequence (`\e[38;2;1`); an ESC there aborts the CSI in the tap
+  and in xterm and prints its tail as text, so the clear goes out at once only while the tap is in
+  ground state (`ScreenTap.InGround` / `in_ground`, pyte's `_taking_plain_text` in Python) and
+  otherwise waits, flagged, until after the next output chunk that leaves the tap in ground state.
+  It then writes the repaint input after `RepaintDelay` (300 ms), and fires `Cleared` / `on_clear`,
   which broadcasts `{"type": "agent-history-cleared", "id"}`. The web empties that agent's prompt
   list (`promptNavStore.clear`, from `AgentWindowLayer`); the transcript-based list refills from the new
   session id on its next read.
 - ⚠ Claude Code 2.1 prints no clear sequence on `/clear` (verified on a PTY): the old turns stay on
   screen and in the scrollback without this. Ctrl+L wipes the visible rows and redraws the prompt.
-- Typed detection (`TypedClearDetector`) follows `AgentSession.Write`: a submitted line whose first
-  word is a clear command matches; backspace edits, Ctrl+U/Ctrl+C reset, bracketed paste counts. A
-  line touched by cursor keys, Tab completion or other control keys is unknown and never matches, so
-  a clear picked from a menu or recalled from history is missed for typed CLIs.
+- Typed detection (`TypedClearDetector`) follows `AgentSession.Write`: a line submitted with CR (Enter)
+  whose first word is a clear command matches; backspace edits, Ctrl+U/Ctrl+C reset, a bracketed
+  paste without a line break counts. Only CR submits: LF (Ctrl+J adds a composer line in Codex and
+  Gemini) and any CR/LF inside a paste (tracked between `ESC[200~` and `ESC[201~`) make the line
+  unknown. A line touched by cursor keys, Tab completion or other control keys is unknown and never
+  matches, so a clear picked from a menu or recalled from history is missed for typed CLIs. Text the
+  bridge types (`InjectWhenIdle` → `WriteInjected` / `_write_injected`) skips detection
+  (`TypedClearDetector.Skip` / `skip` only marks the line unknown until its CR).
+- The hook path is chosen from what was really launched: `AgentLaunch.StatusHooks` is true only when
+  `--settings` carrying the status hooks was emitted (a hook endpoint exists and
+  `AgentSessionOwnership.CanRunHooks`; Python: real claude with an MCP endpoint). Without it typed
+  watching stays on and the launch context is typed (see "Current-view context on launch").
 - Tests: `Agents/HistoryClearTests.cs`, `tests/unit/test_agent_history_clear.py`,
   `web/src/agents/prompts/promptNavStore.test.ts`, `web/src/agents/AgentWindowLayer.test.tsx`, contract
   case `a_clear_session_start_hook_is_accepted_and_leaves_the_status`.
@@ -461,8 +473,10 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   state already loaded at click time (`web/src/agents/viewContext.ts::buildViewContext`), kept in the
   workspace-scoped `viewContextStore`, and carried to the bridge as `POST /agents`' `context` field,
   which `AgentManager.create(..., context=...)` persists on the `AgentRecord`.
-  🔴 **Hidden, and only with the user's first prompt.** Nothing is typed into the PTY and the agent
-  gets no turn of its own (the old "[Context] … Please acknowledge" idle inject is gone).
+  🔴 **Hidden, and only with the user's first prompt, when the CLI has the hook.** For such a launch
+  nothing is typed into the PTY and the agent gets no turn of its own. A CLI agent without it falls
+  back to the typed `[Context] … Please acknowledge` turn (`AgentRoutes.TypedViewContext` /
+  `typed_view_context`, via `InjectWhenIdle` once the CLI idles).
   `POST /agents/{id}/start` calls `AgentManager.consume_context()` (which clears the field so a
   resume/restart never re-delivers it) and, on a fresh start of a CLI that can take hidden context,
   holds the wrapped line on the session (`AgentSession.HoldPromptContext` / `hold_prompt_context`,
@@ -477,16 +491,18 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
 
   | CLI | View context |
   |---|---|
-  | Claude Code (`claude` kind, or `agent` kind resolving to the real `claude` CLI) | Hidden, added to the first prompt via the `UserPromptSubmit` hook |
-  | Codex, Gemini, Kimi, a stand-in binary behind the claude adapter, `shell` | None (no verified hidden channel; never typed as visible text) |
+  | Claude Code with the status hooks emitted (`AgentLaunch.StatusHooks`) | Hidden, added to the first prompt via the `UserPromptSubmit` hook |
+  | Claude without the status hooks, Codex, Gemini, Kimi, a stand-in binary behind the claude adapter | Typed `[Context]` turn once idle (`AgentLaunch.TypedPromptContext`) |
+  | `shell` | None |
 
   The capability is per adapter: `ICliAdapter.HiddenPromptContext` (C#, `Skills/CliAdapters.cs`,
   true only for `ClaudeAdapter`) and `hidden_prompt_context` / `delivers_hidden_prompt_context`
   (`llm/cli_adapters.py`); `TerminalAgents.Resolve` / `agent_launch` copy it onto
-  `AgentLaunch.HiddenPromptContext` / `hidden_prompt_context` for real-claude launches only. Tests:
+  `AgentLaunch.HiddenPromptContext` / `hidden_prompt_context` only when the status hooks were emitted;
+  `TypedPromptContext` / `typed_prompt_context` covers every other CLI launch. Tests:
   `AgentLifecycleStatusTests.cs` (never typed into an idle window; first prompt only),
   `AgentHookTests.cs`, `test_bridge_agents_route.py`, `test_agent_live_status.py`, contract case
-  `a_view_context_is_consumed_on_start_and_a_cli_without_hidden_context_gets_none`.
+  `a_view_context_is_consumed_on_start_and_a_shell_gets_none`.
   `AgentSession.inject_when_idle` / `InjectWhenIdle` still exists for question answers (see
   [`ai-questions.md`](ai-questions.md)): it polls the session's `ScreenTap` for the idle prompt and
   types text, then Enter as a separate write after `context_inject_submit_delay_seconds` (C#

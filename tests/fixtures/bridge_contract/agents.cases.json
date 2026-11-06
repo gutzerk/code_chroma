@@ -1624,7 +1624,7 @@
       ]
     },
     {
-      "id": "a_view_context_is_consumed_on_start_and_a_cli_without_hidden_context_gets_none",
+      "id": "a_view_context_is_consumed_on_start_and_a_shell_gets_none",
       "requires": [
         "pty"
       ],

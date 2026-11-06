@@ -1,5 +1,7 @@
 """ScreenTap: the rendered screen, the OSC title, and OSC 9;4 progress read off a PTY stream."""
 
+import pytest
+
 from codechroma.terminal.screen_tap import PROGRESS_NONE, PROGRESS_UNKNOWN, ScreenTap
 
 
@@ -94,3 +96,20 @@ def test_the_render_carries_colour_so_a_reattach_is_not_monochrome():
     tap.feed("\x1b[31mred\x1b[0m")
 
     assert "\x1b[0;31;49mred" in tap.render()
+
+
+@pytest.mark.parametrize(
+    ("chunk", "ground"),
+    [
+        ("plain text", True),
+        ("\x1b[38;2;1", False),
+        ("\x1b[38;2;1;2;3m", True),
+        ("\x1b", False),
+    ],
+)
+def test_the_tap_reports_whether_a_chunk_left_an_escape_sequence_open(chunk, ground):
+    tap = ScreenTap(rows=2, cols=20)
+
+    tap.feed(chunk)
+
+    assert tap.in_ground is ground

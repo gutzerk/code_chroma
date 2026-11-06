@@ -146,6 +146,16 @@ async def post_agent(request: Request, services: Services) -> dict:
     return payload
 
 
+def typed_view_context(view: str) -> str:
+    """The launch context typed as its own turn for a CLI without the hidden first-prompt hook."""
+    return (
+        f"[Context] You were just launched from the CodeChroma canvas. "
+        f"The user is currently looking at: {view}. "
+        f"Please acknowledge you understand this context. Do not act on it or "
+        f"start any work — just confirm you've read it and say you're ready."
+    )
+
+
 def view_context(view: str) -> str:
     """The hidden context a canvas launch adds to the user's first prompt."""
     return (
@@ -198,9 +208,11 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
         agent_id, session.pid, resolved_cli=resolved_cli_for(record.kind, argv)
     )
     services.agent_manager.record_session_launch(agent_id, session)
-    # A view context rides hidden with the user's first prompt; a CLI without that gets none.
+    # A view context rides hidden with the first prompt; a CLI without that hook gets it typed.
     if pending and pending[1] != "task" and launch.hidden_prompt_context:
         session.hold_prompt_context(view_context(pending[0]))
+    elif pending and pending[1] != "task" and launch.typed_prompt_context:
+        session.inject_when_idle(typed_view_context(pending[0]))
     payload = agent_payload(services, updated)
     await broadcast_agent_status(services, updated)
     return payload

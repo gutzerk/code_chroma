@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Questions;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
 using CodeChroma.Bridge.Tests.Support;
@@ -15,13 +16,17 @@ using static CodeChroma.Bridge.Tests.Support.FakeCliHarness;
 namespace CodeChroma.Bridge.Tests.Agents;
 
 /// <summary>Exit is broadcast at once, a non-zero exit or failed start is the error status, and Claude launches carry the status hooks.</summary>
+[Collection("Env")]
 public sealed class AgentLifecycleStatusTests : IDisposable
 {
     private readonly FakeCliHarness _cli = new();
     private readonly BridgeHost _host = new();
+    // the view-context tests set the process-wide bridge URL the status hooks need, so the class runs alone
+    private readonly string? _bridgeUrl = BareSkill.BridgeUrl;
 
     public void Dispose()
     {
+        BareSkill.BridgeUrl = _bridgeUrl;
         _host.Dispose();
         _cli.Dispose();
     }
@@ -163,6 +168,7 @@ public sealed class AgentLifecycleStatusTests : IDisposable
     [Fact]
     public async Task A_view_context_is_never_typed_into_an_idle_claude_window()
     {
+        BareSkill.BridgeUrl = "http://127.0.0.1:8123";
         _cli.Script(Stdout("\u001b]0;\u2733 Claude\u0007"), Hang());
         UseCli(_cli.ExePath);
         await CreateAgent("viewer", "the System context diagram");
@@ -178,8 +184,28 @@ public sealed class AgentLifecycleStatusTests : IDisposable
     }
 
     [Fact]
+    public async Task A_claude_window_without_status_hooks_gets_its_view_context_typed_once_idle()
+    {
+        BareSkill.BridgeUrl = null;
+        _cli.Script(Stdout("\u001b]0;\u2733 Claude\u0007"), Hang());
+        UseCli(_cli.ExePath);
+        await CreateAgent("typist", "the System context diagram");
+        var sessions = _host.Factory.Services.GetRequiredService<AgentSessionRegistry>();
+
+        await _host.Client.PostAsync("/agents/typist/start", Body("{}"));
+        var session = sessions.Get("typist")!;
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!session.Screen.Render().Contains("System context") && DateTime.UtcNow < deadline) await Task.Delay(100);
+        var hook = await PromptSubmit("typist");
+
+        Assert.Contains("[Context]", session.Screen.Render());
+        Assert.Null(hook["additional_context"]);
+    }
+
+    [Fact]
     public async Task Only_the_first_prompt_of_a_claude_window_carries_the_view_context()
     {
+        BareSkill.BridgeUrl = "http://127.0.0.1:8123";
         _cli.Script(Hang());
         UseCli(_cli.ExePath);
         await CreateAgent("reader", "the System context diagram");

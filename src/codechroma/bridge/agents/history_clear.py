@@ -17,7 +17,7 @@ REPAINT_DELAY_SECONDS = 0.3
 PASTE_START = "[200~"
 
 _MAX_LINE = 256
-_PASTE_MARKERS = (PASTE_START, "[201~")
+_PASTE_END = "[201~"
 
 
 @dataclass(frozen=True)
@@ -38,13 +38,14 @@ def clear_watch_for(adapter: object | None, hooked: bool) -> ClearWatch | None:
 
 
 class TypedClearDetector:
-    """Follows keystrokes line by line; a line edited with cursor keys or Tab never matches."""
+    """Follows keystrokes per line; only CR submits; an edited or multi-line line never matches."""
 
     def __init__(self, commands: tuple[str, ...]) -> None:
         self._commands = frozenset(commands)
         self._line: list[str] = []
         self._escape: list[str] = []
         self._in_escape = False
+        self._in_paste = False
         self._unknown = False
 
     def feed(self, data: str) -> bool:
@@ -56,8 +57,11 @@ class TypedClearDetector:
             elif ch == "\x1b":
                 self._in_escape = True
                 self._escape = []
-            elif ch in "\r\n":
+            elif ch == "\r" and not self._in_paste:
                 cleared = self._submit() or cleared
+            elif ch in "\r\n":
+                # Ctrl+J and a pasted line break add a composer line instead of submitting.
+                self._unknown = True
             elif ch in "\x7f\b":
                 if self._line:
                     self._line.pop()
@@ -79,7 +83,19 @@ class TypedClearDetector:
         if len(self._escape) < 2 or not "@" <= ch <= "~":
             return
         self._in_escape = False
-        if "".join(self._escape) not in _PASTE_MARKERS:
+        sequence = "".join(self._escape)
+        if sequence == PASTE_START:
+            self._in_paste = True
+        elif sequence == _PASTE_END:
+            self._in_paste = False
+        else:
+            self._unknown = True
+
+    def skip(self, data: str) -> None:
+        """Notes bridge-typed text: unseen on the line, so it is unknown until its CR submits it."""
+        if "\r" in data:
+            self._reset()
+        elif data:
             self._unknown = True
 
     def _submit(self) -> bool:

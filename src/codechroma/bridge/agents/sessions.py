@@ -151,6 +151,8 @@ class AgentSession(AgentSessionPort):
             TypedClearDetector(clear.typed_commands) if clear and clear.typed_commands else None
         )
         self._typed_lock = threading.Lock()
+        # A clear asked for mid escape sequence; emitted after the next chunk ending in ground.
+        self._clear_pending = False
         self.argv = list(argv)
         self.session_tracking_file = (env or {}).get(FILE_ENV)
         self.initial_session_id = (env or {}).get(INITIAL_ID_ENV)
@@ -320,11 +322,23 @@ class AgentSession(AgentSessionPort):
         if cleared:
             self.clear_history()
 
+    def _write_injected(self, data: str) -> None:
+        """Types bridge-composed text: not the user's typing, so never read as a clear command."""
+        self._note_typing(data)
+        self._pty.write(data)
+        if self._typed_clear is not None:
+            with self._typed_lock:
+                self._typed_clear.skip(data)
+
     def clear_history(self) -> None:
         """The user cleared the chat: windows drop their scrollback, then the CLI repaints."""
         if self.exit_code is not None:
             return
-        self._emit(CLEAR_SCROLLBACK)
+        # Mid-sequence the ESC would abort it and print its tail, so it waits for a ground boundary.
+        if self._tap.in_ground:
+            self._emit(CLEAR_SCROLLBACK)
+        else:
+            self._clear_pending = True
         repaint = self._clear.repaint if self._clear is not None else None
         if repaint:
             timer = threading.Timer(REPAINT_DELAY_SECONDS, self._repaint, args=(repaint,))
@@ -462,9 +476,9 @@ class AgentSession(AgentSessionPort):
                 if body is None:
                     return False
                 # Enter goes alone: text + "\r" in one write reads as a paste and never submits.
-                self.write(body)
+                self._write_injected(body)
                 await asyncio.sleep(context_inject_submit_delay_seconds())
-                self.write("\r")
+                self._write_injected("\r")
                 await asyncio.sleep(interval)
                 return True
             await asyncio.sleep(interval)
@@ -503,6 +517,9 @@ class AgentSession(AgentSessionPort):
             return
         self._narrowest_printed = min(self._narrowest_printed or self._cols, self._cols)
         self._emit(chunk)
+        if self._clear_pending and self._tap.in_ground:
+            self._clear_pending = False
+            self._emit(CLEAR_SCROLLBACK)
 
     def _emit(self, chunk: str) -> None:
         """Feeds the tap and every window; the detector and a reattach read the same chunks."""

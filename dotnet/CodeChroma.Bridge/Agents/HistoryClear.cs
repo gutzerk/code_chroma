@@ -11,7 +11,7 @@ public sealed record ClearWatch(IReadOnlyList<string> TypedCommands, string? Rep
         adapter is null ? null : new ClearWatch(adapter.HookReportsClear && hooked ? [] : adapter.ClearCommands, adapter.RepaintInput);
 }
 
-/// <summary>Follows the user's keystrokes line by line and spots a submitted clear command; a line edited with cursor keys or completion is unknown and never matches.</summary>
+/// <summary>Follows the user's keystrokes line by line and spots a clear command submitted with Enter (CR); a line edited with cursor keys, completion, Ctrl+J or a pasted line break is unknown and never matches.</summary>
 public sealed class TypedClearDetector(IReadOnlyList<string> commands)
 {
     private const int MaxLine = 256;
@@ -22,6 +22,7 @@ public sealed class TypedClearDetector(IReadOnlyList<string> commands)
     private readonly StringBuilder _line = new();
     private readonly StringBuilder _escape = new();
     private bool _inEscape;
+    private bool _inPaste;
     private bool _unknown;
 
     /// <summary>Feeds one input chunk; true when a line submitted in it was a clear command.</summary>
@@ -41,8 +42,12 @@ public sealed class TypedClearDetector(IReadOnlyList<string> commands)
                     _inEscape = true;
                     _escape.Clear();
                     break;
-                case '\r' or '\n':
+                case '\r' when !_inPaste:
                     cleared |= Submit();
+                    break;
+                case '\r' or '\n':
+                    // Ctrl+J and a pasted line break add a line to the composer instead of submitting
+                    _unknown = true;
                     break;
                 case '\u007f' or '\b':
                     if (_line.Length > 0) _line.Length--;
@@ -72,7 +77,16 @@ public sealed class TypedClearDetector(IReadOnlyList<string> commands)
         }
         if (text.Length < 2 || ch < '@' || ch > '~') return;
         _inEscape = false;
-        if (text is not PasteStart and not PasteEnd) _unknown = true;
+        if (text == PasteStart) _inPaste = true;
+        else if (text == PasteEnd) _inPaste = false;
+        else _unknown = true;
+    }
+
+    /// <summary>Notes text the bridge typed itself: it joins the line unseen, so the line is unknown until its Enter submits it.</summary>
+    public void Skip(string data)
+    {
+        if (data.Contains('\r')) Reset();
+        else if (data.Length > 0) _unknown = true;
     }
 
     private bool Submit()

@@ -30,8 +30,11 @@ public static class AgentSessionOwnership
         return settings.ToJsonString();
     }
 
-    /// <summary>The hook commands, or null when no bridge executable can be resolved to run them.</summary>
-    private static JsonObject? Hooks(bool sessionTracking, bool askUserQuestion, bool statusHooks)
+    /// <summary>Whether a bridge executable can be resolved to run hook commands, so `--settings` carries the hooks asked for.</summary>
+    public static bool CanRunHooks => HookCommand() is not null;
+
+    /// <summary>The command line that runs a hook subcommand, or null when no bridge executable can be resolved.</summary>
+    private static string? HookCommand()
     {
         // Use the native apphost when published and dotnet + our assembly during development/tests.
         var assembly = typeof(AgentSessionOwnership).Assembly.Location;
@@ -39,9 +42,15 @@ public static class AgentSessionOwnership
         var published = Path.Combine(AppContext.BaseDirectory, "codechroma-bridge" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         var executable = File.Exists(published) ? published : File.Exists(apphost) ? apphost : null;
         if (executable is null && string.IsNullOrEmpty(assembly)) return null;
-        var command = executable is not null
+        return executable is not null
             ? (OperatingSystem.IsWindows() ? "& " : "") + Quote(executable)
             : "dotnet " + Quote(assembly);
+    }
+
+    /// <summary>The hook commands, or null when no bridge executable can be resolved to run them.</summary>
+    private static JsonObject? Hooks(bool sessionTracking, bool askUserQuestion, bool statusHooks)
+    {
+        if (HookCommand() is not { } command) return null;
         JsonObject Hook(string subcommand, int timeout)
         {
             var hook = new JsonObject { ["type"] = "command", ["command"] = command + " " + subcommand, ["timeout"] = timeout };

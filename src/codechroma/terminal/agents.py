@@ -61,8 +61,10 @@ class AgentLaunch:
     detector_kind: str
     # How the window notices a cleared conversation (the resolved adapter's definition), if at all.
     clear: ClearWatch | None = None
-    # The status hook hands held context to the user's first prompt; False delivers none.
+    # The status hook hands held context to the user's first prompt.
     hidden_prompt_context: bool = False
+    # A CLI agent without that hook gets the context typed as a `[Context]` turn once idle.
+    typed_prompt_context: bool = False
 
 
 def agent_cli(
@@ -111,7 +113,7 @@ def agent_launch(
             **_renderer_env(is_claude),
         }, agent if stand_in else resolution.adapter_key,
             clear_watch_for(CLI_ADAPTERS.get(adapter or ""), is_claude and mcp is not None),
-            _hidden_prompt_context(is_claude))
+            *_prompt_context(is_claude and mcp is not None))
     argv_entry = ALLOWED_AGENTS.get(agent)
     if argv_entry is None:
         return None
@@ -133,7 +135,7 @@ def agent_launch(
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
             **_renderer_env(is_claude),
         }, agent, clear_watch_for(CLI_ADAPTERS["claude"] if is_claude else None, mcp is not None),
-            _hidden_prompt_context(is_claude))
+            *_prompt_context(is_claude and mcp is not None))
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
     if resume_session_id:
         return AgentLaunch([*argv_entry, RESUME_FLAG, resume_session_id], {}, agent)
@@ -165,9 +167,10 @@ def _settings_args(
     return ["--settings", json.dumps(document)]
 
 
-def _hidden_prompt_context(is_claude: bool) -> bool:
-    """Only the real claude CLI runs the status hooks that carry hidden first-prompt context."""
-    return is_claude and delivers_hidden_prompt_context(CLI_ADAPTERS["claude"])
+def _prompt_context(status_hooked: bool) -> tuple[bool, bool]:
+    """(hidden, typed): only a real claude with the status hooks emitted takes it hidden."""
+    hidden = status_hooked and delivers_hidden_prompt_context(CLI_ADAPTERS["claude"])
+    return hidden, not hidden
 
 
 def _status_hook_env(is_claude: bool, mcp: McpEndpoint | None) -> dict[str, str]:

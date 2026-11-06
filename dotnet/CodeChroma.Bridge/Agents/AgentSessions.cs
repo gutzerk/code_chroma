@@ -61,6 +61,8 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private readonly ClearWatch? _clear;
     private readonly TypedClearDetector? _typedClear;
     private readonly object _typedGate = new();
+    // a clear asked for while the tap sat inside an escape sequence; emitted after the next chunk that ends in ground state
+    private bool _clearPending;
     private readonly Action<AgentSession>? _cleared;
     private string? _promptContext;
 
@@ -245,11 +247,25 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         if (cleared) ClearHistory();
     }
 
+    /// <summary>Types text the bridge composed (an injection): it is not the user's typing, so it never reads as a clear command.</summary>
+    private void WriteInjected(string data)
+    {
+        NoteTyping(data);
+        _pty.Write(data);
+        if (_typedClear is null) return;
+        lock (_typedGate) _typedClear.Skip(data);
+    }
+
     /// <summary>The user cleared the conversation: the tap and every window drop their scrollback (sent down the output path, in order with the CLI's output), then the CLI repaints.</summary>
     public void ClearHistory()
     {
         if (!IsAlive) return;
-        lock (_gate) Emit(ClearScrollback);
+        lock (_gate)
+        {
+            // mid-sequence (a chunk ended inside a CSI) the ESC would abort it and print its tail, so it waits for the next ground boundary
+            if (_tap.InGround) Emit(ClearScrollback);
+            else _clearPending = true;
+        }
         if (_clear?.Repaint is { } repaint) _ = RepaintLater(repaint);
         try { _cleared?.Invoke(this); }
         catch (Exception error) { Console.Error.WriteLine($"agents: clear callback failed for {AgentId}: {error.Message}"); }
@@ -414,7 +430,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
             if (verdict == AgentStatus.Idle)
             {
                 if (BuildText(text) is not { } body) return false;
-                await TypeAndSubmit(Write, body, SubmitDelay);
+                await TypeAndSubmit(WriteInjected, body, SubmitDelay);
                 await Task.Delay(wait);
                 return true;
             }
@@ -450,6 +466,11 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
             if (spawn != _spawn) return;
             _narrowestPrinted = Math.Min(_narrowestPrinted, _cols);
             Emit(chunk);
+            if (_clearPending && _tap.InGround)
+            {
+                _clearPending = false;
+                Emit(ClearScrollback);
+            }
         }
     }
 

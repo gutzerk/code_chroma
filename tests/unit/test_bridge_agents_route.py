@@ -617,6 +617,30 @@ def test_a_view_context_is_never_typed_and_rides_only_with_the_first_prompt(
     assert second == {"ok": True}
 
 
+def test_a_cli_without_the_hidden_hook_gets_its_view_context_typed(started_client, monkeypatch):
+    import dataclasses
+
+    from codechroma.bridge.agents.sessions import AgentSession
+    from codechroma.bridge.routes import agents as agent_routes
+
+    test_client, _repo, _bridge = started_client
+    typed: list = []
+    real = agent_routes.agent_launch
+    monkeypatch.setattr(agent_routes, "agent_launch", lambda *a, **k: dataclasses.replace(
+        real(*a, **k), hidden_prompt_context=False, typed_prompt_context=True))
+    monkeypatch.setattr(
+        AgentSession, "inject_when_idle", lambda self, text, **_: typed.append(text)
+    )
+    test_client.post("/agents", json={"title": "typist", "context": "the System context diagram"})
+    test_client.post("/agents/typist/start", json={})
+
+    first = _prompt_submit(test_client, "typist")
+
+    assert len(typed) == 1 and typed[0].startswith("[Context]")
+    assert "the System context diagram" in typed[0]
+    assert first == {"ok": True}
+
+
 def test_only_the_claude_adapter_delivers_hidden_prompt_context():
     from codechroma.llm.cli_adapters import CLI_ADAPTERS, delivers_hidden_prompt_context
 

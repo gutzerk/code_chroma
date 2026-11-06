@@ -84,6 +84,12 @@ public sealed class ScreenTap
         get { lock (_gate) return _generation; }
     }
 
+    /// <summary>True between escape sequences: a sequence inserted now cannot cut one the process left open across a chunk boundary.</summary>
+    public bool InGround
+    {
+        get { lock (_gate) return _mode == Mode.Ground; }
+    }
+
     /// <summary>Never throws: a detector input must not be able to break the terminal it is watching.</summary>
     public void Feed(string chunk)
     {

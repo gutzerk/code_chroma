@@ -92,6 +92,10 @@ def test_ordinary_typed_lines_keep_the_history():
         ("/clear\x1b[D\r", False),
         ("/clear\x15\r", False),
         ("/clear", False),
+        ("\n/clear\r", False),
+        ("draft\n/clear\r", False),
+        ("\x1b[200~/clear\r\x1b[201~", False),
+        ("\x1b[200~x\n/clear\x1b[201~\r", False),
     ],
 )
 def test_the_typed_detector_matches_only_a_submitted_clear_command(keys, cleared):
@@ -100,6 +104,46 @@ def test_the_typed_detector_matches_only_a_submitted_clear_command(keys, cleared
     matched = any([detector.feed(key) for key in keys])
 
     assert matched == cleared
+
+
+def test_text_the_bridge_types_never_reads_as_a_clear_command():
+    detector = TypedClearDetector(("/clear",))
+    detector.skip("/clear")
+
+    injected = detector.feed("\r")
+    detector.skip("\r")
+    typed_after = detector.feed("/clear\r")
+
+    assert (injected, typed_after) == (False, True)
+
+
+def test_a_clear_asked_for_mid_escape_sequence_waits_for_the_next_ground_boundary():
+    held: list[str] = []
+
+    def clear_mid_sequence(session: AgentSession) -> None:
+        session._tap.feed("\x1b[38;2;1")
+        session.clear_history()
+        held.append(str(session._clear_pending))
+        session._on_output("m after", session._spawn)
+
+    sent, cleared = _sent_after(clear_mid_sequence, ClearWatch((), None))
+
+    assert held == ["True"]
+    assert sent.index("m after") < sent.index(CLEAR_SCROLLBACK)
+    assert cleared == ["runner"]
+
+
+def test_a_claude_launch_without_status_hooks_types_its_context_and_watches_typed_clears():
+    from codechroma.questions.launch import McpEndpoint
+
+    hooked = agent_launch("claude", mcp=McpEndpoint("a", "http://127.0.0.1:8123", "a.sig"))
+
+    unhooked = agent_launch("claude")
+
+    assert (hooked.hidden_prompt_context, hooked.typed_prompt_context) == (True, False)
+    assert (unhooked.hidden_prompt_context, unhooked.typed_prompt_context) == (False, True)
+    assert unhooked.clear is not None and unhooked.clear.typed_commands
+    assert agent_launch("shell").typed_prompt_context is False
 
 
 def test_each_adapter_defines_its_own_clear_commands():

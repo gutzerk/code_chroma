@@ -151,6 +151,10 @@ public sealed class HistoryClearTests : IDisposable
     [InlineData("/clear\u001b[D\r", false)]
     [InlineData("/clear\u0015\r", false)]
     [InlineData("/clear", false)]
+    [InlineData("\n/clear\r", false)]
+    [InlineData("draft\n/clear\r", false)]
+    [InlineData("\u001b[200~/clear\r\u001b[201~", false)]
+    [InlineData("\u001b[200~x\n/clear\u001b[201~\r", false)]
     public void The_typed_detector_matches_only_a_submitted_clear_command(string keys, bool cleared)
     {
         var detector = new TypedClearDetector(["/clear"]);
@@ -169,6 +173,58 @@ public sealed class HistoryClearTests : IDisposable
         var matched = detector.Feed("/clear\r");
 
         Assert.True(matched);
+    }
+
+    [Fact]
+    public void Text_the_bridge_types_never_reads_as_a_clear_command()
+    {
+        var detector = new TypedClearDetector(["/clear"]);
+        detector.Skip("/clear");
+
+        var injected = detector.Feed("\r");
+        detector.Skip("\r");
+        var typedAfter = detector.Feed("/clear\r");
+
+        Assert.Equal((false, true), (injected, typedAfter));
+    }
+
+    [Fact]
+    public async Task A_clear_asked_for_mid_escape_sequence_waits_for_the_next_ground_boundary()
+    {
+        var gate = Path.Combine(_cli.Directory, "more-output");
+        _cli.Script([.. ChattyScript().SkipLast(1), BlockUntilFile(gate), Stdout("after"), Hang()]);
+        using var session = new AgentSession("split", new PtyLaunch([_cli.ExePath], _cli.Directory), "codex", clear: new ClearWatch(["/clear"], null));
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+        while (!session.Screen.Render().Contains("turn 59") && DateTime.UtcNow < deadline) await Task.Delay(50);
+        var window = session.Attach();
+        while (window.Output.TryRead(out _)) { }
+        session.Screen.Feed("\u001b[38;2;1");
+        session.ClearHistory();
+        var held = new StringBuilder();
+        while (window.Output.TryRead(out var chunk)) held.Append(chunk);
+
+        File.WriteAllText(gate, "");
+        var sent = new StringBuilder();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        while (!sent.ToString().Contains(AgentSession.ClearScrollback)) sent.Append(await window.Output.ReadAsync(timeout.Token));
+
+        Assert.DoesNotContain(AgentSession.ClearScrollback, held.ToString());
+        Assert.True(sent.ToString().IndexOf("fter", StringComparison.Ordinal) < sent.ToString().IndexOf(AgentSession.ClearScrollback, StringComparison.Ordinal));
+        Assert.True(session.Screen.InGround);
+    }
+
+    [Fact]
+    public void A_claude_launch_without_status_hooks_types_its_context_and_watches_typed_clears()
+    {
+        var agents = _host.Factory.Services.GetRequiredService<TerminalAgents>();
+
+        var hooked = agents.Resolve("claude", agentId: "painter", bridgeUrl: "http://127.0.0.1:8123")!;
+        var unhooked = agents.Resolve("claude")!;
+
+        Assert.Equal((true, true, false), (hooked.StatusHooks, hooked.HiddenPromptContext, hooked.TypedPromptContext));
+        Assert.Equal((false, false, true), (unhooked.StatusHooks, unhooked.HiddenPromptContext, unhooked.TypedPromptContext));
+        Assert.NotEmpty(unhooked.Clear!.TypedCommands);
+        Assert.False(agents.Resolve("shell")!.TypedPromptContext);
     }
 
     [Fact]

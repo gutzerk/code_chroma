@@ -29,6 +29,11 @@ public static class AgentRoutes
     public static string ViewContext(string view) =>
         $"This agent was launched from the CodeChroma canvas while the user was looking at: {view}. Use it as background for the user's message.";
 
+    /// <summary>The launch context typed as its own turn for a CLI without the hidden first-prompt hook.</summary>
+    public static string TypedViewContext(string view) =>
+        $"[Context] You were just launched from the CodeChroma canvas. The user is currently looking at: {view}. "
+        + "Please acknowledge you understand this context. Do not act on it or start any work — just confirm you've read it and say you're ready.";
+
     public static void Map(WebApplication app, string repoRoot)
     {
         app.MapGet("/agents/git-preflight", () => Reply.GuardBlocking(() => Reply.Json(AgentBootstrap.Preflight(repoRoot))));
@@ -125,8 +130,9 @@ public static class AgentRoutes
             }
             record.StartError = null;
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
-            // a view context rides hidden with the user's first prompt (UserPromptSubmit hook); a CLI without that gets none
+            // a view context rides hidden with the user's first prompt (UserPromptSubmit hook); a CLI without that hook gets it typed once idle
             if (pending is { Kind: not "task" } view && launch.HiddenPromptContext) session.HoldPromptContext(ViewContext(view.Text));
+            else if (pending is { Kind: not "task" } typed && launch.TypedPromptContext) _ = session.InjectWhenIdle(TypedViewContext(typed.Text));
             agents.RecordSessionLaunch(agentId, session);
             var payload = Payload(sessions, updated);
             await BroadcastStatus(connections, sessions, updated);

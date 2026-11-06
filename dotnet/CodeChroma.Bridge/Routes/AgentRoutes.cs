@@ -40,9 +40,9 @@ public static class AgentRoutes
             return Reply.Json(await Task.Run(() => AgentBootstrap.Initialize(repoRoot, extra)));
         }));
 
-        app.MapGet("/agents", (AgentManager agents, AgentSessionRegistry sessions) => Reply.Guard(() => Reply.Json(new JsonObject
+        app.MapGet("/agents", (AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry) => Reply.GuardBlocking(() => Reply.Json(new JsonObject
         {
-            ["agents"] = new JsonArray(agents.List().Select(r => (JsonNode?)Payload(sessions, r)).ToArray()),
+            ["agents"] = new JsonArray(agents.List().Select(r => (JsonNode?)WithOpenQuestions(Payload(sessions, r), registry, r.Id)).ToArray()),
             ["active_workspace"] = agents.ActiveWorkspace,
             ["max_agents"] = AgentManager.MaxAgents,
         })));
@@ -269,6 +269,14 @@ public static class AgentRoutes
         var status = StatusJson(session, record);
         var payload = record.ToPayload();
         foreach (var (field, value) in status) payload[field] = value?.DeepClone();
+        return payload;
+    }
+
+    /// <summary>The list row also carries how many ask_user questions the agent has open; `agent-questions` events keep it current.</summary>
+    private static JsonObject WithOpenQuestions(JsonObject payload, WorkspaceRegistry registry, string agentId)
+    {
+        try { payload["open_questions"] = AgentQuestionView.OpenCount(registry, agentId); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { payload["open_questions"] = 0; }
         return payload;
     }
 

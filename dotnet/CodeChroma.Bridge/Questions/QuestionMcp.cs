@@ -7,7 +7,7 @@ using CodeChroma.Bridge.Workspaces;
 namespace CodeChroma.Bridge.Questions;
 
 /// <summary>One MCP server for every workspace: the bearer token names and authorizes the workspace; `ask_user` returns at once and the answer is typed into the agent terminal.</summary>
-public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, Func<string, int> attachedWindows, int maxRejections = 3)
+public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, Func<string, int> attachedWindows, int maxRejections = 3, Action<string>? questionsChanged = null)
 {
     public const string SessionHeader = "Mcp-Session-Id";
     /// <summary>Where an asked question shows and what the agent does next, shared by the instructions, tool reply and description.</summary>
@@ -92,6 +92,7 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, Func<strin
                 return id;
             }
         }, cancellation);
+        questionsChanged?.Invoke(workspaceId);
         return new JsonObject { ["asked"] = true, ["question_id"] = questionId, ["next"] = NextText };
     }
 
@@ -124,6 +125,8 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, Func<strin
         QuestionDiagrams.Check(nodes, edges, title);
         var ws = workspaceFor(workspaceId);
         var root = await Task.Run(() => QuestionStore.DrawDiagram(ws, title, nodes, edges, questionId, optionId));
+        // A draft drawn before its question shows nowhere yet; one attached to a question changes the window.
+        if (!string.IsNullOrEmpty(questionId)) questionsChanged?.Invoke(workspaceId);
         var drawn = new JsonObject { ["diagram_ref"] = root };
         if (QuestionDiagrams.DescriptionWarning(nodes) is { } warning) drawn["warning"] = warning;
         return drawn;

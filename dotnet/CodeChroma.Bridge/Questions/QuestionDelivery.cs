@@ -54,20 +54,21 @@ public static class QuestionDelivery
     public static bool Deliver(AgentSessionRegistry sessions, CanvasElement element, string text) =>
         Deliver(Json.Str(element.Meta["agent_id"]), id => Injector(sessions)(id) is { } inject ? t => inject(() => t) : null, text);
 
-    /// <summary>After a settle: once the agent has no open question left, queues one wake-up with its answers; true when a live session will get it.</summary>
-    public static bool DeliverSettled(AgentSessionRegistry sessions, Workspace ws, CanvasElement settled) => DeliverSettled(ws, settled, Injector(sessions));
+    /// <summary>After a settle: once the agent has no open question left, queues one wake-up with its answers; true when a live session will get it; `cleared` hears the agent id once typed answers were removed.</summary>
+    public static bool DeliverSettled(AgentSessionRegistry sessions, Workspace ws, CanvasElement settled, Action<string>? cleared = null) =>
+        DeliverSettled(ws, settled, Injector(sessions), cleared);
 
     /// <summary>The seam under DeliverSettled; without a live session nothing is removed, so ask_user_result can still read the answer.</summary>
-    public static bool DeliverSettled(Workspace ws, CanvasElement settled, Func<string, Func<Func<string?>, Task<bool>>?> injector)
+    public static bool DeliverSettled(Workspace ws, CanvasElement settled, Func<string, Func<Func<string?>, Task<bool>>?> injector, Action<string>? cleared = null)
     {
         var agentId = Json.Str(settled.Meta["agent_id"]);
         if (string.IsNullOrEmpty(agentId) || injector(agentId) is not { } inject) return false;
-        if (QuestionStore.ClaimBatch(ws, agentId)) _ = TypeBatch(ws, agentId, inject);
+        if (QuestionStore.ClaimBatch(ws, agentId)) _ = TypeBatch(ws, agentId, inject, cleared);
         return true;
     }
 
     /// <summary>Types the batch as it stands when the agent idles, clears what was typed, then unclaims; never throws.</summary>
-    private static async Task TypeBatch(Workspace ws, string agentId, Func<Func<string?>, Task<bool>> inject)
+    private static async Task TypeBatch(Workspace ws, string agentId, Func<Func<string?>, Task<bool>> inject, Action<string>? cleared)
     {
         List<CanvasElement> typed = [];
         try
@@ -77,7 +78,11 @@ public static class QuestionDelivery
                 typed = QuestionStore.PendingBatch(ws, agentId);
                 return typed.Count > 0 ? BatchMessage(typed) : null;
             });
-            if (sent && typed.Count > 0) QuestionStore.ClearBatch(ws, typed);
+            if (sent && typed.Count > 0)
+            {
+                QuestionStore.ClearBatch(ws, typed);
+                cleared?.Invoke(agentId);
+            }
         }
         catch (Exception error)
         {

@@ -33,6 +33,7 @@ from codechroma.bridge.services import BridgeServices
 from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID
 from codechroma.diagrams import kinds
 from codechroma.io import iso, utc_now
+from codechroma.questions import agent_view
 from codechroma.terminal.agents import ALLOWED_AGENTS, agent_launch, resolved_cli_for
 
 router = APIRouter()
@@ -78,7 +79,10 @@ async def post_git_init(request: Request, services: Services) -> dict:
 def get_agents(services: Services) -> dict:
     """Every agent card plus which workspace the canvas should be drawing."""
     return {
-        "agents": [agent_payload(services, r) for r in services.agent_manager.list()],
+        "agents": [
+            {**agent_payload(services, r), "open_questions": _open_questions(services, r.id)}
+            for r in services.agent_manager.list()
+        ],
         "active_workspace": services.agent_manager.active_workspace,
         "max_agents": max_agents(),
     }
@@ -295,6 +299,14 @@ async def patch_agent_window(agent_id: str, request: Request, services: Services
     except UnknownAgentError as exc:
         raise HTTPException(status_code=404, detail=f"unknown agent: {agent_id}") from exc
     return record.window
+
+
+def _open_questions(services: BridgeServices, agent_id: str) -> int:
+    """The list row's ask_user count; `agent-questions` events keep it current afterwards."""
+    try:
+        return agent_view.open_count(services.registry, agent_id)
+    except (OSError, ValueError):
+        return 0
 
 
 def _agent_or_404(services: BridgeServices, agent_id: str) -> AgentRecord:

@@ -31,6 +31,7 @@ from codechroma.bridge.routes import ROUTERS
 from codechroma.bridge.services import BridgeServices
 from codechroma.bridge.skill_sync import SKILL_EXCLUDE_PATTERNS, sync_all_skills
 from codechroma.config import settings
+from codechroma.questions.agent_view import announce as announce_questions
 from codechroma.questions.mcp_server import MOUNT_PATH, QuestionMcp
 from codechroma.terminal.server import router as terminal_router
 
@@ -175,7 +176,8 @@ def create_app(repo_root: Path | None = None) -> FastAPI:
     app.state.services = BridgeServices.create(root)
     services = app.state.services
     app.state.question_mcp = QuestionMcp(
-        services.registry.get, attached_windows=services.agent_sessions.attached_windows
+        services.registry.get, attached_windows=services.agent_sessions.attached_windows,
+        questions_changed=lambda agent_id: announce_questions(services, agent_id),
     )
     services.agent_sessions.on_exit = lambda agent_id: _broadcast_exit(services, agent_id)
     services.agent_sessions.on_clear = lambda agent_id: _broadcast_cleared(services, agent_id)

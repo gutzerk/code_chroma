@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import secrets
 import uuid
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -103,9 +103,12 @@ class QuestionMcp:
         self,
         workspace_for: Callable[[str], Workspace],
         attached_windows: Callable[[str], int],
+        questions_changed: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self.rejections = RejectionTracker()
         self._workspace_for = workspace_for
+        # Told the agent id after an ask or an attached diagram, so the agent window refetches.
+        self._questions_changed = questions_changed
         # How many windows show an agent id; ask refuses at 0.
         self._attached_windows = attached_windows
         self._secret = secrets.token_bytes(32)
@@ -177,7 +180,12 @@ class QuestionMcp:
             await asyncio.to_thread(store.reask, ws, reasked, request, extra, stale)
         else:
             await asyncio.to_thread(store.open_question, ws, request, question_id, extra)
+        await self._changed(workspace_id)
         return {"asked": True, "question_id": question_id, "next": NEXT_STEP}
+
+    async def _changed(self, agent_id: str) -> None:
+        if self._questions_changed is not None:
+            await self._questions_changed(agent_id)
 
     async def _check(
         self, ws: Workspace, workspace_id: str, request: AskRequest, connection: str | None = None
@@ -211,6 +219,9 @@ class QuestionMcp:
         root = await asyncio.to_thread(
             store.draw_diagram, ws, title, nodes, edges, question_id, option_id
         )
+        # A draft drawn before its question shows nowhere yet; one attached to a question does.
+        if question_id:
+            await self._changed(workspace_id)
         if diagrams.missing_descriptions(nodes):
             return {"diagram_ref": root, "warning": MISSING_DESCRIPTIONS}
         return {"diagram_ref": root}

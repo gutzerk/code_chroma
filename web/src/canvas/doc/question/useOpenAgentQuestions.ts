@@ -1,13 +1,12 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { CanvasDoc, CanvasElement } from "../../../state/types";
-import { canvasDocStore, useCanvasDoc } from "../canvasDocStore";
+import { canvasDocStore } from "../canvasDocStore";
 import { questionAgentId } from "./questionAdapter";
 import { workspaceQuestionDocs } from "./workspaceQuestionDocs";
 
-/** The open `question` elements an agent asked in `doc` (the active canvas by default), oldest step first. */
-export function useOpenAgentQuestions(agentId: string, doc?: CanvasDoc): CanvasElement[] {
-  const activeDoc = useCanvasDoc();
-  const elements = (doc ?? activeDoc).elements;
+/** The open `question` elements an agent asked in `doc`, oldest step first. */
+export function useOpenAgentQuestions(agentId: string, doc: CanvasDoc): CanvasElement[] {
+  const elements = doc.elements;
   return useMemo(
     () =>
       Object.values(elements)
@@ -23,7 +22,7 @@ export function useOpenAgentQuestions(agentId: string, doc?: CanvasDoc): CanvasE
 const countsByElements = new WeakMap<Record<string, CanvasElement>, ReadonlyMap<string, number>>();
 
 /** Open question counts per asking agent id; an agent with none is absent. */
-export function openQuestionCounts(elements: Record<string, CanvasElement>): ReadonlyMap<string, number> {
+function openQuestionCounts(elements: Record<string, CanvasElement>): ReadonlyMap<string, number> {
   const cached = countsByElements.get(elements);
   if (cached) return cached;
   const counts = new Map<string, number>();
@@ -42,14 +41,10 @@ export function agentOpenQuestionCounts(): ReadonlyMap<string, number> {
   const active = canvasDocStore.getDoc().elements;
   const others = workspaceQuestionDocs.getDocs();
   if (merged && merged.active === active && merged.others === others) return merged.counts;
-  let counts = openQuestionCounts(active);
-  if (others.length > 0) {
-    const sum = new Map(counts);
-    for (const doc of others) {
-      openQuestionCounts(doc.elements).forEach((n, id) => sum.set(id, (sum.get(id) ?? 0) + n));
-    }
-    counts = sum;
-  }
+  const counts = others.reduce((sum, doc) => {
+    openQuestionCounts(doc.elements).forEach((n, id) => sum.set(id, (sum.get(id) ?? 0) + n));
+    return sum;
+  }, new Map(openQuestionCounts(active)));
   merged = { active, others, counts };
   return counts;
 }

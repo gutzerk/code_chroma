@@ -22,9 +22,10 @@ afterEach(() => canvasDocStore.reset());
 
 /** Renders one connected card per question element in the live doc, as the agent window would. */
 function Cards() {
-  useLoadCanvasDoc(useEngineClient());
+  const client = useEngineClient();
+  useLoadCanvasDoc(client);
   const doc = useCanvasDoc();
-  return <>{Object.values(doc.elements).filter((el) => el.render === "question").map((el) => <ConnectedQuestionCard key={el.id} question={toQuestionView(el)} />)}</>;
+  return <>{Object.values(doc.elements).filter((el) => el.render === "question").map((el) => <ConnectedQuestionCard key={el.id} question={toQuestionView(el)} client={client} doc={doc} />)}</>;
 }
 
 async function mount(ops: CanvasOp[]) {

@@ -7,9 +7,9 @@ describe("useAgentPoll", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it.each<AgentStatus>(["working"])("re-reads every interval while the agent is %s", (status) => {
+  it("re-reads every interval while the agent is working", () => {
     const read = vi.fn(() => Promise.resolve());
-    renderHook(() => useAgentPoll("a1", status, true, 1000, read));
+    renderHook(() => useAgentPoll("a1", "working", true, 1000, read));
 
     vi.advanceTimersByTime(3000);
 

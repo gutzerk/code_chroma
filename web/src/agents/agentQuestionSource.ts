@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { EngineClient } from "../engine-client/EngineClient";
-import { createEngineClientForUrl, useEngineClient } from "../engine-client/EngineClientContext";
+import { createEngineClient, useEngineClient } from "../engine-client/EngineClientContext";
 import { useCanvasDoc } from "../canvas/doc/canvasDocStore";
 import { workspaceQuestionDocs } from "../canvas/doc/question/workspaceQuestionDocs";
 import type { AgentRecord, CanvasDoc } from "../state/types";
@@ -29,12 +29,8 @@ function otherQuestionWorkspaces(): string {
   return [...ids].sort().join("\n");
 }
 
-function defaultMakeClient(repoId: string): EngineClient {
-  return createEngineClientForUrl(import.meta.env.VITE_ENGINE_BRIDGE_URL as string | undefined, repoId);
-}
-
 /** Keeps the canvas doc of every agent workspace other than the active one loaded and live (its `canvas` pings), for the windows and badges. */
-export function useAgentQuestionSync(makeClient: (repoId: string) => EngineClient = defaultMakeClient): void {
+export function useAgentQuestionSync(makeClient: (repoId: string) => EngineClient = createEngineClient): void {
   const key = useSyncExternalStore(agentStore.subscribe, otherQuestionWorkspaces);
   useEffect(() => {
     workspaceQuestionDocs.retain(key ? key.split("\n") : [], makeClient);

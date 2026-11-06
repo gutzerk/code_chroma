@@ -20,6 +20,7 @@ interface LiveTerminal {
   term: Terminal;
   webgl: WebglAddon | null;
   hidden: RefObject<boolean>;
+  scheduleRefit: () => void;
 }
 
 // xterm shares one WebGL glyph atlas between terminals with the same font/theme/DPR, so clearing it is global.
@@ -29,9 +30,44 @@ const liveTerminals = new Set<LiveTerminal>();
 function repaintVisibleTerminals(): void {
   for (const live of liveTerminals) {
     if (live.hidden.current) continue;
-    live.webgl?.clearTextureAtlas();
-    live.term.refresh(0, live.term.rows - 1);
+    // clearTextureAtlas already requests a full redraw; only the DOM renderer needs an explicit refresh.
+    if (live.webgl) live.webgl.clearTextureAtlas();
+    else live.term.refresh(0, live.term.rows - 1);
   }
+}
+
+// Moving the window between a Retina and an external display changes nothing about the box, so
+// only a DPR listener catches it; the atlas is rasterized at the old ratio until it is cleared.
+let dprQuery: MediaQueryList | null = null;
+
+function onDprChange(): void {
+  repaintVisibleTerminals();
+  for (const live of liveTerminals) live.scheduleRefit();
+  watchDpr();
+}
+
+function watchDpr(): void {
+  dprQuery?.removeEventListener("change", onDprChange);
+  dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+  dprQuery.addEventListener("change", onDprChange);
+}
+
+/** Adds a terminal; the first one attaches the page-wide font and DPR listeners, so one event is one sweep. */
+function addLiveTerminal(live: LiveTerminal): void {
+  liveTerminals.add(live);
+  if (liveTerminals.size > 1) return;
+  if (typeof window.matchMedia === "function") watchDpr();
+  // A font that lands after open() leaves the atlas holding fallback-font glyph metrics.
+  document.fonts?.addEventListener("loadingdone", repaintVisibleTerminals);
+}
+
+/** Removes a terminal; the last one detaches the page-wide listeners. */
+function removeLiveTerminal(live: LiveTerminal): void {
+  liveTerminals.delete(live);
+  if (liveTerminals.size > 0) return;
+  dprQuery?.removeEventListener("change", onDprChange);
+  dprQuery = null;
+  document.fonts?.removeEventListener("loadingdone", repaintVisibleTerminals);
 }
 
 /** Writes a terminal selection to the native (desktop) or browser clipboard, one write at a time and in order. */
@@ -188,22 +224,19 @@ export function useXtermSession(
 
     // WebGL is the difference between a repaint and a smear on a dense TUI, but a lost context
     // renders nothing at all — dispose on loss and let xterm fall back to the DOM renderer.
-    let webgl: WebglAddon | null = null;
-    const live: LiveTerminal = { term, webgl: null, hidden: hiddenRef };
+    const live: LiveTerminal = { term, webgl: null, hidden: hiddenRef, scheduleRefit };
     try {
-      webgl = new WebglAddon();
-      webgl.onContextLoss(() => {
-        webgl?.dispose();
-        webgl = null;
+      live.webgl = new WebglAddon();
+      live.webgl.onContextLoss(() => {
+        live.webgl?.dispose();
         live.webgl = null;
         repaint();
       });
-      term.loadAddon(webgl);
+      term.loadAddon(live.webgl);
     } catch {
-      webgl = null;
+      live.webgl = null;
     }
-    live.webgl = webgl;
-    liveTerminals.add(live);
+    addLiveTerminal(live);
 
     fitAddon.fit();
     termRef.current = term;
@@ -244,30 +277,12 @@ export function useXtermSession(
     const resizeObserver = new ResizeObserver(() => scheduleRefit());
     resizeObserver.observe(container);
 
-    // Moving the window between a Retina and an external display changes nothing about the box, so
-    // only a DPR listener catches it; the atlas is rasterized at the old ratio until it is cleared.
-    let dprQuery: MediaQueryList | null = null;
-    const onDprChange = () => {
-      repaint();
-      scheduleRefit();
-      watchDpr();
-    };
-    const watchDpr = () => {
-      dprQuery?.removeEventListener("change", onDprChange);
-      dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-      dprQuery.addEventListener("change", onDprChange);
-    };
-    if (typeof window.matchMedia === "function") watchDpr();
-    // A font that lands after open() leaves the atlas holding fallback-font glyph metrics.
-    document.fonts?.addEventListener("loadingdone", repaint);
     const detachConsumer = onTerminalRef.current?.(term, container);
 
     return () => {
       disposed = true;
-      liveTerminals.delete(live);
+      removeLiveTerminal(live);
       detachConsumer?.();
-      dprQuery?.removeEventListener("change", onDprChange);
-      document.fonts?.removeEventListener("loadingdone", repaint);
       resizeObserver.disconnect();
       container.removeEventListener("pointerdown", markSelecting);
       window.removeEventListener("pointerup", unmarkSelecting);

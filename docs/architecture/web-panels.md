@@ -32,10 +32,11 @@ to revive if it comes back, it would be rebuilt from scratch.
   - An explicit `fontFamily` (xterm's default is `courier-new`, which has none of those glyphs) and
     `lineHeight: 1` — anything larger breaks box borders into dashes.
   - `WebglAddon` with an `onContextLoss` dispose so a lost context degrades to the DOM renderer
-    rather than a blank panel and redraws every row. `repaint()` clears the texture atlas and
-    redraws all rows; it runs when the window moves between a Retina and an external display
-    (`matchMedia("(resolution: Ndppx)")`), when a hidden terminal is shown again (agent switch),
-    and on `document.fonts` `loadingdone`. A stale atlas shows as blank cells in place of glyphs,
+    rather than a blank panel and redraws every row. `repaint()` clears the texture atlas (which
+    requests a full redraw itself; a terminal without WebGL gets `term.refresh` instead); it runs
+    when a hidden terminal is shown again (agent switch) and on context loss. The DPR
+    (`matchMedia("(resolution: Ndppx)")`) and `document.fonts` `loadingdone` listeners are
+    registered once at module level while any terminal is live, so one event is one sweep. A stale atlas shows as blank cells in place of glyphs,
     and a resize alone does not fix it. ⚠ xterm shares one atlas between every terminal with the
     same font/theme/DPR (`CharAtlasCache`), so `repaint()` rebuilds **every** visible terminal (a
     module-level `liveTerminals` registry), not just its own; clearing only one left the others

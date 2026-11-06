@@ -21,7 +21,8 @@ export function createEngineClientForUrl(
   return new HttpEngineClient(baseUrl, repoId);
 }
 
-function createEngineClient(repoId: string): EngineClient {
+/** The app's client for a repo id: the mock bridge or HTTP, per VITE_ENGINE_BRIDGE_URL. */
+export function createEngineClient(repoId: string): EngineClient {
   const bridgeUrl = import.meta.env.VITE_ENGINE_BRIDGE_URL as string | undefined;
   return createEngineClientForUrl(bridgeUrl, repoId);
 }

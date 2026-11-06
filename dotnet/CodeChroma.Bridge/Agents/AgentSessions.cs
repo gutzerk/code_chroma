@@ -47,9 +47,6 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private DateTimeOffset _resizedAt = DateTimeOffset.MinValue;
     private DateTimeOffset _typedAt = DateTimeOffset.MinValue;
     private DateTimeOffset _widenNotBefore = DateTimeOffset.MinValue;
-    // the prompt draft a restart would lose: typed characters, or unknown after a key such as history recall
-    private int _draftChars;
-    private bool _draftUnknown;
     private int _injecting;
     private readonly AgentStatusState _state = new();
     private readonly Action<AgentSession>? _exited;
@@ -59,8 +56,8 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private (long Generation, string Title, string Progress, string? Process)? _screenKey;
     private DetectClassification _screenVerdict = DetectClassification.Hold;
     private readonly ClearWatch? _clear;
-    private readonly TypedClearDetector? _typedClear;
-    private readonly object _typedGate = new();
+    // the user's prompt line: the draft a restart would lose, and a typed clear command of a CLI without a clear hook
+    private readonly TypedLine _typed;
     // a clear asked for while the tap sat inside an escape sequence; emitted after the next chunk that ends in ground state
     private bool _clearPending;
     private readonly Action<AgentSession>? _cleared;
@@ -78,7 +75,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         _exited = onExit;
         _clear = clear;
         _cleared = onClear;
-        if (clear is { TypedCommands.Count: > 0 }) _typedClear = new TypedClearDetector(clear.TypedCommands);
+        _typed = new TypedLine(clear?.TypedCommands ?? []);
         Argv = [.. launch.Argv];
         SessionTrackingFile = launch.Env?.GetValueOrDefault(AgentSessionOwnership.FileEnv);
         InitialSessionId = launch.Env?.GetValueOrDefault(AgentSessionOwnership.InitialIdEnv);
@@ -237,23 +234,20 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     }
 
     /// <summary>Types into the agent; a submitted clear command of a CLI without a clear hook also clears the window's history.</summary>
-    public void Write(string data)
-    {
-        NoteTyping(data);
-        _pty.Write(data);
-        if (_typedClear is null) return;
-        bool cleared;
-        lock (_typedGate) cleared = _typedClear.Feed(data);
-        if (cleared) ClearHistory();
-    }
+    public void Write(string data) => Type(data, injected: false);
 
-    /// <summary>Types text the bridge composed (an injection): it is not the user's typing, so it never reads as a clear command.</summary>
-    private void WriteInjected(string data)
+    /// <summary>Types `data`; bridge-composed (`injected`) text is not the user's typing, so it never reads as a clear command; a lone Escape is not typing.</summary>
+    private void Type(string data, bool injected)
     {
-        NoteTyping(data);
+        var cleared = false;
+        if (data is not ("" or "\u001b"))
+            lock (_gate)
+            {
+                _typedAt = DateTimeOffset.UtcNow;
+                cleared = _typed.Feed(data, injected);
+            }
         _pty.Write(data);
-        if (_typedClear is null) return;
-        lock (_typedGate) _typedClear.Skip(data);
+        if (cleared) ClearHistory();
     }
 
     /// <summary>The user cleared the conversation: the tap and every window drop their scrollback (sent down the output path, in order with the CLI's output), then the CLI repaints.</summary>
@@ -262,9 +256,8 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         if (!IsAlive) return;
         lock (_gate)
         {
-            // mid-sequence (a chunk ended inside a CSI) the ESC would abort it and print its tail, so it waits for the next ground boundary
-            if (_tap.InGround) Emit(ClearScrollback);
-            else _clearPending = true;
+            _clearPending = true;
+            FlushPendingClear();
         }
         if (_clear?.Repaint is { } repaint) _ = RepaintLater(repaint);
         try { _cleared?.Invoke(this); }
@@ -309,12 +302,12 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 
     /// <summary>Whether a restart now would lose input: an injection queued or typing, a draft, or a recent keystroke; the caller holds _gate.</summary>
     private bool InputBusy(DateTimeOffset now) =>
-        _injecting > 0 || _draftUnknown || _draftChars > 0 || now - _typedAt < WidenResume.TypingQuiet;
+        _injecting > 0 || _typed.HasDraft || now - _typedAt < WidenResume.TypingQuiet;
 
     /// <summary>Whether the prompt holds a draft a restart would lose.</summary>
     public bool HasDraft
     {
-        get { lock (_gate) return _draftUnknown || _draftChars > 0; }
+        get { lock (_gate) return _typed.HasDraft; }
     }
 
     /// <summary>Takes the current width as printed, so a widen that cannot be resumed is not retried.</summary>
@@ -361,32 +354,6 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         return true;
     }
 
-    /// <summary>Tracks the draft: text adds, backspace removes one, Enter/^C/^U clears, any other key (history recall) makes it unknown; a lone Escape and focus or mouse reports are not typing.</summary>
-    private void NoteTyping(string data)
-    {
-        if (data is "" or "\u001b" || IsTerminalReport(data)) return;
-        var text = data.Replace("\u001b" + TypedClearDetector.PasteStart, "", StringComparison.Ordinal).Replace("\u001b[201~", "", StringComparison.Ordinal);
-        // a pasted line break is part of the draft, not a submit
-        var pasted = text.Length != data.Length;
-        lock (_gate)
-        {
-            _typedAt = DateTimeOffset.UtcNow;
-            foreach (var c in text)
-            {
-                if (pasted && c == '\r') _draftChars++;
-                else if (c is '\r' or '\u0003' or '\u0015') (_draftChars, _draftUnknown) = (0, false);
-                else if (c is '\u007f' or '\b') _draftChars = Math.Max(0, _draftChars - 1);
-                else if (c == '\u001b') _draftUnknown = true;
-                else if (!char.IsControl(c)) _draftChars++;
-            }
-        }
-    }
-
-    /// <summary>Focus (ESC [ I / O) and mouse (ESC [ M, ESC [ &lt;) reports the terminal sends on its own, not keys the user pressed.</summary>
-    private static bool IsTerminalReport(string data) =>
-        data.StartsWith("\u001b[I", StringComparison.Ordinal) || data.StartsWith("\u001b[O", StringComparison.Ordinal)
-        || data.StartsWith("\u001b[M", StringComparison.Ordinal) || data.StartsWith("\u001b[<", StringComparison.Ordinal);
-
     /// <summary>
     /// Types `text` once a fresh agent's TUI reaches its idle prompt (acknowledge-only context). Polls the same detector rules the
     /// LED uses; gives up quietly if the agent never idles in time or dies, because typing into a working or blocked agent would
@@ -430,7 +397,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
             if (verdict == AgentStatus.Idle)
             {
                 if (BuildText(text) is not { } body) return false;
-                await TypeAndSubmit(WriteInjected, body, SubmitDelay);
+                await TypeAndSubmit(data => Type(data, injected: true), body, SubmitDelay);
                 await Task.Delay(wait);
                 return true;
             }
@@ -466,12 +433,16 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
             if (spawn != _spawn) return;
             _narrowestPrinted = Math.Min(_narrowestPrinted, _cols);
             Emit(chunk);
-            if (_clearPending && _tap.InGround)
-            {
-                _clearPending = false;
-                Emit(ClearScrollback);
-            }
+            FlushPendingClear();
         }
+    }
+
+    /// <summary>Sends a pending clear once the tap is in ground state: mid-sequence (a chunk ended inside a CSI) the ESC would abort it and print its tail; the caller holds _gate.</summary>
+    private void FlushPendingClear()
+    {
+        if (!_clearPending || !_tap.InGround) return;
+        _clearPending = false;
+        Emit(ClearScrollback);
     }
 
     /// <summary>Feeds the tap and every window; the caller holds _gate, so chunks reach both in order.</summary>

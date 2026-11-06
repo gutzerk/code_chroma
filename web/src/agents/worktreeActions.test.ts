@@ -179,6 +179,17 @@ describe("recordShownWorkspace", () => {
     expect(openWorkspaceWindow).not.toHaveBeenCalled();
   });
 
+  it("records once when focus and a visibility change arrive together", () => {
+    const api = client();
+    agentStore.setActiveWorkspace(TAB.id);
+    const stop = recordShownWorkspace(api);
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+    stop();
+
+    expect(api.activateWorkspace).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores a visibility change to hidden and stops listening once stopped", () => {
     const api = client();
     agentStore.setActiveWorkspace(TAB.id);

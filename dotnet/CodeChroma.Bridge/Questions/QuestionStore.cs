@@ -83,8 +83,9 @@ public static class QuestionStore
     private static List<JsonNode?> AdoptOps(CanvasDoc doc, AskRequest request, string questionId)
     {
         var target = QuestionDiagrams.LayerFor(questionId, "");
+        var owner = DiagramOwners(doc);
         var roots = request.Options.Select(o => o.DiagramRef)
-            .Where(r => !string.IsNullOrEmpty(r) && doc.Elements.TryGetValue(r, out var e) && QuestionDiagrams.IsDraftLayer(e.Layer) && DiagramOwner(doc, e) == request.AgentId).ToHashSet();
+            .Where(r => !string.IsNullOrEmpty(r) && doc.Elements.TryGetValue(r, out var e) && QuestionDiagrams.IsDraftLayer(e.Layer) && owner(e) == request.AgentId).ToHashSet();
         var moved = roots.ToHashSet();
         foreach (var e in doc.Elements.Values)
             if (e.GroupId is not null && roots.Contains(e.GroupId) && QuestionDiagrams.IsDraftLayer(e.Layer)) moved.Add(e.Id);
@@ -116,8 +117,10 @@ public static class QuestionStore
     }
 
     /// <summary>The `question` element carrying this id, or null.</summary>
-    public static CanvasElement? FindElement(Workspace ws, string questionId) =>
-        Load(ws).Elements.Values.FirstOrDefault(e => e.Render == "question" && Json.Str(e.Meta["question_id"]) == questionId);
+    public static CanvasElement? FindElement(Workspace ws, string questionId) => FindElement(Load(ws), questionId);
+
+    private static CanvasElement? FindElement(CanvasDoc doc, string questionId) =>
+        doc.Elements.Values.FirstOrDefault(e => e.Render == "question" && Json.Str(e.Meta["question_id"]) == questionId);
 
     /// <summary>Every `question` element, in canvas insertion order.</summary>
     public static List<CanvasElement> ListQuestions(Workspace ws) => Load(ws).Elements.Values.Where(e => e.Render == "question").ToList();
@@ -179,8 +182,9 @@ public static class QuestionStore
     private static List<JsonNode?> CleanupOps(CanvasDoc doc, List<CanvasElement> questions)
     {
         var layers = questions.Select(q => Json.Str(q.Meta["question_id"])).OfType<string>().Where(id => id.Length > 0).Select(id => QuestionDiagrams.LayerFor(id, "")).ToHashSet();
+        var owner = DiagramOwners(doc);
         var roots = questions.SelectMany(q => (q.Meta["options"] as JsonArray ?? []).Select(o => (Ref: Json.Str(o?["diagram_ref"]), Agent: Json.Str(q.Meta["agent_id"]))))
-            .Where(p => p.Ref is not null && doc.Elements.TryGetValue(p.Ref, out var root) && QuestionDiagrams.IsDecisionLayer(root.Layer) && DiagramOwner(doc, root) == p.Agent)
+            .Where(p => p.Ref is not null && doc.Elements.TryGetValue(p.Ref, out var root) && QuestionDiagrams.IsDecisionLayer(root.Layer) && owner(root) == p.Agent)
             .Select(p => p.Ref!).ToHashSet();
         var doomed = questions.Select(q => q.Id).ToHashSet();
         foreach (var e in doc.Elements.Values)
@@ -214,16 +218,21 @@ public static class QuestionStore
     public static HashSet<string> OptionDiagramIds(Workspace ws, string? agentId)
     {
         var doc = Load(ws);
-        return [.. doc.Elements.Values.Where(e => QuestionDiagrams.IsDecisionLayer(e.Layer) && DiagramOwner(doc, e) == agentId).Select(e => e.Id)];
+        var owner = DiagramOwners(doc);
+        return [.. doc.Elements.Values.Where(e => QuestionDiagrams.IsDecisionLayer(e.Layer) && owner(e) == agentId).Select(e => e.Id)];
     }
 
-    /// <summary>The agent that drew an option-diagram element: its root's `agent_id`, else the agent of the question whose layer it is on.</summary>
-    private static string? DiagramOwner(CanvasDoc doc, CanvasElement element)
+    /// <summary>Who drew an option-diagram element: its root's `agent_id`, else the agent of the question whose layer it is on (layers mapped once per doc).</summary>
+    private static Func<CanvasElement, string?> DiagramOwners(CanvasDoc doc)
     {
-        var root = element.GroupId is { } group && doc.Elements.TryGetValue(group, out var parent) ? parent : element;
-        if (Json.Str(root.Meta["agent_id"]) is { Length: > 0 } owner) return owner;
-        var question = doc.Elements.Values.FirstOrDefault(e => e.Render == "question" && Json.Str(e.Meta["question_id"]) is { Length: > 0 } id && QuestionDiagrams.LayerFor(id, "") == element.Layer);
-        return question is null ? null : Json.Str(question.Meta["agent_id"]);
+        var layerAgents = new Dictionary<string, string?>();
+        foreach (var e in doc.Elements.Values)
+            if (e.Render == "question" && Json.Str(e.Meta["question_id"]) is { Length: > 0 } id) layerAgents.TryAdd(QuestionDiagrams.LayerFor(id, ""), Json.Str(e.Meta["agent_id"]));
+        return element =>
+        {
+            var root = element.GroupId is { } group && doc.Elements.TryGetValue(group, out var parent) ? parent : element;
+            return Json.Str(root.Meta["agent_id"]) is { Length: > 0 } owner ? owner : layerAgents.GetValueOrDefault(element.Layer);
+        };
     }
 
     /// <summary>The open diagram-requested card this re-ask continues, and its older duplicates.</summary>
@@ -281,8 +290,8 @@ public static class QuestionStore
             CanvasElement? target = null;
             if (!string.IsNullOrEmpty(questionId))
             {
-                target = doc.Elements.Values.FirstOrDefault(e => e.Render == "question" && Json.Str(e.Meta["question_id"]) == questionId && (agentId is null || Json.Str(e.Meta["agent_id"]) == agentId))
-                    ?? throw new QuestionWriteException($"unknown question '{questionId}'");
+                target = FindElement(doc, questionId) is { } q && (agentId is null || Json.Str(q.Meta["agent_id"]) == agentId) ? q
+                    : throw new QuestionWriteException($"unknown question '{questionId}'");
                 var optionIds = (target.Meta["options"] as JsonArray ?? []).Select(o => Json.Str(o?["id"])).ToHashSet();
                 if (optionId is null || !optionIds.Contains(optionId)) throw new QuestionWriteException($"unknown option '{optionId}' on that question");
             }

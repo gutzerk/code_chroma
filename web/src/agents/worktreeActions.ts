@@ -68,11 +68,16 @@ export async function ensureWorktrees(client: AgentClient): Promise<void> {
   }
 }
 
+const RECORD_COALESCE_MS = 1000;
+
 /** After boot: re-records this window's workspace as the last-viewed one whenever the window is shown or
  * focused again, so closing a desktop PR tab (which fronts its project tab) forgets that PR. */
 export function recordShownWorkspace(client: AgentClient): () => void {
+  let recordedAt = -Infinity;
   const record = (): void => {
-    if (document.visibilityState !== "visible") return;
+    // Returning to the window fires both focus and visibilitychange; one record covers the pair.
+    if (document.visibilityState !== "visible" || Date.now() - recordedAt < RECORD_COALESCE_MS) return;
+    recordedAt = Date.now();
     client.activateWorkspace(agentStore.getActiveWorkspace()).catch(() => {
       // Best effort: the record only matters for the next launch.
     });

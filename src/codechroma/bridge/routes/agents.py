@@ -34,7 +34,12 @@ from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID
 from codechroma.diagrams import kinds
 from codechroma.io import iso, utc_now
 from codechroma.questions import agent_view
-from codechroma.terminal.agents import ALLOWED_AGENTS, agent_launch, resolved_cli_for
+from codechroma.terminal.agents import (
+    ALLOWED_AGENTS,
+    PromptContext,
+    agent_launch,
+    resolved_cli_for,
+)
 
 router = APIRouter()
 
@@ -209,9 +214,9 @@ async def post_agent_start(agent_id: str, request: Request, services: Services) 
     )
     services.agent_manager.record_session_launch(agent_id, session)
     # A view context rides hidden with the first prompt; a CLI without that hook gets it typed.
-    if pending and pending[1] != "task" and launch.hidden_prompt_context:
+    if pending and pending[1] != "task" and launch.prompt_context == PromptContext.HIDDEN:
         session.hold_prompt_context(view_context(pending[0]))
-    elif pending and pending[1] != "task" and launch.typed_prompt_context:
+    elif pending and pending[1] != "task" and launch.prompt_context == PromptContext.TYPED:
         session.inject_when_idle(typed_view_context(pending[0]))
     payload = agent_payload(services, updated)
     await broadcast_agent_status(services, updated)

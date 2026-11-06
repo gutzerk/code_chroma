@@ -322,23 +322,24 @@ def test_a_degraded_ask_drops_a_diagram_ref_that_is_not_its_option_diagram(
     _fast(monkeypatch, 0.05)
     add = {"op": "add_element", "render": "custom", "layer": "custom/plan", "label": "On canvas",
            "position": {"x": 0.0, "y": 0.0}}
-    with TestClient(bridge.app) as client:
-        client.patch("/repos/main/canvas", json={"ops": [add], "layer": "custom/plan"})
-    doc = CanvasDoc.load(bridge.main.canvas_core_path, bridge.main.diagrams_root)
-    canvas_id = next(e.id for e in doc.elements.values() if e.label == "On canvas")
-    own = asyncio.run(mcp.draw_diagram("main", "T", [_node("a")], [], None, None))["diagram_ref"]
-    options = [
-        QuestionOption(id="a", title="A", diagram_ref=canvas_id),
-        QuestionOption(id="b", title="B", diagram_ref=own),
-    ]
 
-    async def run() -> None:
+    async def run(options: list[QuestionOption]) -> None:
         for _ in range(3):
             with pytest.raises(QuestionRejected):
                 await mcp.ask("main", AskRequest(question="Q?", session_id="s", options=options))
         await mcp.ask("main", AskRequest(question="Q?", session_id="s", options=options))
 
-    asyncio.run(run())
+    # Canvas writes broadcast on the app's loop, so every write runs while the client is open.
+    with TestClient(bridge.app) as client:
+        client.patch("/repos/main/canvas", json={"ops": [add], "layer": "custom/plan"})
+        doc = CanvasDoc.load(bridge.main.canvas_core_path, bridge.main.diagrams_root)
+        canvas_id = next(e.id for e in doc.elements.values() if e.label == "On canvas")
+        draw = mcp.draw_diagram("main", "T", [_node("a")], [], None, None)
+        own = asyncio.run(draw)["diagram_ref"]
+        asyncio.run(run([
+            QuestionOption(id="a", title="A", diagram_ref=canvas_id),
+            QuestionOption(id="b", title="B", diagram_ref=own),
+        ]))
 
     stored = store.list_questions(bridge.main)[0].meta["options"]
     assert [o["diagram_ref"] for o in stored] == [None, own]

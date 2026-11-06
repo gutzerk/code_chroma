@@ -157,7 +157,7 @@ public sealed class HistoryClearTests : IDisposable
     [InlineData("\u001b[200~x\n/clear\u001b[201~\r", false)]
     public void The_typed_detector_matches_only_a_submitted_clear_command(string keys, bool cleared)
     {
-        var detector = new TypedClearDetector(["/clear"]);
+        var detector = new TypedLine(["/clear"]);
 
         var matched = keys.Select(key => detector.Feed(key.ToString())).Any(hit => hit);
 
@@ -167,7 +167,7 @@ public sealed class HistoryClearTests : IDisposable
     [Fact]
     public void An_edited_line_is_unknown_only_until_the_next_submit()
     {
-        var detector = new TypedClearDetector(["/clear"]);
+        var detector = new TypedLine(["/clear"]);
         detector.Feed("x\u001b[D\r");
 
         var matched = detector.Feed("/clear\r");
@@ -178,11 +178,11 @@ public sealed class HistoryClearTests : IDisposable
     [Fact]
     public void Text_the_bridge_types_never_reads_as_a_clear_command()
     {
-        var detector = new TypedClearDetector(["/clear"]);
-        detector.Skip("/clear");
+        var detector = new TypedLine(["/clear"]);
+        detector.Feed("/clear", injected: true);
 
         var injected = detector.Feed("\r");
-        detector.Skip("\r");
+        detector.Feed("\r", injected: true);
         var typedAfter = detector.Feed("/clear\r");
 
         Assert.Equal((false, true), (injected, typedAfter));
@@ -221,10 +221,10 @@ public sealed class HistoryClearTests : IDisposable
         var hooked = agents.Resolve("claude", agentId: "painter", bridgeUrl: "http://127.0.0.1:8123")!;
         var unhooked = agents.Resolve("claude")!;
 
-        Assert.Equal((true, true, false), (hooked.StatusHooks, hooked.HiddenPromptContext, hooked.TypedPromptContext));
-        Assert.Equal((false, false, true), (unhooked.StatusHooks, unhooked.HiddenPromptContext, unhooked.TypedPromptContext));
+        Assert.Equal((true, PromptContext.Hidden), (hooked.StatusHooks, hooked.PromptContext));
+        Assert.Equal((false, PromptContext.Typed), (unhooked.StatusHooks, unhooked.PromptContext));
         Assert.NotEmpty(unhooked.Clear!.TypedCommands);
-        Assert.False(agents.Resolve("shell")!.TypedPromptContext);
+        Assert.Equal(PromptContext.None, agents.Resolve("shell")!.PromptContext);
     }
 
     [Fact]

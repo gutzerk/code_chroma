@@ -100,9 +100,9 @@ class _IdleLater:
 
 
 def _make_injecting_session(monkeypatch, classify, written: list[str]):
-    """Real AgentSession with detector.classify patched and write() recording into `written`."""
+    """Real AgentSession with detector.classify patched and its typing recorded into `written`."""
     session = AgentSession("runner", ECHO, cwd=".")
-    session.write = written.append
+    session._type = lambda data, injected=False: written.append(data)
     monkeypatch.setattr(session._detector, "classify", classify)
     return session
 

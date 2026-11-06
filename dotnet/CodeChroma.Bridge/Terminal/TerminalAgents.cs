@@ -38,10 +38,19 @@ public sealed record AgentLaunch(IReadOnlyList<string> Argv, IReadOnlyDictionary
     public ClearWatch? Clear { get; init; }
     /// <summary>Whether `--settings` carrying the status hooks was emitted, so the bridge hears this CLI's prompts and clears.</summary>
     public bool StatusHooks { get; init; }
-    /// <summary>Whether the window's status hook hands held context to the user's first prompt (hidden).</summary>
-    public bool HiddenPromptContext { get; init; }
-    /// <summary>Whether launch context is typed as a `[Context]` turn once the CLI idles: a CLI agent without the hidden hook.</summary>
-    public bool TypedPromptContext { get; init; }
+    /// <summary>How the window gets its launch context: hidden with the first prompt, typed once idle, or not at all (a shell).</summary>
+    public PromptContext PromptContext { get; init; }
+}
+
+/// <summary>How an agent window receives its launch context.</summary>
+public enum PromptContext
+{
+    /// <summary>Not delivered (a shell).</summary>
+    None,
+    /// <summary>The status hook hands it to the user's first prompt.</summary>
+    Hidden,
+    /// <summary>Typed as a `[Context]` turn once the CLI idles: a CLI agent without the hidden hook.</summary>
+    Typed,
 }
 
 /// <summary>
@@ -132,7 +141,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
 
     private static AgentLaunch OwnedLaunch(string[] argv, IReadOnlyDictionary<string, string> env, bool isClaude, string? resumeSessionId, bool fork, string? newSessionId, string? trackingFile, bool hasMcp, McpEndpoint? hooks = null)
     {
-        if (!isClaude) return new AgentLaunch(argv, env) { TypedPromptContext = true };
+        if (!isClaude) return new AgentLaunch(argv, env) { PromptContext = PromptContext.Typed };
         var options = new List<string>();
         if (fork && !string.IsNullOrEmpty(resumeSessionId)) options.Add(ForkSessionFlag);
         var fresh = string.IsNullOrEmpty(resumeSessionId) || fork;
@@ -140,7 +149,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         var ownedEnv = new Dictionary<string, string>(env);
         var settings = trackingFile is not null || hasMcp || hooks is not null ? AgentSessionOwnership.TryHookSettings(trackingFile is not null, hasMcp, hooks is not null) : null;
         if (settings is not null) options.AddRange(["--settings", settings]);
-        var statusHooks = settings is not null && hooks is not null && AgentSessionOwnership.CanRunHooks;
+        var statusHooks = hooks is not null && AgentSessionOwnership.CanRunHooks;
         // The status hooks authenticate with the agent's workspace token, which a bare window gets without the MCP server.
         foreach (var (key, value) in hooks?.Env() ?? new Dictionary<string, string>()) ownedEnv.TryAdd(key, value);
         // A fullscreen (alternate-screen) TUI leaves xterm no scrollback, so the window's scrollbar has nothing to scroll.
@@ -151,8 +160,8 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             ownedEnv[AgentSessionOwnership.InitialIdEnv] = (fresh ? newSessionId : resumeSessionId) ?? "";
         }
         // Options precede the prompt and the variadic --plugin-dir / --allowedTools options.
-        var hidden = statusHooks && CliAdapters.All["claude"].HiddenPromptContext;
-        return new AgentLaunch([argv[0], .. options, .. argv.Skip(1)], ownedEnv) { StatusHooks = statusHooks, HiddenPromptContext = hidden, TypedPromptContext = !hidden };
+        var context = statusHooks && CliAdapters.All["claude"].HiddenPromptContext ? PromptContext.Hidden : PromptContext.Typed;
+        return new AgentLaunch([argv[0], .. options, .. argv.Skip(1)], ownedEnv) { StatusHooks = statusHooks, PromptContext = context };
     }
 
     /// <summary>The label persisted on AgentRecord.ResolvedCli: only `agent` windows report one.</summary>

@@ -13,11 +13,11 @@ RESET_SCREEN = "\x1b[0m\x1b[H\x1b[2J" + CLEAR_SCROLLBACK
 # How long the CLI gets to finish its own clear before the repaint key.
 REPAINT_DELAY_SECONDS = 0.3
 
-# The bracketed-paste start marker, after its ESC.
-PASTE_START = "[200~"
-
 _MAX_LINE = 256
+_PASTE_START = "[200~"
 _PASTE_END = "[201~"
+# Focus reports the terminal sends on its own; SGR mouse reports start with "[<".
+_TERMINAL_REPORTS = ("[I", "[O")
 
 
 @dataclass(frozen=True)
@@ -37,8 +37,8 @@ def clear_watch_for(adapter: object | None, hooked: bool) -> ClearWatch | None:
     return ClearWatch(typed, getattr(adapter, "repaint_input", None))
 
 
-class TypedClearDetector:
-    """Follows keystrokes per line; only CR submits; an edited or multi-line line never matches."""
+class TypedLine:
+    """Follows keystrokes per line: the draft a restart would lose, and a CR-submitted clear."""
 
     def __init__(self, commands: tuple[str, ...]) -> None:
         self._commands = frozenset(commands)
@@ -48,8 +48,19 @@ class TypedClearDetector:
         self._in_paste = False
         self._unknown = False
 
-    def feed(self, data: str) -> bool:
-        """Feeds one input chunk; True when a line submitted in it was a clear command."""
+    @property
+    def has_draft(self) -> bool:
+        """Typed text, or a line no longer known (history recall, a pasted line break)."""
+        return self._unknown or bool(self._line)
+
+    def feed(self, data: str, injected: bool = False) -> bool:
+        """Feeds one chunk; True when a user-submitted line was a clear; injected text never is."""
+        if injected:
+            if "\r" in data:
+                self._reset()
+            elif data:
+                self._unknown = True
+            return False
         cleared = False
         for ch in data:
             if self._in_escape:
@@ -74,7 +85,7 @@ class TypedClearDetector:
         return cleared
 
     def _step_escape(self, ch: str) -> None:
-        """Bracketed-paste markers keep the line; any other sequence moves the cursor."""
+        """Paste markers and terminal reports keep the line; any other sequence moves the cursor."""
         self._escape.append(ch)
         if len(self._escape) == 1 and ch not in "[O":
             self._in_escape = False
@@ -84,18 +95,11 @@ class TypedClearDetector:
             return
         self._in_escape = False
         sequence = "".join(self._escape)
-        if sequence == PASTE_START:
+        if sequence == _PASTE_START:
             self._in_paste = True
         elif sequence == _PASTE_END:
             self._in_paste = False
-        else:
-            self._unknown = True
-
-    def skip(self, data: str) -> None:
-        """Notes bridge-typed text: unseen on the line, so it is unknown until its CR submits it."""
-        if "\r" in data:
-            self._reset()
-        elif data:
+        elif sequence not in _TERMINAL_REPORTS and not sequence.startswith("[<"):
             self._unknown = True
 
     def _submit(self) -> bool:

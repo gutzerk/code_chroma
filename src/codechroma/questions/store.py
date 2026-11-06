@@ -89,10 +89,11 @@ def _adopt_ops(doc: CanvasDoc, request: AskRequest, question_id: str) -> list[di
     """Moves the draft-layer diagrams this question's options reference onto its own layer."""
     target = diagrams.layer_for(question_id, "")
     refs = {o.diagram_ref for o in request.options if o.diagram_ref}
+    owner = _diagram_owners(doc)
     roots = [
         doc.elements[r] for r in refs
         if r in doc.elements and diagrams.is_draft_layer(doc.elements[r].layer)
-        and _diagram_owner(doc, doc.elements[r]) == request.agent_id
+        and owner(doc.elements[r]) == request.agent_id
     ]
     moved = {root.id for root in roots}
     moved |= {
@@ -178,10 +179,11 @@ def _cleanup_ops(doc: CanvasDoc, questions: list[Element]) -> list[dict]:
         (o.get("diagram_ref"), q.meta.get("agent_id"))
         for q in questions for o in q.meta.get("options", [])
     }
+    owner = _diagram_owners(doc)
     roots = {
         r for r, agent in refs
         if r and r in doc.elements and diagrams.is_decision_layer(doc.elements[r].layer)
-        and _diagram_owner(doc, doc.elements[r]) == agent
+        and owner(doc.elements[r]) == agent
     }
     doomed = {q.id for q in questions} | {
         e.id for e in doc.elements.values()
@@ -295,23 +297,26 @@ def reopen(ws: Workspace, element: Element) -> list[str]:
 def option_diagram_ids(ws: Workspace, agent_id: str | None) -> set[str]:
     """Ids on a `decisions` layer that `agent_id` drew: the only ids its `diagram_ref` may name."""
     doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+    owner = _diagram_owners(doc)
     return {
         e.id for e in doc.elements.values()
-        if diagrams.is_decision_layer(e.layer) and _diagram_owner(doc, e) == agent_id
+        if diagrams.is_decision_layer(e.layer) and owner(e) == agent_id
     }
 
 
-def _diagram_owner(doc: CanvasDoc, element: Element) -> str | None:
-    """The agent that drew it: its root's `agent_id`, else the agent of the question it is under."""
-    root = doc.elements.get(element.group_id or "", element)
-    if owner := root.meta.get("agent_id"):
-        return owner
-    question = next((
-        e for e in doc.elements.values()
-        if e.render == "question" and e.meta.get("question_id")
-        and diagrams.layer_for(e.meta["question_id"], "") == element.layer
-    ), None)
-    return question.meta.get("agent_id") if question else None
+def _diagram_owners(doc: CanvasDoc) -> Callable[[Element], str | None]:
+    """Who drew an element: its root's `agent_id`, else its layer's question agent (mapped once)."""
+    layer_agents: dict[str, str | None] = {}
+    for e in doc.elements.values():
+        if e.render == "question" and e.meta.get("question_id"):
+            layer = diagrams.layer_for(e.meta["question_id"], "")
+            layer_agents.setdefault(layer, e.meta.get("agent_id"))
+
+    def owner(element: Element) -> str | None:
+        root = doc.elements.get(element.group_id or "", element)
+        return root.meta.get("agent_id") or layer_agents.get(element.layer)
+
+    return owner
 
 
 def find_diagram_requested(

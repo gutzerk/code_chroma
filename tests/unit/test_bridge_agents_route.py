@@ -605,6 +605,8 @@ def test_a_view_context_is_never_typed_and_rides_only_with_the_first_prompt(
     monkeypatch.setattr(
         AgentSession, "inject_when_idle", lambda self, text, **_: typed.append(text)
     )
+    # The status hooks (and so the hidden context) need a known bridge URL, as in the desktop app.
+    test_client.app.state.question_mcp.base_url = "http://127.0.0.1:8123"
     test_client.post("/agents", json={"title": "reader", "context": "the System context diagram"})
     test_client.post("/agents/reader/start", json={})
 
@@ -622,12 +624,13 @@ def test_a_cli_without_the_hidden_hook_gets_its_view_context_typed(started_clien
 
     from codechroma.bridge.agents.sessions import AgentSession
     from codechroma.bridge.routes import agents as agent_routes
+    from codechroma.terminal.agents import PromptContext
 
     test_client, _repo, _bridge = started_client
     typed: list = []
     real = agent_routes.agent_launch
     monkeypatch.setattr(agent_routes, "agent_launch", lambda *a, **k: dataclasses.replace(
-        real(*a, **k), hidden_prompt_context=False, typed_prompt_context=True))
+        real(*a, **k), prompt_context=PromptContext.TYPED))
     monkeypatch.setattr(
         AgentSession, "inject_when_idle", lambda self, text, **_: typed.append(text)
     )

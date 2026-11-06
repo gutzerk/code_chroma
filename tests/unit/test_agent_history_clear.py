@@ -8,13 +8,13 @@ from codechroma.bridge.agents import agent_hook
 from codechroma.bridge.agents.history_clear import (
     CLEAR_SCROLLBACK,
     ClearWatch,
-    TypedClearDetector,
+    TypedLine,
     clear_watch_for,
 )
 from codechroma.bridge.agents.session_ownership import hook_document
 from codechroma.bridge.agents.sessions import AgentSession
 from codechroma.llm.cli_adapters import CLI_ADAPTERS
-from codechroma.terminal.agents import agent_launch
+from codechroma.terminal.agents import PromptContext, agent_launch
 from tests.unit.portable_commands import ECHO
 
 
@@ -99,7 +99,7 @@ def test_ordinary_typed_lines_keep_the_history():
     ],
 )
 def test_the_typed_detector_matches_only_a_submitted_clear_command(keys, cleared):
-    detector = TypedClearDetector(("/clear",))
+    detector = TypedLine(("/clear",))
 
     matched = any([detector.feed(key) for key in keys])
 
@@ -107,11 +107,11 @@ def test_the_typed_detector_matches_only_a_submitted_clear_command(keys, cleared
 
 
 def test_text_the_bridge_types_never_reads_as_a_clear_command():
-    detector = TypedClearDetector(("/clear",))
-    detector.skip("/clear")
+    detector = TypedLine(("/clear",))
+    detector.feed("/clear", injected=True)
 
     injected = detector.feed("\r")
-    detector.skip("\r")
+    detector.feed("\r", injected=True)
     typed_after = detector.feed("/clear\r")
 
     assert (injected, typed_after) == (False, True)
@@ -140,10 +140,10 @@ def test_a_claude_launch_without_status_hooks_types_its_context_and_watches_type
 
     unhooked = agent_launch("claude")
 
-    assert (hooked.hidden_prompt_context, hooked.typed_prompt_context) == (True, False)
-    assert (unhooked.hidden_prompt_context, unhooked.typed_prompt_context) == (False, True)
+    assert (hooked.prompt_context, unhooked.prompt_context) == (
+        PromptContext.HIDDEN, PromptContext.TYPED)
     assert unhooked.clear is not None and unhooked.clear.typed_commands
-    assert agent_launch("shell").typed_prompt_context is False
+    assert agent_launch("shell").prompt_context == PromptContext.NONE
 
 
 def test_each_adapter_defines_its_own_clear_commands():

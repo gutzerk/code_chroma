@@ -191,12 +191,15 @@ class QuestionMcp:
         self, ws: Workspace, workspace_id: str, request: AskRequest, connection: str | None = None
     ) -> dict | None:
         """Raises QuestionRejected on a contract break; at the retry limit lets one through."""
+        known = (
+            await asyncio.to_thread(store.option_diagram_ids, ws, workspace_id)
+            if any(option.diagram_ref for option in request.options) else None
+        )
         if request.degraded:
-            await self._drop_foreign_refs(ws, workspace_id, request)
+            _drop_foreign_refs(request, known)
             return {"degraded": True}
         problems = validate_ask(request)
-        if not problems and any(option.diagram_ref for option in request.options):
-            known = await asyncio.to_thread(store.option_diagram_ids, ws, workspace_id)
+        if not problems and known is not None:
             problems = unknown_refs(request, known)
         tracker = self.rejections
         key = request.session_id or (f"conn:{connection}" if connection else None)
@@ -208,18 +211,8 @@ class QuestionMcp:
             tracker.record(workspace_id, key)
             raise QuestionRejected(text)
         tracker.reset(workspace_id, key)
-        await self._drop_foreign_refs(ws, workspace_id, request)
+        _drop_foreign_refs(request, known)
         return {"degraded": True, "validation": text}
-
-    @staticmethod
-    async def _drop_foreign_refs(ws: Workspace, agent_id: str, request: AskRequest) -> None:
-        """A degraded ask skips validation, so it keeps only this agent's option-diagram refs."""
-        if not any(option.diagram_ref for option in request.options):
-            return
-        known = await asyncio.to_thread(store.option_diagram_ids, ws, agent_id)
-        for option in request.options:
-            if option.diagram_ref and option.diagram_ref not in known:
-                option.diagram_ref = None
 
     async def draw_diagram(
         self, workspace_id: str, title: str, nodes: list[diagrams.DiagramNode],
@@ -289,3 +282,12 @@ class QuestionMcp:
         return await self.draw_diagram(
             self._workspace_id(ctx), title, nodes, edges or [], question_id, option_id
         )
+
+
+def _drop_foreign_refs(request: AskRequest, known: set[str] | None) -> None:
+    """A degraded ask skips validation, so it keeps only this agent's option-diagram refs."""
+    if known is None:
+        return
+    for option in request.options:
+        if option.diagram_ref and option.diagram_ref not in known:
+            option.diagram_ref = None

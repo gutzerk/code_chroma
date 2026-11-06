@@ -99,14 +99,14 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, Func<strin
     /// <summary>Throws QuestionRejected on a contract break; at the retry limit lets one through degraded.</summary>
     private async Task<JsonObject?> Check(Workspace ws, string workspaceId, AskRequest request, string? connection)
     {
+        var known = request.Options.Any(o => !string.IsNullOrEmpty(o.DiagramRef)) ? await Task.Run(() => QuestionStore.OptionDiagramIds(ws, workspaceId)) : null;
         if (request.Degraded)
         {
-            await DropForeignRefs(ws, workspaceId, request);
+            DropForeignRefs(request, known);
             return new JsonObject { ["degraded"] = true };
         }
         var problems = QuestionValidation.Validate(request);
-        if (problems.Count == 0 && request.Options.Any(o => !string.IsNullOrEmpty(o.DiagramRef)))
-            problems = QuestionValidation.UnknownRefs(request, await Task.Run(() => QuestionStore.OptionDiagramIds(ws, workspaceId)));
+        if (problems.Count == 0 && known is not null) problems = QuestionValidation.UnknownRefs(request, known);
         var key = !string.IsNullOrEmpty(request.SessionId) ? request.SessionId : !string.IsNullOrEmpty(connection) ? "conn:" + connection : null;
         if (problems.Count == 0)
         {
@@ -120,15 +120,14 @@ public sealed class QuestionMcp(Func<string, Workspace> workspaceFor, Func<strin
             throw new QuestionRejected(text);
         }
         Rejections.Reset(workspaceId, key);
-        await DropForeignRefs(ws, workspaceId, request);
+        DropForeignRefs(request, known);
         return new JsonObject { ["degraded"] = true, ["validation"] = text };
     }
 
-    /// <summary>A degraded ask skips validation, so it keeps only refs to option diagrams this agent drew; any other canvas element would be pulled into its card.</summary>
-    private static async Task DropForeignRefs(Workspace ws, string agentId, AskRequest request)
+    /// <summary>A degraded ask skips validation, so it keeps only refs to option diagrams this agent drew (`known`); any other canvas element would be pulled into its card.</summary>
+    private static void DropForeignRefs(AskRequest request, IReadOnlySet<string>? known)
     {
-        if (!request.Options.Any(o => !string.IsNullOrEmpty(o.DiagramRef))) return;
-        var known = await Task.Run(() => QuestionStore.OptionDiagramIds(ws, agentId));
+        if (known is null) return;
         foreach (var option in request.Options)
             if (!string.IsNullOrEmpty(option.DiagramRef) && !known.Contains(option.DiagramRef)) option.DiagramRef = null;
     }

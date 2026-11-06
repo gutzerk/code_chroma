@@ -12,7 +12,7 @@ describe("HttpAgentClient question routes", () => {
     ["reviseQuestion", "revise"],
     ["requestQuestionDiagram", "request-diagram"],
   ] as const)("%s encodes the question id into the path", async (method, action) => {
-    const fetchMock = vi.fn(async () => new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }));
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     const client = new HttpAgentClient("http://bridge");
 

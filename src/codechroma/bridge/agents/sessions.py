@@ -33,11 +33,10 @@ from typing import Protocol, runtime_checkable
 from codechroma.bridge.agents.agent_hook import is_clear
 from codechroma.bridge.agents.history_clear import (
     CLEAR_SCROLLBACK,
-    PASTE_START,
     REPAINT_DELAY_SECONDS,
     RESET_SCREEN,
     ClearWatch,
-    TypedClearDetector,
+    TypedLine,
 )
 from codechroma.bridge.agents.live_status import (
     STATUS_DONE,
@@ -72,10 +71,7 @@ WIDEN_MIN_GAIN_COLS = 8
 WIDEN_SETTLE = timedelta(seconds=1.5)
 # Quiet time after the last keystroke, so a restart never lands mid-typing.
 WIDEN_TYPING_QUIET = timedelta(seconds=3)
-# Bracketed-paste end marker (after ESC), the pair of history_clear.PASTE_START.
-PASTE_END = "[201~"
 # Focus (ESC [ I / O) and mouse (ESC [ M, ESC [ <) reports the terminal sends on its own.
-_TERMINAL_REPORTS = ("\x1b[I", "\x1b[O", "\x1b[M", "\x1b[<")
 _NEVER = datetime.min.replace(tzinfo=UTC)
 
 def context_inject_attempts() -> int:
@@ -147,9 +143,8 @@ class AgentSession(AgentSessionPort):
         self.agent_id = agent_id
         self._clear = clear
         self._cleared = on_clear
-        self._typed_clear = (
-            TypedClearDetector(clear.typed_commands) if clear and clear.typed_commands else None
-        )
+        # The prompt line: the draft a restart would lose, and a typed clear of a hookless CLI.
+        self._typed = TypedLine(clear.typed_commands if clear else ())
         self._typed_lock = threading.Lock()
         # A clear asked for mid escape sequence; emitted after the next chunk ending in ground.
         self._clear_pending = False
@@ -180,9 +175,6 @@ class AgentSession(AgentSessionPort):
         self._resized_at = _NEVER
         self._typed_at = _NEVER
         self._widen_not_before = _NEVER
-        # The prompt draft a restart would lose: typed characters, or unknown after history recall.
-        self._draft_chars = 0
-        self._draft_unknown = False
         self._injecting = 0
         self._pty = self._spawn_pty(argv, cwd, env)
 
@@ -313,32 +305,21 @@ class AgentSession(AgentSessionPort):
 
     def write(self, data: str) -> None:
         """Types into the agent; a submitted clear command of a CLI without a clear hook clears."""
-        self._note_typing(data)
+        self._type(data)
+
+    def _type(self, data: str, injected: bool = False) -> None:
+        """Types data; bridge-composed (injected) text never reads as a clear command."""
+        cleared = self._note_typing(data, injected)
         self._pty.write(data)
-        if self._typed_clear is None:
-            return
-        with self._typed_lock:
-            cleared = self._typed_clear.feed(data)
         if cleared:
             self.clear_history()
-
-    def _write_injected(self, data: str) -> None:
-        """Types bridge-composed text: not the user's typing, so never read as a clear command."""
-        self._note_typing(data)
-        self._pty.write(data)
-        if self._typed_clear is not None:
-            with self._typed_lock:
-                self._typed_clear.skip(data)
 
     def clear_history(self) -> None:
         """The user cleared the chat: windows drop their scrollback, then the CLI repaints."""
         if self.exit_code is not None:
             return
-        # Mid-sequence the ESC would abort it and print its tail, so it waits for a ground boundary.
-        if self._tap.in_ground:
-            self._emit(CLEAR_SCROLLBACK)
-        else:
-            self._clear_pending = True
+        self._clear_pending = True
+        self._flush_pending_clear()
         repaint = self._clear.repaint if self._clear is not None else None
         if repaint:
             timer = threading.Timer(REPAINT_DELAY_SECONDS, self._repaint, args=(repaint,))
@@ -354,30 +335,18 @@ class AgentSession(AgentSessionPort):
         if self.exit_code is None:
             self._pty.write(keys)
 
-    def _note_typing(self, data: str) -> None:
-        """Text adds, backspace drops one, Enter/^C/^U clears, other keys make the draft unknown."""
-        if data in ("", "\x1b") or data.startswith(_TERMINAL_REPORTS):
-            return
-        text = data.replace("\x1b" + PASTE_START, "").replace("\x1b" + PASTE_END, "")
-        # A pasted line break is part of the draft, not a submit.
-        pasted = len(text) != len(data)
+    def _note_typing(self, data: str, injected: bool = False) -> bool:
+        """Feeds the prompt line; True on a user-submitted clear; a lone Escape is not typing."""
+        if data in ("", "\x1b"):
+            return False
         self._typed_at = utc_now()
-        for c in text:
-            if pasted and c == "\r":
-                self._draft_chars += 1
-            elif c in ("\r", "\x03", "\x15"):
-                self._draft_chars, self._draft_unknown = 0, False
-            elif c in ("\x7f", "\b"):
-                self._draft_chars = max(0, self._draft_chars - 1)
-            elif c == "\x1b":
-                self._draft_unknown = True
-            elif c.isprintable():
-                self._draft_chars += 1
+        with self._typed_lock:
+            return self._typed.feed(data, injected)
 
     @property
     def has_draft(self) -> bool:
         """Whether the prompt holds a draft a restart would lose."""
-        return self._draft_unknown or self._draft_chars > 0
+        return self._typed.has_draft
 
     def _input_busy(self, now: datetime) -> bool:
         """A restart now would lose input: an injection in flight, a draft, or a recent key."""
@@ -476,9 +445,9 @@ class AgentSession(AgentSessionPort):
                 if body is None:
                     return False
                 # Enter goes alone: text + "\r" in one write reads as a paste and never submits.
-                self._write_injected(body)
+                self._type(body, injected=True)
                 await asyncio.sleep(context_inject_submit_delay_seconds())
-                self._write_injected("\r")
+                self._type("\r", injected=True)
                 await asyncio.sleep(interval)
                 return True
             await asyncio.sleep(interval)
@@ -517,6 +486,10 @@ class AgentSession(AgentSessionPort):
             return
         self._narrowest_printed = min(self._narrowest_printed or self._cols, self._cols)
         self._emit(chunk)
+        self._flush_pending_clear()
+
+    def _flush_pending_clear(self) -> None:
+        """Sends a pending clear once the tap is in ground; mid-sequence its ESC prints a tail."""
         if self._clear_pending and self._tap.in_ground:
             self._clear_pending = False
             self._emit(CLEAR_SCROLLBACK)

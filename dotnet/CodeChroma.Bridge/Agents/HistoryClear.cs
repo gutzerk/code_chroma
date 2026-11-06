@@ -11,12 +11,11 @@ public sealed record ClearWatch(IReadOnlyList<string> TypedCommands, string? Rep
         adapter is null ? null : new ClearWatch(adapter.HookReportsClear && hooked ? [] : adapter.ClearCommands, adapter.RepaintInput);
 }
 
-/// <summary>Follows the user's keystrokes line by line and spots a clear command submitted with Enter (CR); a line edited with cursor keys, completion, Ctrl+J or a pasted line break is unknown and never matches.</summary>
-public sealed class TypedClearDetector(IReadOnlyList<string> commands)
+/// <summary>Follows the user's keystrokes line by line: the draft a restart would lose, and a clear command submitted with Enter (CR); a line edited with cursor keys, completion, Ctrl+J or a pasted line break is unknown and never matches.</summary>
+public sealed class TypedLine(IReadOnlyList<string> clearCommands)
 {
     private const int MaxLine = 256;
-    /// <summary>The bracketed-paste start marker, after its ESC.</summary>
-    internal const string PasteStart = "[200~";
+    private const string PasteStart = "[200~";
     private const string PasteEnd = "[201~";
 
     private readonly StringBuilder _line = new();
@@ -25,9 +24,18 @@ public sealed class TypedClearDetector(IReadOnlyList<string> commands)
     private bool _inPaste;
     private bool _unknown;
 
-    /// <summary>Feeds one input chunk; true when a line submitted in it was a clear command.</summary>
-    public bool Feed(string data)
+    /// <summary>Whether the prompt holds a draft: typed text, or a line no longer known (history recall, a pasted line break).</summary>
+    public bool HasDraft => _unknown || _line.Length > 0;
+
+    /// <summary>Feeds one input chunk; true when a line the user submitted in it was a clear command; bridge-typed (`injected`) text joins the line unseen, so it never matches.</summary>
+    public bool Feed(string data, bool injected = false)
     {
+        if (injected)
+        {
+            if (data.Contains('\r')) Reset();
+            else if (data.Length > 0) _unknown = true;
+            return false;
+        }
         var cleared = false;
         foreach (var ch in data)
         {
@@ -64,7 +72,7 @@ public sealed class TypedClearDetector(IReadOnlyList<string> commands)
         return cleared;
     }
 
-    /// <summary>Bracketed-paste markers keep the line; any other sequence (arrows, Home, a mouse report) moves the cursor, so the line is no longer known.</summary>
+    /// <summary>Bracketed-paste markers and the focus or SGR mouse reports the terminal sends on its own keep the line; any other sequence (arrows, Home) moves the cursor, so the line is no longer known.</summary>
     private void Escape(char ch)
     {
         _escape.Append(ch);
@@ -79,20 +87,13 @@ public sealed class TypedClearDetector(IReadOnlyList<string> commands)
         _inEscape = false;
         if (text == PasteStart) _inPaste = true;
         else if (text == PasteEnd) _inPaste = false;
-        else _unknown = true;
-    }
-
-    /// <summary>Notes text the bridge typed itself: it joins the line unseen, so the line is unknown until its Enter submits it.</summary>
-    public void Skip(string data)
-    {
-        if (data.Contains('\r')) Reset();
-        else if (data.Length > 0) _unknown = true;
+        else if (text is not ("[I" or "[O") && !text.StartsWith("[<", StringComparison.Ordinal)) _unknown = true;
     }
 
     private bool Submit()
     {
         var text = _line.ToString().Trim();
-        var match = !_unknown && text.Length > 0 && commands.Contains(text.Split(' ', 2)[0], StringComparer.Ordinal);
+        var match = !_unknown && text.Length > 0 && clearCommands.Contains(text.Split(' ', 2)[0], StringComparer.Ordinal);
         Reset();
         return match;
     }

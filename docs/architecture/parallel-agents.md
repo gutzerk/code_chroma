@@ -36,6 +36,20 @@ A Python-only change does not fix the production desktop runtime.
   Legacy records keep their saved session ID; records without an ID start fresh. `Transcripts.cs`
   still reads known transcripts for token usage and supports workflow discovery, but is not used
   to choose an interactive agent's resume target.
+- ⚠ Widen resume (`Agents/WidenResume.cs`, Python `agents/widen_resume.py`): once an agent window
+  settles (`Settle`, 1.5 s after the last resize) at least `MinGainCols` (8) columns wider than the
+  narrowest width the current process printed at, and the agent is `idle`/`done` with no pending
+  permission, no queued `InjectWhenIdle`, no unsent draft and no keystroke for `TypingQuiet` (3 s),
+  the status poller restarts it in place: `AgentSession.Respawn` starts `claude --resume <its own
+  session id>` (with a new tracking file, via `TerminalAgents.Resolve`) on a new PTY at the current
+  size, writes `ESC[3J` and friends (`ClearScrollback`) to the screen tap and every attached window,
+  then kills the old process; its late output and exit are ignored, so agent identity, status,
+  consumers and the prompt outline survive and no window reconnects. Busy agents simply wait for a
+  later idle poll, if still wider. An agent with an `ask_user` question on its canvas is rechecked
+  every 5 s. Skipped (the width is taken as printed, no error shown) when the launch is untracked,
+  bare (`--system-prompt`), not claude, has no session id or no transcript yet, or the new PTY
+  fails to start (the old one keeps running). Tests: `Agents/WidenResumeTests.cs`,
+  `tests/unit/test_agent_widen_resume.py`.
 - Regression coverage: `Agents/SessionOwnershipTests.cs`, `Agents/OpenStepAgentTests.cs`, and
   `Terminal/TerminalAgentsBareTests.cs`. Run
   `dotnet test dotnet/CodeChroma.Bridge.Tests/CodeChroma.Bridge.Tests.csproj`.
@@ -396,8 +410,9 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   history once. 🔴 `useXtermSession` sends no size until `FitAddon.proposeDimensions()` can measure
   its box (a hidden or not-yet-laid-out box would leave xterm's 80x24 default, shrinking the PTY so
   a background agent prints at 80 columns); the first measurable refit sends the real size. A laid-out 0px
-  box counts as unmeasurable too: it measures FitAddon's 2x1 floor. Rows claude itself
-  printed while the PTY was narrow stay narrow: claude's classic renderer never reprints them.
+  box counts as unmeasurable too: it measures FitAddon's 2x1 floor. Claude's classic renderer
+  writes wrapped rows as hard rows and on SIGWINCH repaints only the visible frame, so rows printed
+  while the PTY was narrow would stay narrow; the widen resume below reprints them.
   🔴 Entirely separate from `skill_agent`'s registry: if the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
   kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via

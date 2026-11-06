@@ -40,18 +40,18 @@ export function isAttentionStatus(status: AgentStatus): status is AttentionStatu
   return ATTENTION.has(status);
 }
 
-/** Whether the agent's session is alive and may still write prompts or usage; exhaustive so a status change breaks the build. */
-const LIVE: Record<AgentStatus, boolean> = {
-  idle: true,
+/** Whether prompts and usage are re-read on a timer: only a working agent writes new ones, others re-read on each status change; exhaustive so a status change breaks the build. */
+const POLLED: Record<AgentStatus, boolean> = {
+  idle: false,
   working: true,
-  blocked: true,
-  done: true,
+  blocked: false,
+  done: false,
   stopped: false,
   error: false,
 };
 
-export function isLiveStatus(status: AgentStatus): boolean {
-  return LIVE[status];
+export function isPolledStatus(status: AgentStatus): boolean {
+  return POLLED[status];
 }
 
 /** Store-boundary guard against an older bridge: `exited` is `error` (non-zero exit) or `stopped`, any other unknown value `idle`. */

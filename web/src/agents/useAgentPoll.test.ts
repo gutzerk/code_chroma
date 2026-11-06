@@ -7,7 +7,7 @@ describe("useAgentPoll", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it.each<AgentStatus>(["idle", "working", "blocked", "done"])("re-reads every interval while the agent is %s", (status) => {
+  it.each<AgentStatus>(["working"])("re-reads every interval while the agent is %s", (status) => {
     const read = vi.fn(() => Promise.resolve());
     renderHook(() => useAgentPoll("a1", status, true, 1000, read));
 
@@ -16,7 +16,7 @@ describe("useAgentPoll", () => {
     expect(read).toHaveBeenCalledTimes(4);
   });
 
-  it.each<AgentStatus>(["stopped", "error"])("reads once and never polls while the agent is %s", (status) => {
+  it.each<AgentStatus>(["idle", "blocked", "done", "stopped", "error"])("reads once and never polls while the agent is %s", (status) => {
     const read = vi.fn(() => Promise.resolve());
     renderHook(() => useAgentPoll("a1", status, true, 1000, read));
 

@@ -327,7 +327,8 @@ def test_the_hook_without_its_env_posts_nothing(monkeypatch):
 def test_status_hooks_register_every_event_with_a_tool_matcher_where_claude_takes_one():
     hooks = hook_document(session_tracking=False, status_hooks=True)["hooks"]
 
-    assert set(hooks) == set(agent_hook.EVENTS)
+    assert set(hooks) == {*agent_hook.EVENTS, "SessionStart"}
     assert all(hooks[n][0]["hooks"][0]["command"].endswith("agent_hook.py") for n in hooks)
+    assert hooks["SessionStart"][0]["matcher"] == agent_hook.CLEAR_SOURCE
     assert hooks["PreToolUse"][0]["matcher"] == "*"
     assert "matcher" not in hooks["Stop"][0]

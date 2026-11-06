@@ -35,6 +35,9 @@ public sealed class AgentRuntime(
 {
     public const int StatusPollMs = 250;
 
+    /// <summary>The events-socket message telling every canvas an agent's conversation was cleared, so its prompt list empties at once.</summary>
+    public const string HistoryClearedEvent = "agent-history-cleared";
+
     private CancellationTokenSource? _stop;
     private Task? _poller;
 
@@ -54,6 +57,7 @@ public sealed class AgentRuntime(
         agents.BranchLookup = branches.Find;
         agents.RevalidateActiveWorkspace();
         sessions.Exited = id => _ = BroadcastAgent(id);
+        sessions.Cleared = id => _ = connections.Broadcast(new System.Text.Json.Nodes.JsonObject { ["type"] = HistoryClearedEvent, ["id"] = id });
 
         return Task.CompletedTask;
     }
@@ -118,7 +122,7 @@ public sealed class AgentRuntime(
         var env = new Dictionary<string, string>(launch.Env);
         BridgeAddress.ExportIdentity(env, record.Id, BareSkill.BridgeUrl);
         AgentSession session;
-        try { session = sessions.Start(record.Id, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths); }
+        try { session = sessions.Start(record.Id, launch.Argv, record.Worktree, launch.DetectorKind ?? record.Kind, env, paths, clear: launch.Clear); }
         catch (AgentStartException error)
         {
             log.LogWarning("agents: could not auto-start {Agent}: {Reason}", record.Id, error.Message);

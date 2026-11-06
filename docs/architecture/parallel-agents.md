@@ -52,10 +52,11 @@ report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `wo
   `session_ownership.hook_document(..., status_hooks=True)`). The launch also exports
   `CODECHROMA_BRIDGE_URL`, `CODECHROMA_QUESTION_TOKEN` and `CODECHROMA_WORKSPACE_ID` (= agent id) even
   without the MCP server. Events: `UserPromptSubmit`, `PreToolUse` (`*`, after the AskUserQuestion
-  entry), `PostToolUse` (`*`), `Stop`, `Notification`, `PermissionRequest` (`*`).
+  entry), `PostToolUse` (`*`), `Stop`, `Notification`, `PermissionRequest` (`*`), plus `SessionStart`
+  with matcher `clear` (history clearing, see "Clearing the conversation" below; no status change).
 - The hook command is the bridge binary's `agent-hook` subcommand (`Agents/AgentHook.cs`, dispatched
   in `Program.cs`); Python runs the stdlib-only `bridge/agents/agent_hook.py`. It POSTs a slimmed
-  report (`AgentHook.Slim` / `slim`: `hook_event_name`, `tool_name`, `notification_type` and only
+  report (`AgentHook.Slim` / `slim`: `hook_event_name`, `tool_name`, `notification_type`, `source` and only
   the `file_path`/`command`/`pattern`/`url` keys of `tool_input`, never `tool_response`) to
   `POST /agents/{id}/hook` with the bearer token and exits 0 silently on any error. The env wiring is
   read by `Http/HookEnv.cs`, shared with the AskUserQuestion hook; the route checks the token with
@@ -112,6 +113,40 @@ report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `wo
 - Tests: `Agents/AgentStatusStateTests.cs`, `Agents/AgentHookTests.cs`,
   `Agents/AgentLifecycleStatusTests.cs`, `tests/unit/test_agent_live_status.py`, contract cases in
   `tests/fixtures/bridge_contract/agents.cases.json` (the `token` step mints an agent's bearer token).
+
+## Clearing the conversation (both bridges)
+
+When the user clears the CLI's chat (`/clear` and its aliases), the agent window drops the old turns at
+once, not on the next reopen. Each CLI adapter defines its own clear (C# `ICliAdapter.ClearCommands` /
+`HookReportsClear` / `RepaintInput` in `Skills/CliAdapters.cs`; Python class attributes
+`clear_commands` / `hook_reports_clear` / `repaint_input` in `llm/cli_adapters.py`). The launch turns it
+into a `ClearWatch` (`Agents/HistoryClear.cs`, Python `bridge/agents/history_clear.py`), carried on
+`AgentLaunch.Clear` / `.clear` into `AgentSessionRegistry.Start(..., clear)`.
+
+| CLI (adapter) | Commands | Signal | Repaint |
+|---|---|---|---|
+| Claude Code (`claude`) | `/clear`, `/reset`, `/new` | `SessionStart` hook, source `clear` (menu picks too) | Ctrl+L |
+| Claude without the hooks (no bridge URL/agent id) | same | typed input | Ctrl+L |
+| Codex (`codex`) | `/clear`, `/new` | typed input | — |
+| Kimi Code (`kimi-cli`) | `/new`, `/clear` | typed input | — |
+| Gemini CLI (`gemini`) | `/clear` | typed input | — |
+| Shell, stand-in binary | — | none | — |
+
+- Clear: `AgentSession.ClearHistory()` (Python `clear_history()`) sends `ESC[3J` down the output path,
+  so the tap's history (C#) and every attached xterm's scrollback are erased in order with the CLI's
+  output, writes the repaint input after `RepaintDelay` (300 ms), and fires `Cleared` / `on_clear`,
+  which broadcasts `{"type": "agent-history-cleared", "id"}`. The web empties that agent's prompt
+  list (`promptNavStore.clear`, from `AgentWindowLayer`); the transcript-based list refills from the new
+  session id on its next read.
+- ⚠ Claude Code 2.1 prints no clear sequence on `/clear` (verified on a PTY): the old turns stay on
+  screen and in the scrollback without this. Ctrl+L wipes the visible rows and redraws the prompt.
+- Typed detection (`TypedClearDetector`) follows `AgentSession.Write`: a submitted line whose first
+  word is a clear command matches; backspace edits, Ctrl+U/Ctrl+C reset, bracketed paste counts. A
+  line touched by cursor keys, Tab completion or other control keys is unknown and never matches, so
+  a clear picked from a menu or recalled from history is missed for typed CLIs.
+- Tests: `Agents/HistoryClearTests.cs`, `tests/unit/test_agent_history_clear.py`,
+  `web/src/agents/prompts/promptNavStore.test.ts`, `web/src/agents/AgentWindowLayer.test.tsx`, contract
+  case `a_clear_session_start_hook_is_accepted_and_leaves_the_status`.
 
 ## Python development/reference implementation
 
@@ -488,7 +523,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `POST /agents/{id}/hook` (bearer token of that agent), `PATCH /agents/{id}/window`,
   `GET /agents/{id}/pr-preflight`, `GET /agents/git-preflight`, `POST /agents/git-init`,
   `POST /workspaces/{id}/activate`, `GET /workspaces/{id}/status`. Lifecycle pings
-  (`agent-added`/`agent-removed`/`agent-status`) travel over the existing
+  (`agent-added`/`agent-removed`/`agent-status`/`agent-history-cleared`) travel over the existing
   `WS /repos/{id}/events` — no new socket.
 - 🔴 Agent processes start **from the bridge**, never the renderer: that is the only way they inherit
   the PATH the bridge's `RuntimeEnvironment` captures from the user's login shell (see [`runtime-environment.md`](runtime-environment.md)), without which a Finder-launched app can't find

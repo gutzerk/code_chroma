@@ -25,6 +25,15 @@ public interface ICliAdapter
 
     /// <summary>How an interactive window run in <paramref name="workdir"/> reaches the bridge's ask_user MCP server; null when the CLI has no verified way.</summary>
     McpLaunch? Mcp(McpEndpoint endpoint, string? workdir) => null;
+
+    /// <summary>The interactive slash commands (aliases included) that start a fresh conversation; empty when none is verified.</summary>
+    IReadOnlyList<string> ClearCommands => [];
+
+    /// <summary>Whether a hook reports a cleared conversation to the bridge, so typed commands need no watching once the hooks are wired.</summary>
+    bool HookReportsClear => false;
+
+    /// <summary>Input that makes the CLI repaint its screen without the old conversation after the bridge dropped the scrollback; null when it repaints on its own.</summary>
+    string? RepaintInput => null;
 }
 
 /// <summary>The options and env that register the bridge's MCP server with one CLI process.</summary>
@@ -69,6 +78,14 @@ public sealed class ClaudeAdapter : ICliAdapter
     public const string ForkSessionFlag = "--fork-session";
 
     public bool CanResume => true;
+
+    /// <summary>`/clear` and its aliases; the SessionStart hook (source `clear`) reports them, picks from the command menu included.</summary>
+    public IReadOnlyList<string> ClearCommands => ["/clear", "/reset", "/new"];
+
+    public bool HookReportsClear => true;
+
+    /// <summary>Ctrl+L: /clear leaves the old turns on screen, while Ctrl+L wipes the visible rows and redraws the prompt.</summary>
+    public string? RepaintInput => "\f";
 
     public IReadOnlyList<string> ResumeArgs(string session, bool fork) => fork ? [ResumeFlag, session, ForkSessionFlag] : [ResumeFlag, session];
 
@@ -126,6 +143,9 @@ public sealed class CodexAdapter : ICliAdapter
     private const int MaxMessage = 200;
     private static readonly string[] ToolTypes = ["command_execution", "file_change", "mcp_tool_call", "web_search", "plan_update"];
 
+    /// <summary>`/new` starts a new chat; `/clear` also clears the terminal.</summary>
+    public IReadOnlyList<string> ClearCommands => ["/clear", "/new"];
+
     /// <summary>`-c` overrides for one streamable-http server; Codex reads its bearer token from the env, so it never sits in argv.</summary>
     public McpLaunch? Mcp(McpEndpoint endpoint, string? workdir) => new(
     [
@@ -175,6 +195,9 @@ public sealed class CodexAdapter : ICliAdapter
 public sealed class KimiAdapter : ICliAdapter
 {
     private const int MaxMessage = 200;
+
+    /// <summary>Kimi Code's `/new` and its alias `/clear`.</summary>
+    public IReadOnlyList<string> ClearCommands => ["/new", "/clear"];
 
     /// <summary>Kimi's project-local MCP file, relative to the window's working directory; SkillSync keeps it out of git.</summary>
     public const string McpConfig = ".kimi-code/mcp.json";
@@ -229,6 +252,9 @@ public sealed class KimiAdapter : ICliAdapter
 public sealed class GeminiAdapter : ICliAdapter
 {
     private const int MaxMessage = 200;
+
+    /// <summary>`/clear` resets the chat and clears the screen.</summary>
+    public IReadOnlyList<string> ClearCommands => ["/clear"];
 
     /// <summary>Env var Gemini CLI reads for its system settings path, the only per-process way to hand it an MCP server.</summary>
     public const string SettingsEnv = "GEMINI_CLI_SYSTEM_SETTINGS_PATH";

@@ -311,11 +311,12 @@ export interface EngineClient {
   dispose?(): void;
 }
 
-/** The four agent-lifecycle messages, fanned out to one listener set each but delivered together. */
+/** The agent-lifecycle messages, fanned out to one listener set each but delivered together. */
 export const AGENT_EVENT_TYPES = [
   "agent-added",
   "agent-removed",
   "agent-status",
+  "agent-history-cleared",
   "branch-removed",
 ] as const;
 

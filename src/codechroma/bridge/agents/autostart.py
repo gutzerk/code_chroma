@@ -60,7 +60,8 @@ def _auto_start_one(services: BridgeServices, record: AgentRecord, question_mcp=
     run_env = agent_run_env(record.id, extra=launch.env)
     try:
         session = services.agent_sessions.start(
-            record.id, argv, Path(record.worktree), kind=launch.detector_kind, env=run_env
+            record.id, argv, Path(record.worktree), kind=launch.detector_kind, env=run_env,
+            clear=launch.clear,
         )
     except AgentStartError as exc:
         logger.warning("agents: could not auto-start %s: %s", record.id, exc)

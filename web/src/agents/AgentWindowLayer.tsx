@@ -7,6 +7,7 @@ import { flagDiagramsReady } from "./agentDiagramsReady";
 import { startAgentStatusSync } from "./agentStatusSync";
 import { agentStore, useActiveWorkspace, useAgents, useGitPreflight, usePendingClose } from "./agentStore";
 import { agentDockStore } from "./agentDockStore";
+import { promptNavStore } from "./prompts/promptNavStore";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { GitInitDialog } from "./GitInitDialog";
 import { AgentToastLayer } from "./toasts/AgentToastLayer";
@@ -69,6 +70,8 @@ export function AgentWindowLayer() {
       engineClient.subscribeAgents((message) => {
         if (message.type === "agent-added") agentStore.upsert(message.agent);
         else if (message.type === "agent-removed") agentStore.remove(message.id);
+        // The terminal's own scrollback is erased by the bridge's output stream; the prompt list is ours to drop.
+        else if (message.type === "agent-history-cleared") promptNavStore.clear(message.id);
         else if (message.type === "agent-status") {
           const { type: _type, id, status, ...fields } = message;
           const previous = agentStore.getAgent(id)?.status;

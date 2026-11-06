@@ -101,6 +101,13 @@ class PromptNavStore extends Store {
     this.set(agentId, { findRequest: this.get(agentId).findRequest + 1 });
   };
 
+  /** The user cleared the agent's conversation (`agent-history-cleared`): its prompts and their echoes are gone. */
+  clear = (agentId: string): void => {
+    if (!this.states.has(agentId)) return;
+    this.lockUntil.delete(agentId);
+    this.set(agentId, { prompts: [], lines: [], totalLines: 0, current: 0, announce: "" });
+  };
+
   /** Drops the state of agents that no longer exist. */
   retain = (agentIds: readonly string[]): void => {
     const keep = new Set(agentIds);

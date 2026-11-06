@@ -66,6 +66,12 @@ public static class AgentSessionOwnership
                 if (hooks[name] is not JsonArray list) hooks[name] = list = [];
                 list.Add(entry);
             }
+        if (statusHooks)
+        {
+            // only a /clear reports, so startup, resume and compact start no extra process
+            if (hooks["SessionStart"] is not JsonArray starts) hooks["SessionStart"] = starts = [];
+            starts.Add(new JsonObject { ["matcher"] = AgentHook.ClearSource, ["hooks"] = new JsonArray(Hook(AgentHook.Command, AgentHook.HookTimeoutSeconds)) });
+        }
         return hooks;
     }
 

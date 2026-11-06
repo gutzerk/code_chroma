@@ -138,6 +138,9 @@ Stages 1-3 of [`docs/planning/023-llm-settings-default-model.md`](../planning/02
 - **`llm/cli_adapters.py`**: `CliAdapter` Protocol (`build_argv(binary, prompt, model)`,
   `parse_line(raw, repo_root)`) and `CLI_ADAPTERS = {"claude": ClaudeAdapter(), "codex":
   CodexAdapter(), "kimi-cli": KimiAdapter()}` — a plain dict, extensible without touching callers.
+  Each adapter also names its interactive clear commands (`clear_commands`, C#
+  `ICliAdapter.ClearCommands`), used to clear an agent window's history — see
+  [`parallel-agents.md`](parallel-agents.md) "Clearing the conversation".
   `ClaudeAdapter` is the exact argv shape and `stream-json` parser `skill_agent.py`'s `_run_claude`
   used to build inline (now generalized). `CodexAdapter` runs `codex exec --model <model> --sandbox
   workspace-write --json <prompt>` — `codex exec` has no interactive-approval flag at all (there's

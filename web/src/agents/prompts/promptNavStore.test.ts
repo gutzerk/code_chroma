@@ -24,6 +24,22 @@ describe("promptNavStore", () => {
     expect([promptNavStore.get("a").prompts.length, promptNavStore.get("b").prompts.length]).toEqual([1, 0]);
   });
 
+  it("a cleared conversation drops its prompts, layout and highlight and starts the next list on its latest prompt", () => {
+    const view = viewport();
+    promptNavStore.attach("a", view);
+    promptNavStore.setPrompts("a", [raw("one"), raw("two")]);
+    promptNavStore.setLayout("a", [10, 80], 200);
+    promptNavStore.go("a", 1);
+
+    promptNavStore.clear("a");
+    const cleared = promptNavStore.get("a");
+    promptNavStore.setPrompts("a", [raw("fresh"), raw("start")]);
+
+    expect([cleared.prompts.length, cleared.lines.length, cleared.current]).toEqual([0, 0, 0]);
+    expect(view.highlight).toHaveBeenLastCalledWith(null);
+    expect(promptNavStore.get("a").current).toBe(2);
+  });
+
   it("starts on the latest prompt and keeps the place when the list grows", () => {
     promptNavStore.setPrompts("a", [raw("one"), raw("two")]);
     promptNavStore.go("a", 1);

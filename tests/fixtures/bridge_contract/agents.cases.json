@@ -1534,6 +1534,94 @@
           }
         }
       ]
+    },
+    {
+      "id": "a_clear_session_start_hook_is_accepted_and_leaves_the_status",
+      "requires": [
+        "pty"
+      ],
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Fresh",
+              "kind": "shell",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/fresh/start",
+            "json": {}
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.status",
+                "equals": "idle"
+              }
+            ]
+          }
+        },
+        {
+          "token": "fresh",
+          "as": "tok"
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents/fresh/hook",
+            "json": {
+              "hook_event_name": "SessionStart",
+              "source": "clear"
+            },
+            "headers": {
+              "Authorization": "Bearer {{tok}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[0].status",
+                "equals": "idle"
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

@@ -75,11 +75,7 @@ class AgentStore extends Store {
    * this closes the gap a fast double-click could otherwise slip through. */
   getIsLaunching = (): boolean => this.isLaunching;
 
-  setList = (list: {
-    agents: AgentRecord[];
-    active_workspace: string;
-    max_agents: number;
-  }): void => {
+  setList = (list: { agents: AgentRecord[]; max_agents: number }): void => {
     this.agents = list.agents.map((agent) => clampToViewport(normalized(agent)));
     this.maxAgents = list.max_agents;
     this.emit();

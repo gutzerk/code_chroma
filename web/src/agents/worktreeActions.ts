@@ -11,6 +11,11 @@ function applyList(list: WorktreeList): void {
   worktreeStore.setList(list.branches, list.active);
 }
 
+/** Activates `id` on the bridge and shows its status; rejects with the bridge's error for the caller's own policy. */
+async function activate(client: AgentClient, id: string): Promise<void> {
+  workspaceStore.setStatus(await client.activateWorkspace(id));
+}
+
 /** Makes `id` (a worktree tab or an agent/PR workspace id) the canvas's workspace, persisting a tab
  * choice and bringing its graph up; a no-op when it is already shown. */
 export function selectWorktree(client: AgentClient, id: string): Promise<void> {
@@ -23,9 +28,7 @@ export function selectWorktree(client: AgentClient, id: string): Promise<void> {
       // Best effort: the choice only matters for the next boot.
     });
   }
-  return client
-    .activateWorkspace(id)
-    .then((status) => workspaceStore.setStatus(status))
+  return activate(client, id)
     // A swallowed failure would leave the canvas silently on the previous workspace's data.
     .catch((err) => agentStore.setLaunchError(messageOf(err)));
 }
@@ -38,7 +41,7 @@ export async function ensureWorktrees(client: AgentClient): Promise<void> {
   const current = agentStore.getActiveWorkspace();
   // A window opened on a PR (?workspace=pr-N) keeps it and records it as the last-viewed workspace.
   if (current.startsWith("pr-")) {
-    client.activateWorkspace(current).then(workspaceStore.setStatus, () => {
+    activate(client, current).catch(() => {
       // Best effort: the status banner's own poll reports a PR that can no longer be drawn.
     });
     return;
@@ -75,7 +78,7 @@ async function lastViewedPr(client: AgentClient): Promise<string | null> {
 async function restorePr(client: AgentClient, id: string, fallback: string | null): Promise<void> {
   agentStore.setActiveWorkspace(id);
   try {
-    workspaceStore.setStatus(await client.activateWorkspace(id));
+    await activate(client, id);
   } catch {
     if (fallback) await selectWorktree(client, fallback);
     else agentStore.setActiveWorkspace("main");

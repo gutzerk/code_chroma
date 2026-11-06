@@ -105,7 +105,7 @@ class PromptNavStore extends Store {
   clear = (agentId: string): void => {
     if (!this.states.has(agentId)) return;
     this.lockUntil.delete(agentId);
-    this.set(agentId, { prompts: [], lines: [], totalLines: 0, current: 0, announce: "" });
+    this.set(agentId, { ...EMPTY, findRequest: this.get(agentId).findRequest });
   };
 
   /** Drops the state of agents that no longer exist. */

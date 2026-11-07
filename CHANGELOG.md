@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.16.0](https://github.com/gutzerk/code_chroma/compare/v1.15.0...v1.16.0) (2026-11-07)
+
+
+### Features
+
+* guide users through drawing a diagram first ([22eb3d3](https://github.com/gutzerk/code_chroma/commit/22eb3d31845c42ed7985046263027fa6dbd56d94))
+* guide users through drawing a diagram first ([093ac95](https://github.com/gutzerk/code_chroma/commit/093ac952aabedfbda2516d69029aa995e8a0244d))
+* **web:** lay out diagrams with ELK linear-segments node placement ([2299ee0](https://github.com/gutzerk/code_chroma/commit/2299ee04d2cbf878c57867d7979caf0bffc06656))
+* **web:** lay out diagrams with ELK linear-segments node placement ([f8c63ab](https://github.com/gutzerk/code_chroma/commit/f8c63abe8cd11264530c81d2507811dcab811e4e))
+
+
+### Bug Fixes
+
+* connect all tutorial diagram blocks ([201d08d](https://github.com/gutzerk/code_chroma/commit/201d08ddfcd16d39c32d87d2c14642bf35e2473a))
+* keep Draw examples as hints and keep the tutorial dialog escapable ([4323a08](https://github.com/gutzerk/code_chroma/commit/4323a08c66f23671252818833e74fd6c498eead9))
+
 ## [1.15.0](https://github.com/gutzerk/code_chroma/compare/v1.14.0...v1.15.0) (2026-11-06)
 
 

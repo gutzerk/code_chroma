@@ -6,10 +6,9 @@ interface DrawDialogState {
   /** The card the user last picked ("last used"); null until they pick, then the dialog opens on it. */
   cardId: string | null;
   prompt: string;
-  autoPrompt: string | null;
 }
 
-const INITIAL: DrawDialogState = { open: false, cardId: null, prompt: "", autoPrompt: null };
+const INITIAL: DrawDialogState = { open: false, cardId: null, prompt: "" };
 
 /** The Draw dialog's open flag, last-used card and draft; the draft survives close/reopen until drawn. */
 class DrawDialogStore extends Store {
@@ -26,20 +25,12 @@ class DrawDialogStore extends Store {
 
   close = (): void => this.set({ open: false });
 
-  pick = (cardId: string, suggestedPrompt: string): void => {
-    const shouldReplacePrompt =
-      this.state.prompt === "" || this.state.prompt === this.state.autoPrompt;
-    this.set({
-      cardId,
-      prompt: shouldReplacePrompt ? suggestedPrompt : this.state.prompt,
-      autoPrompt: shouldReplacePrompt ? suggestedPrompt : null,
-    });
-  };
+  pick = (cardId: string): void => this.set({ cardId });
 
-  setPrompt = (prompt: string): void => this.set({ prompt, autoPrompt: null });
+  setPrompt = (prompt: string): void => this.set({ prompt });
 
   /** After a successful draw: the dialog closes and the draft goes, the last-used card stays. */
-  drawn = (): void => this.set({ open: false, prompt: "", autoPrompt: null });
+  drawn = (): void => this.set({ open: false, prompt: "" });
 
   reset = (): void => {
     this.state = INITIAL;

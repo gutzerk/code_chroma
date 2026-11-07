@@ -6,7 +6,7 @@ import { DiagramKindCard } from "./DiagramKindCard";
 import { drawDialogStore, useDrawDialog } from "./drawDialogStore";
 import { useDiagramKinds, type DrawCard } from "./useDiagramKinds";
 import { tutorialSimStore } from "../../../tutorial/tutorialSim";
-import { advanceTutorialFrom, tutorialStore } from "../../../tutorial/tutorialStore";
+import { advanceTutorialFrom, tutorialStore, useTutorialActive } from "../../../tutorial/tutorialStore";
 import "./DrawDialog.css";
 
 const FOCUSABLE =
@@ -46,7 +46,7 @@ function DrawDialogBody() {
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
-  const tutorialActive = tutorialStore.isActive();
+  const tutorialActive = useTutorialActive();
 
   const card = cards.find((c) => c.id === cardId) ?? cards.find((c) => c.id === "any") ?? cards[0];
   const blockedReason = tutorialActive
@@ -57,19 +57,21 @@ function DrawDialogBody() {
         ? "Launching…"
         : undefined;
   const canDraw = card !== undefined && !blockedReason;
+  // The tutorial lets the user change the type only while it asks for one, so it draws what is shown.
   const pickCard = (id: string) => {
-    const selected = cards.find((candidate) => candidate.id === id);
-    const suggestedPrompt = selected?.placeholder.replace(/^e\.g\.\s*/i, "") ?? "";
-    drawDialogStore.pick(id, suggestedPrompt);
-    if (tutorialStore.currentStepId() === "choose-diagram" && id === "patterns") {
-      advanceTutorialFrom("choose-diagram");
+    if (!tutorialActive) {
+      drawDialogStore.pick(id);
+      return;
     }
+    if (tutorialStore.currentStepId() !== "choose-diagram") return;
+    drawDialogStore.pick(id);
+    if (id === "patterns") advanceTutorialFrom("choose-diagram");
   };
 
   const draw = async () => {
     if (!card || blockedReason) return;
     setError(null);
-    if (tutorialStore.isActive()) {
+    if (tutorialActive) {
       drawDialogStore.drawn();
       tutorialSimStore.openAgent();
       return;
@@ -125,7 +127,7 @@ function DrawDialogBody() {
     if (!card) return;
     if (event.key === "Enter") {
       event.preventDefault();
-      if (tutorialStore.isActive()) pickCard(card.id);
+      if (tutorialActive) pickCard(card.id);
       else void drawRef.current();
       return;
     }
@@ -147,7 +149,7 @@ function DrawDialogBody() {
       className="draw-scrim"
       data-testid="draw-dialog-scrim"
       onMouseDown={(event) => {
-        if (!tutorialStore.isActive() && event.target === event.currentTarget) drawDialogStore.close();
+        if (!tutorialActive && event.target === event.currentTarget) drawDialogStore.close();
       }}
     >
       <div
@@ -201,7 +203,7 @@ function DrawDialogBody() {
             data-testid="draw-dialog-prompt"
             onChange={(event) => drawDialogStore.setPrompt(event.target.value)}
             onKeyDown={(event) => {
-              if (tutorialStore.isActive()) return;
+              if (tutorialActive) return;
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
                 void draw();
@@ -212,7 +214,11 @@ function DrawDialogBody() {
 
         <footer className="draw-dialog-foot">
           <span className="draw-dialog-hint">
-            Opens a new agent in the Agents panel · <kbd>Enter</kbd> to draw
+            {tutorialActive ? (
+              "A scripted agent draws it for this lesson"
+            ) : (
+              <>Opens a new agent in the Agents panel · <kbd>Enter</kbd> to draw</>
+            )}
           </span>
           {error && <span className="draw-dialog-error" role="alert" data-testid="draw-dialog-error">{error}</span>}
           <div className="draw-dialog-actions">

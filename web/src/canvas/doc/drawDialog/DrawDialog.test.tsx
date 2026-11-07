@@ -103,7 +103,7 @@ describe("DrawDialog", () => {
       tutorialStore.start();
       drawDialogStore.open();
     });
-    fireEvent.click(await screen.findByTestId("draw-card-sequence"));
+    await screen.findByTestId("draw-card-any");
 
     fireEvent.click(screen.getByTestId("draw-dialog-submit"));
 
@@ -126,6 +126,22 @@ describe("DrawDialog", () => {
 
     expect(drawDialogStore.getState().cardId).toBe("patterns");
     expect(tutorialStore.currentStepId()).toBe("start-draw");
+  });
+
+  it("keeps Design patterns selected once the tutorial asks to draw", async () => {
+    renderDialog();
+    act(() => {
+      tutorialStore.start();
+      while (tutorialStore.currentStepId() !== "choose-diagram") tutorialStore.next();
+      drawDialogStore.open();
+    });
+    fireEvent.click(await screen.findByTestId("draw-card-patterns"));
+
+    fireEvent.keyDown(screen.getByTestId("draw-card-patterns"), { key: "ArrowLeft" });
+    fireEvent.click(screen.getByTestId("draw-card-sequence"));
+
+    expect(tutorialStore.currentStepId()).toBe("start-draw");
+    expect(drawDialogStore.getState().cardId).toBe("patterns");
   });
 
   it("does not let Escape or prompt Enter skip the guided diagram selection", async () => {
@@ -175,38 +191,6 @@ describe("DrawDialog", () => {
     fireEvent.keyDown(first, { key: "ArrowRight" });
 
     expect(screen.getByTestId("draw-card-sequence")).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByTestId("draw-dialog-prompt")).toHaveValue("A file save → reanalyze → canvas refresh");
-  });
-
-  it("fills the selected type's example prompt and preserves text the user has edited", async () => {
-    renderDialog();
-    act(() => drawDialogStore.open());
-    await screen.findByTestId("draw-card-any");
-
-    fireEvent.click(screen.getByTestId("draw-card-sequence"));
-    expect(screen.getByTestId("draw-dialog-prompt")).toHaveValue(
-      "A file save → reanalyze → canvas refresh",
-    );
-
-    fireEvent.change(screen.getByTestId("draw-dialog-prompt"), {
-      target: { value: "Only show the save route" },
-    });
-    fireEvent.click(screen.getByTestId("draw-card-patterns"));
-
-    expect(screen.getByTestId("draw-dialog-prompt")).toHaveValue("Only show the save route");
-  });
-
-  it("updates the automatic example when the user switches diagram types", async () => {
-    renderDialog();
-    act(() => drawDialogStore.open());
-    await screen.findByTestId("draw-card-any");
-
-    fireEvent.click(screen.getByTestId("draw-card-sequence"));
-    fireEvent.click(screen.getByTestId("draw-card-patterns"));
-
-    expect(screen.getByTestId("draw-dialog-prompt")).toHaveValue(
-      "Focus on the bridge and the canvas store",
-    );
   });
 
   it("disables drawing at agent capacity, with the limit as the reason", async () => {

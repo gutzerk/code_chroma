@@ -98,28 +98,30 @@ to revive if it comes back, it would be rebuilt from scratch.
 ## Guided tutorial (`web/src/tutorial/`)
 
 When `RootCanvas`'s root node is named `codechroma-tutorial` (the project the desktop launcher's
-Tutorial button writes — `TUTORIAL_ROOT_NAME`), `useStartTutorial` closes the project-tree panel and
-starts `tutorialStore`. `TutorialChat` (mounted in `RootCanvas`) types out the current step's English
+Tutorial button writes — `TUTORIAL_ROOT_NAME`), `useStartTutorial` resets the layout (left panel open on
+Diagrams) and starts `tutorialStore`. `TutorialChat` (mounted in `RootCanvas`) types out the current step's English
 text in a floating chat, glides to the step's `target` CSS selector with an arrow and a pulsing
 highlight, and installs capture-phase guards on pointer/click events so only the target (or the chat)
 is clickable. Steps live in `tutorialSteps.ts` (`advance: "click"` waits for the target click,
-`"next"` shows a button); a step's `onEnter` can prepare state (step 3 expands `dir::backend`).
-Current lessons: welcome → open the code tree button → click `backend/service.py` → code sidebar.
-Tests: `tutorialStore.test.ts`.
+`"next"` shows a button); a step's `onEnter` can prepare state (`open-file` expands `dir::backend`).
+Stage 1 draws a diagram; stage 2 (Code tree) is open the Files tree → click `backend/service.py` → code
+sidebar. Tests: `tutorialStore.test.ts`.
 
 The chat header shows the run-agent icon plus "Stage N of 5 · title" and a 5-segment progress bar
 (`StageProgress`); each segment is a button that calls `tutorialStore.goToStage`, which jumps to that
 stage's first step. Stages are `TUTORIAL_STAGES` (names only so far); a stage without steps in
-`TUTORIAL_STEPS` renders as a disabled "coming soon" segment. All five stages are implemented, and stage 1's first click step resets the tree panel/open files so a jump back replays cleanly.
+`TUTORIAL_STEPS` renders as a disabled "coming soon" segment. All five stages are implemented, and stage 2's first click step resets the tree panel/open files so a jump back replays cleanly.
 
-**Stage 2 (Diagrams)** is scripted on top of two simulations (`tutorialSim.ts`, a non-global store so
+**Stage 1 (Diagrams)** is scripted on top of two simulations (`tutorialSim.ts`, a non-global store so
 it resets with the workspace): a fake wiki build and a fake agent run. While the tutorial runs,
-`WikiGeneralNotice` renders a simulated "Generate" (never `status.trigger`) and `DrawDiagramButton`
-opens `TutorialAgentMock` instead of `attachAgent`, so no lesson calls a model. `TutorialAgentMock` is
+`WikiGeneralNotice` renders a simulated "Generate" (never `status.trigger`). `DrawDiagramButton` opens
+the real Draw dialog (`drawDialog/DrawDialog.tsx`) with Cancel, ×, Esc and scrim-close hidden: the
+`choose-diagram` step waits for Design patterns (`pickCard` calls `advanceTutorialFrom`), the card
+selection is then locked, and "Draw with agent" (`start-draw`) opens `TutorialAgentMock` instead of
+`attachAgent`, so no lesson calls a model. `TutorialAgentMock` is
 the **real** xterm (`AgentTerminal` -> `useXtermSession`) fed through a `TerminalClientProvider` whose
-client is `drawDiagramScript.ts`'s scripted session: it types a Claude Code banner and prompt, asks
-"Which diagram would you like?" with arrow-key navigation over `DIAGRAM_CHOICES` (System context, Design patterns, Change impact),
-prints scripted work lines on Enter, then runs the real `runRecipeAndLayout(engineClient, <recipe>)`
+client is `drawDiagramScript.ts`'s scripted session: it types a Claude Code banner and the Design
+patterns prompt, prints scripted work lines, then runs the real `runRecipeAndLayout(engineClient, "patterns")`
 against the prebuilt `c1.json` / `patterns.json` / `impact.json` that `dotnet/CodeChroma.Shell/Projects/TutorialProject.cs`
 (`tutorial-project.json`) ships, and fits the canvas. The window itself reuses the real `.agent-window` chrome (run-agent icon,
 `agent-window-title`, inset terminal well), which the floating `AgentWindow` and the docked
@@ -128,8 +130,8 @@ content differs (the provider's own TUI there, the script here).
 `advance: "auto"` steps wait for `advanceTutorialFrom(stepId)`. Gotchas: the panel is hidden, not
 unmounted, when the run ends; in dev, React StrictMode's double mount makes xterm log an uncaught
 `Viewport.syncScrollArea ... 'dimensions'` error on every terminal open (not specific to the tutorial,
-absent from production builds); and the canvas document is stored server-side, so replaying stage 2 on
-the same project finds the C1 diagram already placed.
+absent from production builds); and the canvas document is stored server-side, so replaying stage 1 on
+the same project finds the diagram already placed (`TutorialAgentMock` removes it until `choose-diagram`).
 
 **Prebuilt diagrams are gated and laid out by hand.** `tutorialDiagramGate.ts` wraps the
 `EngineClient` (in `EngineClientContext`) so the tutorial project's `c1`/`patterns`/`impact` report
@@ -143,8 +145,8 @@ the hand-arranged block positions per diagram (keyed by `meta.recipe_key`; only 
 playing on or by jumping on the progress bar — `TutorialAgentMock` calls `applyStageState`
 (`tutorialStageState.ts`): `tutorialSimStore.beginStage(stage)` resets every simulated thing (wiki,
 agent windows, the pretend agents, the picked feature; `wiki` is already done and acknowledged from
-stage 3 on), the inspector, description popup, selection, collapsed layers, code tree and open files
-are closed, all diagram layers are removed, and for stages 3-4 only the design patterns diagram is
+stage 2 on), the Draw dialog, inspector, description popup, selection, collapsed layers, code tree and open files
+are closed, all diagram layers are removed, and for stages 2-4 only the design patterns diagram is
 drawn again with its saved layout (`seedLayerPositions`), so what the user did on a later stage never
 leaks into an earlier one. The agents panel goes back to its Diagrams tab (`railResets`) and both
 scripted terminals are recreated. `stageReady` turns true shortly after, so step watchers ignore the

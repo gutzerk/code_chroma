@@ -8,9 +8,13 @@
 
 **See your codebase's architecture, let AI agents change it, and understand every change on the map.**
 
-https://github.com/user-attachments/assets/51791ff0-7b0e-4c2c-b70b-2a4588432f22
+## See it in action
 
-[Watch the demo](docs/media/schema-diagram.mp4)
+![Architecture canvas with several diagrams](docs/media/demo-canvas.jpg)
+
+![AI agents working alongside the canvas](docs/media/demo-agents.jpg)
+
+![Pull request changes shown on the architecture map](docs/media/demo-impact.jpg)
 
 ## how it works
 

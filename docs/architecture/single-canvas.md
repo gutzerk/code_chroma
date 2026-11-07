@@ -211,6 +211,8 @@ what changed since.
   entirely above y=0 also computes ≤ 0, so its offset silently collapsed to 0 and the next diagram
   landed unshifted, on top of it. Fixed to check `existingElements.length === 0` instead of the
   clamped value; regression test: `autoLayout.test.ts`.
+  🔵 ELK options live in `connectors/elkLayout.ts`: node placement is `LINEAR_SEGMENTS` and crossing
+  minimization is `LAYER_SWEEP`.
   🔴 Hard-layout layers (epics columns, sequence participants/messages) are never user-dragged, so a
   refresh re-runs their whole deterministic layout (`diagramCatalog.isHardLayoutLayer` — `isEpicsLayer`
   or `render === "sequence"`) instead of only the brand-new elements. Without this a sequence layer

@@ -8332,6 +8332,30 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 .connector-label-chip--board { fill: #1F201D; stroke: #3A3B37; }
 .connector-label-text--board { font-family: var(--font-mono); font-size: 10.5px; }
 
+/* Tutorial-only board treatment for its Design patterns and System context examples. The
+   Impact diagram keeps its dedicated ImpactGlance board; no saved element geometry is changed. */
+.canvas-content--tutorial .canvas-diagram-frame-patterns,
+.canvas-content--tutorial .canvas-diagram-frame-system-context {
+  border: 1px solid var(--route-frame-border);
+  border-radius: var(--radius-btn);
+  background-color: var(--route-ground);
+  background-image: radial-gradient(var(--route-grid-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.canvas-content--tutorial .canvas-diagram-frame-patterns .canvas-diagram-frame-label,
+.canvas-content--tutorial .canvas-diagram-frame-system-context .canvas-diagram-frame-label {
+  background: var(--route-ground);
+  color: var(--route-text);
+}
+.canvas-content--tutorial [data-canvas-element][data-layer="patterns"],
+.canvas-content--tutorial [data-canvas-element][data-layer="system-context"] {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24);
+}
+.canvas-content--tutorial [data-canvas-element][data-layer="patterns"]:hover,
+.canvas-content--tutorial [data-canvas-element][data-layer="system-context"]:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
+}
+
 /* stylelint-enable declaration-property-value-disallowed-list */
 /* 026 route step: kind colour on the left rule, the "N calls" chip and the expanded children list. */
 .route-step { border-left: 4px solid var(--route-kind, #94a3b8); }

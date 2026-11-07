@@ -33,6 +33,30 @@ describe("MockBridgeEngineClient.getDiff", () => {
   });
 });
 
+describe.each(["system-context", "patterns", "impact"] as const)(
+  "MockBridgeEngineClient.getDiagram %s",
+  (kind) => {
+    it("connects every diagram block into one relationship graph", async () => {
+      const client = new MockBridgeEngineClient();
+
+      const diagram = await client.getDiagram(kind);
+      const connected = new Set([diagram.nodes[0].id]);
+      let previousSize = -1;
+      while (connected.size !== previousSize) {
+        previousSize = connected.size;
+        for (const { from, to } of diagram.relations) {
+          if (connected.has(from) || connected.has(to)) {
+            connected.add(from);
+            connected.add(to);
+          }
+        }
+      }
+
+      expect([...diagram.nodes].every(({ id }) => connected.has(id))).toBe(true);
+    });
+  },
+);
+
 describe("MockBridgeEngineClient.getRoute", () => {
   it("returns the direct edge as a two-node path", async () => {
     const client = new MockBridgeEngineClient();

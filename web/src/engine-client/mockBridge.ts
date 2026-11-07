@@ -300,9 +300,14 @@ const MOCK_C1: Diagram = {
   relations: [
     { from: "developer", to: "system", label: "Browses architecture, runs analysis" },
     { from: "system", to: "payment-provider", label: "Charges accounts via" },
+    { from: "system", to: "backend", label: "Contains backend" },
+    { from: "backend", to: "routers", label: "Routes requests to" },
     { from: "routers", to: "domain", label: "Delegates request handling to" },
+    { from: "domain", to: "orders", label: "Defines order rules" },
     { from: "orders", to: "payment-client", label: "Charges through" },
+    { from: "payment-client", to: "payment-provider", label: "Charges through" },
     { from: "frontend", to: "routers", label: "Calls" },
+    { from: "payment-provider", to: "webhooks", label: "Sends webhook callbacks to" },
   ],
 };
 
@@ -327,9 +332,12 @@ const MOCK_IMPACT: Diagram = {
     { id: "payment-provider", name: "Payment Provider", node_id: "payment-provider" },
   ],
   relations: [
-    { from: "system", to: "payment-provider", label: "Charges accounts via" },
+    { from: "system", to: "backend", label: "Contains backend" },
+    { from: "backend", to: "routers", label: "Routes requests to" },
     { from: "routers", to: "domain", label: "Delegates request handling to" },
+    { from: "domain", to: "orders", label: "Defines order rules" },
     { from: "orders", to: "payment-client", label: "Charges through" },
+    { from: "payment-client", to: "payment-provider", label: "Verifies webhooks against" },
   ],
 };
 
@@ -427,12 +435,12 @@ const MOCK_IMPACT_CHANGES: ImpactChanges = {
   ],
   relationships: [
     {
-      from: "system",
+      from: "payment-client",
       to: "payment-provider",
       label: "Verifies webhooks against",
       status: "added",
       explanation: "The new client checks webhook signatures before trusting a callback.",
-      from_node_id: "system",
+      from_node_id: "payment-client",
       to_node_id: "payment-provider",
     },
     {
@@ -528,6 +536,9 @@ const MOCK_PATTERNS: Diagram = {
     { id: "ext::postgres", name: "PostgreSQL", node_id: null, kind: "external", description: "Backing store." },
   ],
   relations: [
+    { from: "strategy::class::BaseRepository", to: "class::BaseRepository", kind: "defines" },
+    { from: "registry::class::Settings", to: "class::EmailClient", kind: "registers" },
+    { from: "facade::class::PaymentClient", to: "class::PaymentClient", kind: "wraps" },
     { from: "class::OrderRepository", to: "class::BaseRepository", kind: "implements" },
     { from: "class::UserRepository", to: "class::BaseRepository", kind: "implements" },
     { from: "class::Settings", to: "class::BaseRepository", kind: "uses" },
@@ -536,6 +547,7 @@ const MOCK_PATTERNS: Diagram = {
     { from: "class::PaymentClient", to: "attr::ledger", kind: "wraps" },
     { from: "class::PaymentClient", to: "attr::fraud_check", kind: "wraps" },
     { from: "infra::api-app", to: "class::BaseRepository", kind: "uses", label: "Routes through" },
+    { from: "infra::api-app", to: "facade::class::PaymentClient", kind: "uses", label: "Routes payments through" },
     { from: "class::OrderRepository", to: "ext::postgres", kind: "uses", label: "Persists to" },
   ],
   generated_at: "2026-01-01T00:00:00Z",

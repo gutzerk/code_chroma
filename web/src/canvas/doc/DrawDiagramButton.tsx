@@ -1,8 +1,7 @@
 import { useIsAtAgentCapacity, useIsLaunchingAgent, useMaxAgents } from "../../agents/agentStore";
 import { RailIcon } from "../../icons/RailIcon";
 import { RailButton } from "../RailButton";
-import { tutorialSimStore } from "../../tutorial/tutorialSim";
-import { tutorialStore } from "../../tutorial/tutorialStore";
+import { useTutorialActive } from "../../tutorial/tutorialStore";
 import { useDiagramWatcherError } from "./diagramWatcherErrorStore";
 import { drawDialogStore } from "./drawDialog/drawDialogStore";
 
@@ -23,15 +22,10 @@ export function DrawDiagramButton() {
   const isAtAgentCapacity = useIsAtAgentCapacity();
   const maxAgents = useMaxAgents();
   const error = useDiagramWatcherError();
+  const tutorialActive = useTutorialActive();
 
-  const onDrawDiagram = () => {
-    // The tutorial opens a scripted mock agent instead of the dialog.
-    if (tutorialStore.isActive()) {
-      tutorialSimStore.openAgent();
-      return;
-    }
-    drawDialogStore.open();
-  };
+  const onDrawDiagram = () => drawDialogStore.open();
+  const disabled = !tutorialActive && (isAtAgentCapacity || isLaunchingAgent);
 
   return (
     <div className="draw-diagram-button-wrap">
@@ -39,9 +33,11 @@ export function DrawDiagramButton() {
         className="draw-diagram-button"
         testId="draw-diagram-button"
         label="Draw…"
-        disabled={isAtAgentCapacity || isLaunchingAgent}
+        disabled={disabled}
         tooltip={
-          isAtAgentCapacity
+          tutorialActive
+            ? undefined
+            : isAtAgentCapacity
             ? `${maxAgents} agents is the limit — close one to start another`
             : isLaunchingAgent
               ? "Launching…"

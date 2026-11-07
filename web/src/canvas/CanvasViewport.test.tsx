@@ -6,12 +6,32 @@ import { selectionStore } from "../state/selectionStore";
 import { gridStep, MIN_SCALE } from "./canvasGrid";
 import { clearSavedCameraView } from "./canvasCameraStore";
 import { ZOOM_FAR_SCALE } from "./layout/layoutMetrics";
+import { tutorialStore } from "../tutorial/tutorialStore";
 
 afterEach(() => {
   selectionStore.clear();
+  tutorialStore.reset();
   // The camera persist feature restores the previous test's panned/zoomed view on the next mount;
   // clear it so each test starts from the reset origin.
   clearSavedCameraView();
+});
+
+describe("CanvasViewport tutorial diagram styling", () => {
+  it("scopes the board treatment to the canvas only while the tutorial is active", () => {
+    render(
+      <CanvasViewport>
+        <div />
+      </CanvasViewport>,
+    );
+
+    expect(screen.getByTestId("canvas-content")).not.toHaveClass("canvas-content--tutorial");
+
+    act(() => tutorialStore.start());
+    expect(screen.getByTestId("canvas-content")).toHaveClass("canvas-content--tutorial");
+
+    act(() => tutorialStore.reset());
+    expect(screen.getByTestId("canvas-content")).not.toHaveClass("canvas-content--tutorial");
+  });
 });
 
 function mockRect(el: Element, rect: { left: number; top: number; width: number; height: number }) {

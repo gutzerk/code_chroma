@@ -632,7 +632,7 @@ See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `Sequenc
 
 ## Draw dialog (025)
 
-`DrawDiagramButton` opens `drawDialog/DrawDialog.tsx`, mounted by `RootCanvas` inside `.canvas-stage` so the rail and Agents panel stay visible. `drawDialogStore` holds open/last-used card/draft (the draft survives close until drawn); `useDiagramKinds` loads the cards each time it opens; `schematics.tsx` has the static SVG per card id. Esc, Cancel, ×, or a scrim click close it; Tab is trapped; focus returns to the button. Enter in the prompt (Shift+Enter is a new line) or Enter on a card draws; arrow keys move the selection. There is deliberately no scope switch: the user writes scope ("current change only") in the prompt. A launch error shows inline in the footer; at agent capacity the button is disabled with the limit as its tooltip. The tutorial still opens its scripted mock agent instead.
+`DrawDiagramButton` opens `drawDialog/DrawDialog.tsx`, mounted by `RootCanvas` inside `.canvas-stage` so the rail and Agents panel stay visible. `drawDialogStore` holds open/last-used card/draft (the draft survives close until drawn); `useDiagramKinds` loads the cards each time it opens; `schematics.tsx` has the static SVG per card id. The card's example stays a placeholder hint and is never sent as the request. Esc, Cancel, ×, or a scrim click close it; Tab is trapped; focus returns to the button. Enter in the prompt (Shift+Enter is a new line) or Enter on a card draws; arrow keys move the selection. There is deliberately no scope switch: the user writes scope ("current change only") in the prompt. A launch error shows inline in the footer; at agent capacity the button is disabled with the limit as its tooltip. The tutorial's first stage uses this same dialog to choose Design patterns (other cards are locked once it is picked), then launches its scripted mock agent rather than creating a real one; `applyStageState` closes the dialog on a stage jump.
 
 
 ## Worktree strip (vertical tab = worktree = branch)
@@ -642,6 +642,8 @@ See "Sequence readability" in [`diagram-skills.md`](diagram-skills.md): `Sequenc
 ## Board block roles (BlocksAnatomy)
 
 `doc/blockRole.ts` derives a role (COMPONENT, ENTRY / API, DATA, EXTERNAL, ACTOR / CONCEPT, PLANNED) for `c1`/`pattern`/`impact`/`custom` boxes from existing meta only (`plan_kind`, `no_code_reason`, `shape`, `kind`, else code-backed means component). `CanvasNodeBox` adds `block-role block-role--<role>` (frame, fill, accent in `styles.css`, "Board block roles" at the end) and `NodeMetaRow` renders the header: role glyph, coloured mono role word and a status dot + word only when changed (Diff overlay), `meta.stale` or planned. SRC is an always-visible pill; copy and `?` appear on hover. Not done: the `▸ N members` chip (no member count in the doc data) and a light-theme palette (board colours are dark-only).
+
+**Tutorial diagram boards:** `CanvasViewport` adds `canvas-content--tutorial` only while the guided tutorial is active. Its scoped styles give the tutorial's Patterns and System context examples the board ground and card depth; Impact retains its dedicated ImpactGlance treatment. These styles affect only presentation, not the saved element positions or dimensions.
 
 ## Board edges, groups and focus (022, design board "BlocksFocus")
 

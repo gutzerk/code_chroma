@@ -51,7 +51,7 @@ Exit check: `POST /agents` with `sequence` + a request starts an agent whose fir
 
 Files: new `web/src/canvas/doc/drawDialog/` (`DrawDialog.tsx`, `DrawDialog.css`, `DiagramKindCard.tsx`, `schematics.tsx`, `drawDialogStore.ts`, `useDiagramKinds.ts`), `DrawDiagramButton.tsx`, `web/src/agents/agentClient.ts` (`DiagramTaskHint` gains `scope` and `selectionIds`), `RootCanvas.tsx` (mount point), `web/src/engine-client/mockBridge.ts` (serve `/diagram-kinds` for the mock).
 
-1. `DrawDiagramButton` opens the dialog instead of launching. The tutorial path (`tutorialStore.isActive()`) keeps opening the scripted mock agent.
+1. `DrawDiagramButton` opens the dialog instead of launching. The tutorial uses the same dialog, then opens the scripted mock agent when the user confirms the selected diagram type.
 2. `DrawDialog` renders over the canvas viewport only (portal into the canvas container, not `document.body`), with the scrim, focus trap, Esc and scrim-click to close.
 3. Cards from `useDiagramKinds()` (built-ins + saved custom types); keyboard: arrow keys move the selection, Enter draws.
 4. Prompt state and last-used type live in `drawDialogStore.ts` (per session; the draft survives close and reopen until drawn).

@@ -16,6 +16,7 @@ import { gridStep, gridStepFor, MIN_SCALE } from "./canvasGrid";
 import { useSavedCanvasStyle, viewportTextureImage } from "../canvas-style/canvasStyleStore";
 import { clamp } from "../util/clamp";
 import { readSavedCameraView, writeSavedCameraView } from "./canvasCameraStore";
+import { useTutorialActive } from "../tutorial/tutorialStore";
 
 export interface CanvasViewportHandle {
   /** Returns false, without moving the camera, when `nodeId` isn't mounted yet — callers that need
@@ -259,6 +260,7 @@ function clickTargetBelowArrow(clientX: number, clientY: number): HTMLElement | 
  * block under it. The click a completed drag would synthesize is swallowed so it can't also toggle. */
 export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportProps>(
   function CanvasViewport({ children, insets = NO_INSETS, onViewChange }, ref) {
+    const tutorialActive = useTutorialActive();
     // Restore the persisted camera at mount (lazy initializer so localStorage is read once). Reset
     // to the fresh origin when nothing is saved -- readSavedCameraView returns null for an absent
     // or at-origin view.
@@ -915,7 +917,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
       >
         <div
           ref={contentRef}
-          className={`canvas-content ${isFocusing ? "canvas-content--animated" : ""}`}
+          className={`canvas-content ${isFocusing ? "canvas-content--animated" : ""}${tutorialActive ? " canvas-content--tutorial" : ""}`}
           data-testid="canvas-content"
           data-zoom={zoomLevelFor(view.scale)}
           style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}

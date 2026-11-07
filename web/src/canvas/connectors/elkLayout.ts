@@ -120,6 +120,8 @@ export async function computeElkLayout(
       "elk.spacing.componentComponent": String(ELK_NODE_SEP),
       "elk.separateConnectedComponents": "true",
       "elk.aspectRatio": "1.6",
+      "elk.layered.nodePlacement.strategy": "LINEAR_SEGMENTS",
+      "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
       ...(hasFeedback ? { "elk.layered.feedbackEdges": "true" } : {}),
     },
     children: clusterByLane(nodes).map((node) => {

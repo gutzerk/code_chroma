@@ -12,9 +12,15 @@
 
 ![Architecture canvas with several diagrams](docs/media/demo-canvas.jpg)
 
+*Explore your code at multiple levels at once.*
+
 ![AI agents working alongside the canvas](docs/media/demo-agents.jpg)
 
+*Work with multiple AI agents side by side, right in the app.*
+
 ![Pull request changes shown on the architecture map](docs/media/demo-impact.jpg)
+
+*Review code and changes on the architecture map.*
 
 ## how it works
 

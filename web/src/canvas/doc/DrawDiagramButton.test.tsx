@@ -13,6 +13,8 @@ import { writeCachedDiagramsStatus } from "./diagramStatusCache";
 import { DrawDiagramButton } from "./DrawDiagramButton";
 import { drawDialogStore } from "./drawDialog/drawDialogStore";
 import { useDiagramReadinessWatcher } from "./useDiagramReadinessWatcher";
+import { tutorialSimStore } from "../../tutorial/tutorialSim";
+import { tutorialStore } from "../../tutorial/tutorialStore";
 
 function ButtonWithWatcher() {
   useDiagramReadinessWatcher();
@@ -55,6 +57,7 @@ afterEach(() => {
   canvasDocStore.reset();
   agentStore.reset();
   drawDialogStore.reset();
+  tutorialStore.reset();
   sessionStorage.clear();
 });
 
@@ -74,6 +77,16 @@ describe("DrawDiagramButton", () => {
 
     expect(drawDialogStore.getState().open).toBe(true);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("opens the Draw dialog during the tutorial instead of skipping to the mock agent", () => {
+    tutorialStore.start();
+    renderButton({});
+
+    fireEvent.click(screen.getByTestId("draw-diagram-button"));
+
+    expect(drawDialogStore.getState().open).toBe(true);
+    expect(tutorialSimStore.getSnapshot().agent).toBe("closed");
   });
 
   it("disables itself while an agent launch is in flight, so a click gets visible feedback", () => {

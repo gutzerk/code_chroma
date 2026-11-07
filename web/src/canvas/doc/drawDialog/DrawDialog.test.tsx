@@ -8,12 +8,15 @@ import type { EngineClient } from "../../../engine-client/EngineClient";
 import { EngineClientProvider } from "../../../engine-client/EngineClientContext";
 import { IMPACT_CHANGES_STUB } from "../../../engine-client/stubEngineClient";
 import type { AgentRecord, BuiltinDiagramKind } from "../../../state/types";
+import { tutorialSimStore } from "../../../tutorial/tutorialSim";
+import { tutorialStore } from "../../../tutorial/tutorialStore";
 import { DrawDialog } from "./DrawDialog";
 import { drawDialogStore } from "./drawDialogStore";
 
 const KINDS: BuiltinDiagramKind[] = [
   { id: "any", name: "Let the agent pick", purpose: "Pick for me" },
   { id: "sequence", name: "Sequence", purpose: "Calls in order" },
+  { id: "patterns", name: "Design patterns", purpose: "Patterns in the code" },
   { id: "custom", name: "Custom type", purpose: "Your own" },
 ];
 
@@ -60,6 +63,7 @@ afterEach(() => {
   cleanup();
   agentStore.reset();
   drawDialogStore.reset();
+  tutorialStore.reset();
 });
 
 describe("DrawDialog", () => {
@@ -93,6 +97,53 @@ describe("DrawDialog", () => {
     expect(drawDialogStore.getState().prompt).toBe("");
   });
 
+  it("starts the scripted tutorial agent without creating a real agent", async () => {
+    const create = renderDialog();
+    act(() => {
+      tutorialStore.start();
+      drawDialogStore.open();
+    });
+    fireEvent.click(await screen.findByTestId("draw-card-sequence"));
+
+    fireEvent.click(screen.getByTestId("draw-dialog-submit"));
+
+    expect(create).not.toHaveBeenCalled();
+    expect(drawDialogStore.getState().open).toBe(false);
+    expect(tutorialSimStore.getSnapshot().agent).toBe("open");
+  });
+
+  it("advances the tutorial when Design patterns is picked with the keyboard", async () => {
+    renderDialog();
+    act(() => {
+      tutorialStore.start();
+      while (tutorialStore.currentStepId() !== "choose-diagram") tutorialStore.next();
+      drawDialogStore.open();
+    });
+    const anyCard = await screen.findByTestId("draw-card-any");
+
+    fireEvent.keyDown(anyCard, { key: "ArrowRight" });
+    fireEvent.keyDown(screen.getByTestId("draw-card-sequence"), { key: "ArrowRight" });
+
+    expect(drawDialogStore.getState().cardId).toBe("patterns");
+    expect(tutorialStore.currentStepId()).toBe("start-draw");
+  });
+
+  it("does not let Escape or prompt Enter skip the guided diagram selection", async () => {
+    renderDialog();
+    act(() => {
+      tutorialStore.start();
+      drawDialogStore.open();
+    });
+    await screen.findByTestId("draw-card-any");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.keyDown(screen.getByTestId("draw-dialog-prompt"), { key: "Enter" });
+
+    expect(drawDialogStore.getState().open).toBe(true);
+    expect(tutorialSimStore.getSnapshot().agent).toBe("closed");
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+  });
+
   it("keeps the dialog open and shows the error when the launch fails", async () => {
     renderDialog({ create: async () => { throw new Error("boom"); } });
     act(() => drawDialogStore.open());
@@ -124,6 +175,38 @@ describe("DrawDialog", () => {
     fireEvent.keyDown(first, { key: "ArrowRight" });
 
     expect(screen.getByTestId("draw-card-sequence")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("draw-dialog-prompt")).toHaveValue("A file save → reanalyze → canvas refresh");
+  });
+
+  it("fills the selected type's example prompt and preserves text the user has edited", async () => {
+    renderDialog();
+    act(() => drawDialogStore.open());
+    await screen.findByTestId("draw-card-any");
+
+    fireEvent.click(screen.getByTestId("draw-card-sequence"));
+    expect(screen.getByTestId("draw-dialog-prompt")).toHaveValue(
+      "A file save → reanalyze → canvas refresh",
+    );
+
+    fireEvent.change(screen.getByTestId("draw-dialog-prompt"), {
+      target: { value: "Only show the save route" },
+    });
+    fireEvent.click(screen.getByTestId("draw-card-patterns"));
+
+    expect(screen.getByTestId("draw-dialog-prompt")).toHaveValue("Only show the save route");
+  });
+
+  it("updates the automatic example when the user switches diagram types", async () => {
+    renderDialog();
+    act(() => drawDialogStore.open());
+    await screen.findByTestId("draw-card-any");
+
+    fireEvent.click(screen.getByTestId("draw-card-sequence"));
+    fireEvent.click(screen.getByTestId("draw-card-patterns"));
+
+    expect(screen.getByTestId("draw-dialog-prompt")).toHaveValue(
+      "Focus on the bridge and the canvas store",
+    );
   });
 
   it("disables drawing at agent capacity, with the limit as the reason", async () => {

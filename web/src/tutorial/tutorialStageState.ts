@@ -28,7 +28,7 @@ export async function applyStageState(stage: number, engineClient: EngineClient)
   selectionStore.clear();
   collapsedLayersStore.reset();
   layoutStore.reset();
-  if (stage === 1) layoutStore.closeLeft();
+  if (stage === 2) layoutStore.closeLeft();
   openFilesStore.reset();
 
   const placed = collectActiveLayers(canvasDocStore.getDoc());

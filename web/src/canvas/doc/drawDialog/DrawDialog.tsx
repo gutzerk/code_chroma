@@ -5,6 +5,8 @@ import { agentStore, useIsAtAgentCapacity, useIsLaunchingAgent, useMaxAgents } f
 import { DiagramKindCard } from "./DiagramKindCard";
 import { drawDialogStore, useDrawDialog } from "./drawDialogStore";
 import { useDiagramKinds, type DrawCard } from "./useDiagramKinds";
+import { tutorialSimStore } from "../../../tutorial/tutorialSim";
+import { advanceTutorialFrom, tutorialStore } from "../../../tutorial/tutorialStore";
 import "./DrawDialog.css";
 
 const FOCUSABLE =
@@ -44,18 +46,34 @@ function DrawDialogBody() {
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
+  const tutorialActive = tutorialStore.isActive();
 
   const card = cards.find((c) => c.id === cardId) ?? cards.find((c) => c.id === "any") ?? cards[0];
-  const blockedReason = isAtCapacity
-    ? `${maxAgents} agents is the limit — close one to start another`
-    : isLaunching
-      ? "Launching…"
-      : undefined;
+  const blockedReason = tutorialActive
+    ? undefined
+    : isAtCapacity
+      ? `${maxAgents} agents is the limit — close one to start another`
+      : isLaunching
+        ? "Launching…"
+        : undefined;
   const canDraw = card !== undefined && !blockedReason;
+  const pickCard = (id: string) => {
+    const selected = cards.find((candidate) => candidate.id === id);
+    const suggestedPrompt = selected?.placeholder.replace(/^e\.g\.\s*/i, "") ?? "";
+    drawDialogStore.pick(id, suggestedPrompt);
+    if (tutorialStore.currentStepId() === "choose-diagram" && id === "patterns") {
+      advanceTutorialFrom("choose-diagram");
+    }
+  };
 
   const draw = async () => {
     if (!card || blockedReason) return;
     setError(null);
+    if (tutorialStore.isActive()) {
+      drawDialogStore.drawn();
+      tutorialSimStore.openAgent();
+      return;
+    }
     const before = new Set(agentStore.getAgents().map((a) => a.id));
     const text = prompt.trim();
     await attachAgent(agentClient, null, taskFor(card), {
@@ -79,7 +97,7 @@ function DrawDialogBody() {
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        drawDialogStore.close();
+        if (!tutorialStore.isActive()) drawDialogStore.close();
         return;
       }
       if (event.key !== "Tab") return;
@@ -107,7 +125,8 @@ function DrawDialogBody() {
     if (!card) return;
     if (event.key === "Enter") {
       event.preventDefault();
-      void drawRef.current();
+      if (tutorialStore.isActive()) pickCard(card.id);
+      else void drawRef.current();
       return;
     }
     const step =
@@ -117,7 +136,7 @@ function DrawDialogBody() {
     event.preventDefault();
     const next = cards[cards.findIndex((c) => c.id === card.id) + step];
     if (!next) return;
-    drawDialogStore.pick(next.id);
+    pickCard(next.id);
     requestAnimationFrame(() =>
       dialogRef.current?.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(next.id)}"]`)?.focus(),
     );
@@ -128,7 +147,7 @@ function DrawDialogBody() {
       className="draw-scrim"
       data-testid="draw-dialog-scrim"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) drawDialogStore.close();
+        if (!tutorialStore.isActive() && event.target === event.currentTarget) drawDialogStore.close();
       }}
     >
       <div
@@ -145,9 +164,11 @@ function DrawDialogBody() {
             <h2>What should the agent draw?</h2>
             <p>Pick a type, say what to focus on. An agent draws it on the canvas.</p>
           </div>
-          <button type="button" className="draw-dialog-close" aria-label="Close" onClick={drawDialogStore.close}>
-            ×
-          </button>
+          {!tutorialActive && (
+            <button type="button" className="draw-dialog-close" aria-label="Close" onClick={drawDialogStore.close}>
+              ×
+            </button>
+          )}
         </header>
 
         {loadError ? (
@@ -159,7 +180,7 @@ function DrawDialogBody() {
                 key={c.id}
                 card={c}
                 selected={c.id === card?.id}
-                onPick={() => drawDialogStore.pick(c.id)}
+                onPick={() => pickCard(c.id)}
                 onKeyDown={onCardKeyDown}
               />
             ))}
@@ -180,6 +201,7 @@ function DrawDialogBody() {
             data-testid="draw-dialog-prompt"
             onChange={(event) => drawDialogStore.setPrompt(event.target.value)}
             onKeyDown={(event) => {
+              if (tutorialStore.isActive()) return;
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
                 void draw();
@@ -194,7 +216,9 @@ function DrawDialogBody() {
           </span>
           {error && <span className="draw-dialog-error" role="alert" data-testid="draw-dialog-error">{error}</span>}
           <div className="draw-dialog-actions">
-            <button type="button" className="draw-btn" onClick={drawDialogStore.close}>Cancel</button>
+            {!tutorialActive && (
+              <button type="button" className="draw-btn" onClick={drawDialogStore.close}>Cancel</button>
+            )}
             <button
               type="button"
               className="draw-btn draw-btn--primary"

@@ -19,7 +19,7 @@ Bridge: `{BRIDGE}` · workspace: `{WORKSPACE}` · repository root: `{REPO_ROOT}`
 4. Write the definition (shape below) to a temp file and save it:
    `curl -s -w '\n%{http_code}\n' -X POST -H 'Content-Type: application/json' --data @<file> {BRIDGE}/repos/{WORKSPACE}/workflows`
    - `400` names the problem: fix it and post again.
-   - `409` means the id is taken: pick another id.
+   - `409` means the id is taken (pick another id) or the workspace is a read-only pull request.
    - To change a workflow you already saved in this session, `PUT` the full definition to
      `{BRIDGE}/repos/{WORKSPACE}/workflows/<id>`.
 5. Reply with a short summary: the name, one line per step, and which input the run asks for.

@@ -321,6 +321,7 @@ def main(argv: list[str] | None = None) -> int:
     _check_split(args.split_threshold, diagram_style, args.kind, report)
     _check_hero_budget(checks, report)
     _check_impact_status(diagram, args.kind, report)
+    _check_impact_descriptions(diagram, args.kind, report)
     _check_readability(diagram, args.kind, report)
     _check_title(diagram, args.kind, args.type_id, report)
     if not args.json_path:
@@ -910,6 +911,41 @@ def _check_impact_status(diagram: object, kind: str, report: _Report) -> None:
         elif status not in _IMPACT_STATUS_VALUES:
             report.advisories.append(
                 f"BADSTATUS {node.get('id')} status={status!r}, expected {_IMPACT_STATUS_VALUES}"
+            )
+
+
+# A changed box's description that only counts the change ("3 functions changed", "Added: X").
+_COUNT_ONLY_DESCRIPTION = re.compile(
+    r"^\s*(?:\d+\s+[\w-]+(?:\s+[\w-]+)?\s+)?"
+    r"(?:changed|added|removed|deleted|modified|new|изменен\w*|добавлен\w*|удален\w*|новы\w*)"
+    r"\s*(?::.*)?\.?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _check_impact_descriptions(diagram: object, kind: str, report: _Report) -> None:
+    """Impact only: a changed box must say what changed and why, not just how many things did."""
+    if kind != "impact" or not isinstance(diagram, dict):
+        return
+    nodes = diagram.get("nodes")
+    if not isinstance(nodes, list):
+        return
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        meta = node.get("meta")
+        status = meta.get("status") if isinstance(meta, dict) else None
+        if status not in ("new", "modified", "deleted"):
+            continue
+        description = str(node.get("description") or "").strip()
+        if not description:
+            report.advisories.append(
+                f"NOWHY {node.get('id')} changed box has no description -- say what changed and why"
+            )
+        elif _COUNT_ONLY_DESCRIPTION.match(description):
+            report.advisories.append(
+                f"COUNT-ONLY {node.get('id')} description {description!r} only counts the change"
+                " -- say what changed and why"
             )
 
 

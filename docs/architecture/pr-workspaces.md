@@ -56,7 +56,9 @@ unchanged, because `App.tsx` already routes every canvas request through `repoId
   diagrams change while it stays open. Main is never written to. 🔴 The seed also handles
   `canvas.json` itself, not just the diagram artifact files, and it is the **only** thing that can:
   a read-only workspace refuses every write through `refuse_if_read_only`. `seed_canvas_doc` copies
-  main's file when the PR has none; nothing seeds a root block anymore (the code-tree block is
+  main's file when the PR has none, and every diagram's `projection.json` comes along **except
+  `feature-plan/`** (both bridges): feature plans are per-task, their artifacts are never copied, so
+  their projections would land as orphan layers that read "not ready" and cannot be refreshed. Nothing seeds a root block anymore (the code-tree block is
   retired, see [`single-canvas.md`](single-canvas.md)'s "No root block anymore").
   🔴 `PrManager.reconcile()` backfills a PR fetched before this seeding existed, so it self-heals on
   the bridge's next restart instead of staying blank forever — but it calls **`seed_canvas_doc` and

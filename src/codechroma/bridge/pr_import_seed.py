@@ -65,7 +65,12 @@ def _copy_projections(pr_root: Path, main_root: Path) -> None:
     if not main_diagrams.is_dir():
         return
     try:
-        files = [entry for entry in main_diagrams.rglob("projection.json") if entry.is_file()]
+        # Feature plans' artifacts stay behind (see above), so their projections would be orphans.
+        files = [
+            entry
+            for entry in main_diagrams.rglob("projection.json")
+            if entry.is_file() and entry.relative_to(main_diagrams).parts[0] != "feature-plan"
+        ]
     except OSError:
         return
     for source in files:

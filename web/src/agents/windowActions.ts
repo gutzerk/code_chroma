@@ -39,7 +39,9 @@ export function openAgentWindow(client: AgentClient, id: string): void {
 export function restoreAgentWindow(client: AgentClient, id: string): void {
   openAgentWindow(client, id);
   if (!shouldActivateWorkspace(id)) return;
-  const target = agentStore.getAgent(id)?.workspace ?? id;
+  // An alias id serves its owner's data but its pings carry the owner's id, so the canvas must open the owner.
+  const agent = agentStore.getAgent(id);
+  const target = agent?.workspace ?? agent?.shares_workspace_with ?? id;
   selectWorktree(client, target);
 }
 

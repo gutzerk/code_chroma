@@ -10,6 +10,11 @@ export function reportAsyncError(scope: string, error: unknown): void {
   console.error(`[codechroma] ${scope} failed:`, error);
 }
 
+/** Says why the canvas skipped or held back an update, so a missed refresh can be traced in the console. */
+export function reportSkip(scope: string, reason: string): void {
+  console.info(`[codechroma] ${scope}: ${reason}`);
+}
+
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

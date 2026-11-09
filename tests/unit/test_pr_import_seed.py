@@ -41,6 +41,19 @@ def test_seed_copies_every_authored_diagram_into_a_bare_pr_worktree(tmp_path):
     assert (pr / "plan/epics/roadmap.md").exists()
 
 
+def test_seed_leaves_mains_feature_plans_out_of_the_pr(tmp_path):
+    main = _main_root(tmp_path)
+    _write(main, ".codechroma/diagrams/feature-plan/auth/projection.json", '{"elements": {}}')
+    _write(main, ".codechroma/diagrams/impact/projection.json", '{"elements": {}}')
+    pr = tmp_path / "pr"
+    pr.mkdir()
+
+    seed_diagrams_from_main(pr, main)
+
+    assert not (pr / ".codechroma/diagrams/feature-plan").exists()
+    assert (pr / ".codechroma/diagrams/impact/projection.json").exists()
+
+
 def test_seed_copies_canvas_doc_so_a_read_only_pr_shows_the_same_canvas(tmp_path):
     """A read-only PR can never write its own canvas-core.json, so it starts from main's."""
     main = _main_root(tmp_path)

@@ -41,3 +41,20 @@ describe("fetchAndApplyCanvasDoc after auto-layout", () => {
     await waitFor(() => expect(canvasDocStore.getDoc().elements.a).toBeDefined());
   });
 });
+
+describe("useLoadCanvasDoc on a window return", () => {
+  it("re-reads the doc when the user comes back, so a missed ping needs no reload", async () => {
+    const getCanvas = vi.fn(async () => EMPTY_CANVAS_DOC);
+    const client = {
+      getCanvas,
+      subscribeCanvas: () => () => {},
+      subscribe: () => () => {},
+    } as unknown as EngineClient;
+    renderHook(() => useLoadCanvasDoc(client));
+    await waitFor(() => expect(getCanvas).toHaveBeenCalledTimes(1));
+
+    window.dispatchEvent(new Event("focus"));
+
+    await waitFor(() => expect(getCanvas).toHaveBeenCalledTimes(2));
+  });
+});

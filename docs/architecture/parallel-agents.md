@@ -716,7 +716,10 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   (`AgentRecord.source_pr === active`): it shares nothing with the PR worktree (its own branch/worktree,
   per `pr-workspaces.md`), yet reopening it is still a child-of-the-PR action, so the canvas must stay
   on the PR being reviewed rather than yanking away to the agent's id. `restoreAgentWindow`'s own
-  `client.activateWorkspace` failure used to be swallowed silently ("best effort"); it now reports
+  target is `workspace ?? shares_workspace_with ?? id`: an attached agent's id is only a bridge
+  alias (`WorkspaceRegistry.Register(..., sharesWorkspaceWith)`), whose pings carry the owner's id,
+  so a canvas opened as `agentN` dropped every diagram ping in `isForAnotherWorkspace` and never
+  auto-added what the agent drew. Its `client.activateWorkspace` failure used to be swallowed silently ("best effort"); it now reports
   through `agentStore.setLaunchError`, since a failed activation with no feedback reads to the user as
   a rail click that did nothing.
 - There is no more `AgentPanel`/`.agent-corner` wrapper — it was removed as a redundant duplicate of

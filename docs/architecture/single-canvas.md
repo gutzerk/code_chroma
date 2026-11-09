@@ -100,7 +100,8 @@ what changed since.
 - `canvas/doc/canvasDocStore.ts` — the document in memory (`Store`-based, workspace-scoped like every
   other canvas store); state only, no layout imports. `canvas/doc/canvasDocSync.ts` holds the bridge
   sync: `useLoadCanvasDoc` (fetch + `subscribeCanvas` + the shared `subscribe`
-  "changed" ping, mirroring `useDiagram`'s shape) and `patchCanvasDoc` (calls `patchCanvas`, refetches
+  "changed" ping, mirroring `useDiagram`'s shape, plus a re-read when the user returns to the window
+  via `util/windowReturn.ts`, at most every 5 s, so a lost ping or a held-back snapshot heals without a reload) and `patchCanvasDoc` (calls `patchCanvas`, refetches
   on success). The one optimistic edit is `moveElement` — a drag settles its own position locally
   before the PATCH round trip resolves; every other mutation just waits for the refetch.
   ⚠ Both refetch paths go through one shared `fetchAndApplyCanvasDoc`, gated by the store's fetch

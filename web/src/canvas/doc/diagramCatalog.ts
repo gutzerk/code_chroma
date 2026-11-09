@@ -18,6 +18,9 @@ import { BLOCK_RULES } from "./elementRules";
 import { canvasDocStore, collectActiveLayers } from "./canvasDocStore";
 import { patchCanvasDoc } from "./canvasDocSync";
 import { captureLayerPositions, takeCachedPosition } from "./layerPositionCache";
+import { agentStore } from "../../agents/agentStore";
+import { readCachedDiagramsStatus } from "./diagramStatusCache";
+import { dismissDiagram, undismissDiagram } from "./dismissedDiagrams";
 
 export interface BuiltinRecipe {
   name: string;
@@ -255,6 +258,7 @@ export async function runRecipeAndLayout(
   // the layout pass below has run) so the canvas never flashes the pile -- fetchAndApplyCanvasDoc
   // holds off on any snapshot while at least one layer is mid-layout, and releaseLayout below
   // releases it once the laid-out positions are committed.
+  undismissDiagram(agentStore.getActiveWorkspace(), name);
   canvasDocStore.deferLayout(name);
   try {
     const result = await engineClient.runRecipe(name);
@@ -338,6 +342,9 @@ export async function removeLayerAndRefresh(
   ];
   // The warning described a diagram that is going away; keeping it would describe nothing.
   diagramHealthStore.clear(layer);
+  // Its artifact may stay ready, so the readiness watcher must not put it straight back.
+  const workspace = agentStore.getActiveWorkspace();
+  dismissDiagram(workspace, layer, readCachedDiagramsStatus(workspace)?.[layer]?.fingerprint ?? null);
   if (ops.length === 0) return { ok: true };
   const result = await patchCanvasDoc(engineClient, ops, {
     layer,

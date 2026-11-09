@@ -152,6 +152,43 @@ def test_too_many_hero_relations_is_advisory_and_never_fails_the_run(tmp_path):
     assert "TOOMANYHERO 3 hero relation(s), budget 2" in result.stdout
 
 
+def _impact_box(description):
+    diagram = _flat(2)
+    diagram["nodes"][0]["meta"] = {"status": "modified"}
+    if description is not None:
+        diagram["nodes"][0]["description"] = description
+    return diagram
+
+
+@pytest.mark.parametrize(
+    ("description", "finding"),
+    [
+        (None, "NOWHY n0 changed box has no description"),
+        ("3 functions changed", "COUNT-ONLY n0"),
+        ("2 files changed: a.go, b.go", "COUNT-ONLY n0"),
+        ("Added: TestStatusHTTP", "COUNT-ONLY n0"),
+        ("3 функции изменены", "COUNT-ONLY n0"),
+    ],
+    ids=["missing", "count", "count-with-list", "status-word", "russian-count"],
+)
+def test_an_impact_box_that_does_not_say_what_and_why_gets_an_advisory(
+    tmp_path, description, finding
+):
+    result = _run(tmp_path, "impact", _impact_box(description))
+
+    assert result.returncode == 0
+    assert finding in result.stdout
+
+
+def test_an_impact_box_that_says_what_and_why_stays_silent(tmp_path):
+    diagram = _impact_box("Passes the stored limit to the publisher, so units register under it.")
+
+    result = _run(tmp_path, "impact", diagram)
+
+    assert "COUNT-ONLY" not in result.stdout
+    assert "NOWHY" not in result.stdout
+
+
 @pytest.mark.parametrize("kind", ["patterns", "impact"])
 def test_a_non_sequence_diagram_without_readability_data_gets_advisories_only(tmp_path, kind):
     diagram = _flat(4)

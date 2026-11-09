@@ -544,6 +544,9 @@ export interface RawPrompt {
 export interface AgentRecord extends AgentStatusFields {
   id: string;
   title: string;
+  /** Who named the agent: its launch title or id, the bridge's auto-title from the session, or the user by hand
+   * (never auto-renamed). Absent from a bridge older than the field. */
+  title_source?: AgentTitleSource;
   kind: string;
   branch: string;
   /** Which of main's branches this agent belongs to. Null for a record written before the field, and
@@ -583,6 +586,8 @@ export interface AgentRecord extends AgentStatusFields {
   /** What the Draw dialog picked for a drawing agent; absent from a bridge older than the dialog. */
   diagram_type?: string | null;
   diagram_request?: string | null;
+  /** What the user described for a new workflow ("New workflow → With an agent"). */
+  workflow_request?: string | null;
   /** How many ask_user questions the agent has open, counted by the bridge in the workspace it asks
    * into; on GET /agents rows and `agent-questions` events, absent from other agent payloads. */
   open_questions?: number;
@@ -665,6 +670,8 @@ export interface GitInitResult {
   commit?: string | null;
 }
 
+export type AgentTitleSource = "default" | "auto" | "user";
+
 /** A lifecycle ping on the shared events socket. `agent-status` is the LED's only input; the bridge
  * sends one per real change, never per screen repaint. */
 export type AgentEvent =
@@ -675,6 +682,8 @@ export type AgentEvent =
   | { type: "agent-history-cleared"; id: string }
   /** The agent's ask_user questions changed (asked, answered, skipped, revised, diagram, delivered). */
   | { type: "agent-questions"; id: string; open_questions: number }
+  /** The agent was renamed: by the bridge's auto-title from what it works on, or by hand. */
+  | { type: "agent-title"; id: string; title: string; title_source: AgentTitleSource }
   | { type: "branch-removed"; id: string };
 
 /** How far a workspace's graph is from being drawable (GET /workspaces/{id}/status). A worktree is

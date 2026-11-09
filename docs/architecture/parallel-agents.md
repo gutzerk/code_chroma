@@ -212,7 +212,8 @@ Roll-up priority is blocked > error > done > working > idle; stopped never count
 | Store | `agentStore.ts` | The one status guard (`normalizeAgentStatus`, on `setList`/`upsert`/`applyStatus`): an older bridge's `exited` becomes `error` (non-zero exit) or `stopped`, any other unknown value `idle` (an `exited` event's own `exit_code` wins); `applyStatus` keeps the event's extra fields; `upsertIfCurrent` lands an HTTP reply (`/seen`, `/permission`, `/dismiss-error`) only when its `status_since` is not older than the stored one |
 | Roll-up | `statusRollup.ts` | `effectiveStatus` (an open ask_user question makes a live agent `blocked`), `rollup` -> `{top, count, counts}`, `count` = blocked + error + done, `counts` per status (the panel's header chips) |
 | Question counts | `agents/agentStore.ts` (`open_questions`, `setOpenQuestions`, `openQuestionCount`, `useOpenQuestionCount`) | The bridge counts each agent's open ask_user questions in the workspace it asks into: `open_questions` on every `GET /agents` row and on the `agent-questions` event (`{type, id, open_questions}`, global, sent on ask, answer, skip, revise, "Add diagram", an attached option diagram and a delivered batch). `upsert` keeps the last count when a payload lacks it (`agent-status` and the single-agent replies do not carry it). The LED "?", the "N questions" pill, the tab roll-ups, `agentAttention` and `agentStatusSync` read it, so nothing depends on the active tab or a canvas doc (see `ai-questions.md`) |
-| Shapes | `StatusIndicator.tsx`, `AgentLed.tsx` | `dot` 8px (tabs, strips), `icon` 16px (agent lists); pulse circle "?", square "!", check circle, spinner, ring; animations stop under `prefers-reduced-motion` |
+| Shapes | `StatusIndicator.tsx`, `AgentLed.tsx` | `dot` 8px (tabs, strips), `icon` 16px (collapsed-strip avatars); pulse circle "?", square "!", check circle, spinner, ring; animations stop under `prefers-reduced-motion` |
+| Row tint | `activity/AgentSwitcherRow.tsx` (`AgentRowButton`), `ActivityPanel.css` | The dropdown trigger, its options and the full-screen `AgentList` rows draw no status dot: `data-status` (the effective status from `agentStatusText.useAgentStatus`, shared with `AgentLed`) tints the row's background instead, `--st-<status>` mixed 14-16% into `--bg-raised` (working blue, blocked amber, error red, done green, idle plain `--bg-raised`, stopped the darker `--bg-inset`), so agents no longer look like the plain `--bg-raised` question cards; a visually hidden span (and the trigger's `aria-description`) still speaks the status label; the selected row is the `--select-ring` inset ring, which leaves the tint visible. Tests: `activity/AgentSwitcherRow.test.tsx` |
 | Worktree tabs | `WorktreeStrip.tsx`, `agentAttention.tabRollups` | Dot + badge per tab from its agents (`workspace`/`shares_workspace_with`); the selected tab hides `done`; idle shows nothing |
 | Rows | `activity/AgentStatusLine.tsx` | `working`: "Edit · src/x.ts" + live m:ss turn timer; `blocked`: "Asking permission: Bash(...)" + Allow (`POST /agents/{id}/permission`); `error`: message + Dismiss (`POST /agents/{id}/dismiss-error`); every timer shares one 1 s clock that runs only while a timer is shown |
 | Toasts | `toasts/` | blocked until answered, error until closed, done `DONE_AUTO_CLOSE_MS` (6 s, paused while hovered or focused); one per agent, dropped when the agent leaves that status; text read from the live agent record; screen readers hear them through two always-mounted live regions (assertive for blocked/error, polite for done), cards carry no live role; a closing focused toast hands focus back to where it came from; buttons share the rows' `.agent-status-action` class (`--toast` modifier) |
@@ -853,6 +854,35 @@ xterm keeps the viewport where it is when the user has scrolled up, so new outpu
 older prompt. Ctrl/Cmd+Alt+↑/↓ stays the agent switcher. Tests: `dotnet/CodeChroma.Bridge.Tests/Agents/AgentPromptsTests.cs`,
 `web/src/agents/prompts/*.test.ts(x)`.
 
+## Auto titles
+
+An agent renames itself from what it works on, the way [herdr-auto-title](https://github.com/kryptamine/herdr-auto-title)
+names terminal tabs: no model call of our own, but what Claude Code already writes into the session transcript.
+`Agents/AutoTitle.cs` (C# bridge only) picks the first of:
+
+| Source | Transcript entry | Notes |
+|---|---|---|
+| The session's `/rename` name | `{"type":"custom-title","customTitle":…}` | last one wins |
+| Claude Code's generated title | `{"type":"ai-title","aiTitle":…}` | written in the prompt's language a few seconds into the first turn, and re-appended later; last one wins |
+| Heuristic from the user's first prompt | first main-thread `user` entry (`AgentPrompts.PromptText`) | first line, links cut to their last path segment (`…/browse/GDATA-6898` → `GDATA-6898`), at most 6 words / 48 chars, first letter capitalised. Skips meta entries and text the bridge typed (`[Context]…`, `[CodeChroma …]`). A `task` agent's first prompt is the composed skill text, so it uses `diagram_request` / `workflow_request` instead, or nothing |
+
+- Trigger: the `UserPromptSubmit` and `Stop` hook reports (`AutoTitle.Triggers`). `AgentRoutes.ScheduleAutoTitle` runs the
+  refresh with `Task.Run` after the hook reply is built, so the hook and start never wait on it; one refresh per agent
+  at a time (`TitlesInFlight`). Only agents with `HasClaudeSession` and status hooks get one (a claude launched without
+  hooks keeps its launch title).
+- Reading: `AutoTitle.Read` follows each transcript by byte offset and parses only appended lines that mention a
+  `-title"` entry or, until the opening is found, a `"user"` entry; a shorter file is read again from the start.
+- Titles are one line, at most 60 chars (`AutoTitle.Shorten`, cut at a word with `…`).
+- 🔴 Manual-rename guard: `AgentRecord.TitleSource` (`title_source`, persisted in agents.json, on every payload) is
+  `default` (launch title or id), `auto` or `user`. `PATCH /agents/{id}` `{title}` (both bridges) renames by hand and
+  sets `user`; `AgentManager.ApplyAutoTitle` re-checks it under the registry lock, so a hand rename that lands while a
+  refresh runs still wins. An empty title hands the agent back (`default`, title = id). Titles longer than 120 chars are a 400.
+- Push: `{"type":"agent-title","id","title","title_source"}` on the events socket, from both the auto refresh and the
+  PATCH. The web lands it with `agentStore.setTitle` (`AgentWindowLayer`), so the panel row, window and toasts update
+  in place; `HttpAgentClient.rename` calls the PATCH. There is no rename control in the UI yet.
+- Tests: `dotnet/CodeChroma.Bridge.Tests/Agents/AutoTitleTests.cs`, contract case
+  `renaming_an_agent_by_hand_locks_its_title`, `web/src/agents/agentStore.test.ts`.
+
 ## Drawing-agent fields (025)
 
-`POST /agents` also takes `diagram_type` and `diagram_request` (trimmed, one line, at most 2000 chars); they are validated (400 with a reason) and persisted on the agent record next to `context_kind`, only for `context_kind: "task"`. Both bridges carry them (`routes/agents.py` + `agents/manager.py`; `AgentRoutes.cs` + `DiagramHint.cs` + `AgentRecord.cs`) and report them on `GET /agents`. The Draw dialog sends only the type and the request (scope is written in the request, there is no separate scope field). Only the C# bridge composes the first message from them (see `diagram-skills.md`).
+`POST /agents` also takes `diagram_type` and `diagram_request` (trimmed, one line, at most 2000 chars); they are validated (400 with a reason) and persisted on the agent record next to `context_kind`, only for `context_kind: "task"`. Both bridges carry them (`routes/agents.py` + `agents/manager.py`; `AgentRoutes.cs` + `DiagramHint.cs` + `AgentRecord.cs`) and report them on `GET /agents`. The Draw dialog sends only the type and the request (scope is written in the request, there is no separate scope field). Only the C# bridge composes the first message from them (see `diagram-skills.md`). The C# bridge also takes `workflow_request` (task agents only, same limit) for "New workflow → With an agent"; see `workflows.md`.

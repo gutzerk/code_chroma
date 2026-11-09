@@ -3,6 +3,9 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { layoutStore } from "../canvas/layout/layoutStore";
 import { WorkflowsHeaderActions } from "./WorkflowsHeaderActions";
 import { workflowStore } from "./workflowStore";
+import type { WorkflowDef } from "./types";
+
+const saved = { id: "ship", name: "Ship", inputs: [], steps: [] } as unknown as WorkflowDef;
 
 beforeEach(() => {
   layoutStore.reset();
@@ -11,7 +14,26 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("WorkflowsHeaderActions", () => {
+  it("offers New workflow as the main action while no workflow is saved", () => {
+    render(<WorkflowsHeaderActions agentsMode="normal" />);
+
+    expect(screen.queryByRole("button", { name: "Run workflow" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /New workflow/ }));
+
+    expect(workflowStore.getDialog()).toEqual({ kind: "create" });
+  });
+
+  it("keeps New workflow next to Run workflow once a workflow is saved", () => {
+    workflowStore.setWorkflows([saved]);
+    render(<WorkflowsHeaderActions agentsMode="normal" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "New workflow" }));
+
+    expect(workflowStore.getDialog()).toEqual({ kind: "create" });
+  });
+
   it("opens the run dialog and the All workflows screen from the runs view", () => {
+    workflowStore.setWorkflows([saved]);
     render(<WorkflowsHeaderActions agentsMode="normal" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Run workflow" }));
@@ -28,7 +50,7 @@ describe("WorkflowsHeaderActions", () => {
     expect(screen.queryByRole("button", { name: "Run workflow" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /New workflow/ }));
 
-    expect(workflowStore.getDialog()).toEqual({ kind: "editor" });
+    expect(workflowStore.getDialog()).toEqual({ kind: "create" });
   });
 
   it("goes full screen and collapses the panel", () => {

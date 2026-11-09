@@ -9,7 +9,8 @@ const NO_RUNS: Run[] = [];
 const HIGHLIGHT_MS = 1600;
 
 export type WorkflowView = "runs" | "all";
-export type WorkflowDialog = { kind: "run"; workflow?: WorkflowDef } | { kind: "editor"; workflow?: WorkflowDef } | null;
+/** `create` is the New workflow chooser (with an agent or by hand). */
+export type WorkflowDialog = { kind: "run"; workflow?: WorkflowDef } | { kind: "create" } | { kind: "editor"; workflow?: WorkflowDef } | null;
 
 /** Workflow definitions, run records, the open run and the one expanded step row. */
 class WorkflowStore extends Store {
@@ -257,7 +258,14 @@ export function bindWorkflows(client: EngineClient): () => void {
     if (event.event === "run.deleted") return workflowStore.removeRun(event.runId);
     refreshRun(event.runId);
   });
-  return () => { disposed = true; unsubscribe(); };
+  // A saved or deleted definition (an agent's save included) changes only the list, never the runs.
+  const unsubscribeWorkflows = client.subscribeWorkflows(() => {
+    void client
+      .listWorkflows()
+      .then((workflows) => { if (!disposed) workflowStore.setWorkflows(workflows); })
+      .catch((err) => { if (!disposed) workflowStore.setError(messageOf(err)); });
+  });
+  return () => { disposed = true; unsubscribe(); unsubscribeWorkflows(); };
 }
 
 /** Runs one steer command and folds the returned Run into the store; a failure sets the error line and is returned (null on success). */

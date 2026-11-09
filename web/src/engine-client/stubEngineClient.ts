@@ -133,6 +133,7 @@ export const WORKFLOW_STUB = {
   redoRun: noRuns,
   cancelRedo: noRuns,
   subscribeRuns: (): (() => void) => () => {},
+  subscribeWorkflows: (): (() => void) => () => {},
 };
 
 /** Inert default for the feature-011 diagram-type library slice — no saved types. Spread the same

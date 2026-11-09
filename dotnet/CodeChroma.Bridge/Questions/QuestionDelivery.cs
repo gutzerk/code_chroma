@@ -19,11 +19,14 @@ public static class QuestionDelivery
         return string.Join(' ', new string(spaced).Split(' ', StringSplitOptions.RemoveEmptyEntries));
     }
 
+    /// <summary>How every message the bridge types for a question starts, so auto-title can tell it from the user's own words.</summary>
+    public const string HeaderPrefix = "[CodeChroma";
+
     private static string Header(string kind, CanvasElement element)
     {
         var step = element.Meta["step"] is JsonValue s && s.TryGetValue(out int stepNumber) && stepNumber != 0 ? stepNumber : 1;
         var total = element.Meta["total"] is JsonValue t && t.TryGetValue(out int totalNumber) && totalNumber != 0 ? $"/{totalNumber}" : "";
-        return $"[CodeChroma {kind} · Q{step}{total} · {Json.Str(element.Meta["question_id"])}]";
+        return $"{HeaderPrefix} {kind} · Q{step}{total} · {Json.Str(element.Meta["question_id"])}]";
     }
 
     /// <summary>The line typed into the agent for a settled question: answer, skip or a changed answer after a revise.</summary>

@@ -6,6 +6,7 @@ import { RunDetail } from "./RunDetail";
 import { RunWorkflowDialog } from "./RunWorkflowDialog";
 import { RunsList } from "./RunsList";
 import { useContainerLayout } from "./useContainerLayout";
+import { NewWorkflowDialog } from "./NewWorkflowDialog";
 import { WorkflowEditorDialog } from "./WorkflowEditorDialog";
 import {
   bindWorkflows,
@@ -56,7 +57,7 @@ export function WorkflowsTab() {
           runs={runs}
           actions={actions}
           onBack={() => workflowStore.setView("runs")}
-          onEdit={(workflow) => workflowStore.setDialog({ kind: "editor", workflow })}
+          onEdit={(workflow) => workflowStore.setDialog(workflow ? { kind: "editor", workflow } : { kind: "create" })}
           onRun={runSaved}
         />
       ) : (
@@ -78,6 +79,7 @@ export function WorkflowsTab() {
         </div>
       )}
       {dialog?.kind === "run" && <RunWorkflowDialog workflow={dialog.workflow} onClose={() => workflowStore.setDialog(null)} />}
+      {dialog?.kind === "create" && <NewWorkflowDialog onClose={() => workflowStore.setDialog(null)} />}
       {dialog?.kind === "editor" && <WorkflowEditorDialog workflow={dialog.workflow} onClose={() => workflowStore.setDialog(null)} />}
     </div>
   );

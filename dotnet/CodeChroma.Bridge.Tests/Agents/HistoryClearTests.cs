@@ -270,7 +270,7 @@ public sealed class HistoryClearTests : IDisposable
 
         var slim = AgentHook.Slim(report);
 
-        Assert.Equal("""{"hook_event_name":"SessionStart","source":"clear"}""", slim.ToJsonString());
+        Assert.Equal("""{"hook_event_name":"SessionStart","source":"clear","transcript_path":"/t.jsonl"}""", slim.ToJsonString());
         Assert.True(AgentHook.IsClear(slim));
     }
 }

@@ -142,4 +142,8 @@ Main-only wikis: the C# bridge tracks both wikis against the main branch tip, ke
 
 Draw dialog (025): the Python bridge now validates and persists `diagram_type` / `diagram_request` / `diagram_scope` / `selection_ids` on `POST /agents` (it carried no diagram hint before) and serves `GET /diagram-kinds`, both from the same `kinds.json` as C#. Deliberate gap: only C# composes the drawing agent's first message from the request (Python has no `BareSkill`).
 
+Agent-designed workflows: `workflow_request` on `POST /agents`, `BareSkill.ComposeWorkflow` and the `{type: "workflows"}` ping are C#-only, like the rest of workflows (`docs/architecture/workflows.md`); the Python bridge ignores the field.
+
 Prompt navigation: `GET /agents/{id}/prompts` (user prompts with per-reply edit/run counts from the claude transcript, `Agents/AgentPrompts.cs`) is C#-only, like `/agents/{id}/usage`; the Python bridge has no transcript reader, so the request fails there and the prompt navigator stays hidden. See `docs/architecture/parallel-agents.md` "Prompt navigation".
+
+Auto titles: `title_source` on agent records and the hand rename `PATCH /agents/{id}` (with its `agent-title` push) are in parity (contract case `renaming_an_agent_by_hand_locks_its_title`). Deliberate gap: deriving the title from the claude transcript (`Agents/AutoTitle.cs`, triggered by the `UserPromptSubmit`/`Stop` hooks) is C#-only, since the Python bridge has no transcript reader; Python agents keep their launch title until renamed by hand. See `docs/architecture/parallel-agents.md` "Auto titles".

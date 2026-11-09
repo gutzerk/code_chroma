@@ -98,6 +98,7 @@ export function AgentWindowLayer() {
       engineClient.subscribeAgents((message) => {
         if (message.type === "agent-added") agentStore.upsert(message.agent);
         else if (message.type === "agent-removed") agentStore.remove(message.id);
+        else if (message.type === "agent-title") agentStore.setTitle(message.id, message.title, message.title_source);
         // The terminal's own scrollback is erased by the bridge's output stream; the prompt list is ours to drop.
         else if (message.type === "agent-history-cleared") promptNavStore.clear(message.id);
         // The bridge counted the agent's open questions; a shown window refetches its card.

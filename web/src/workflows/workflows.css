@@ -45,6 +45,17 @@
   font-size: 13px;
 }
 
+div.workflow-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+div.workflow-empty p {
+  margin: 0;
+}
+
 .workflow-canvas-ring {
   outline: 3px solid #7c3aed;
   outline-offset: 2px;
@@ -1526,4 +1537,68 @@
   color: var(--text-strong);
   font: 12px/1.6 var(--font-mono);
   white-space: pre-wrap;
+}
+
+.wf-create-dialog {
+  width: min(520px, 90vw);
+}
+
+.wf-create-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.wf-create-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wf-create-option:hover:not(:disabled),
+.wf-create-option[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.wf-create-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.wf-create-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wf-create-option-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.wf-create-option-text {
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}
+
+.wf-create-request {
+  padding: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-1);
+  font: inherit;
+  resize: vertical;
 }

@@ -125,6 +125,7 @@ export class MockAgentClient implements AgentClient {
     _contextKind?: "view" | "task",
     diagram?: DiagramTaskHint,
     workspace?: string,
+    workflowRequest?: string,
   ): Promise<AgentRecord> {
     if (attachTo === "main") throw new Error("attach_to=main is not allowed; agents work in a worktree tab");
     if (this.agents.length >= MAX_AGENTS) {
@@ -198,6 +199,7 @@ export class MockAgentClient implements AgentClient {
       worktree_lost: false,
       diagram_type: diagram?.type ?? null,
       diagram_request: diagram?.request ?? null,
+      workflow_request: workflowRequest?.trim() || null,
     };
     this.agents.push(agent);
     return agent;
@@ -255,6 +257,15 @@ export class MockAgentClient implements AgentClient {
   ): Promise<void> {
     // The mock has no real worktree or branch to delete — the flags are accepted and ignored.
     this.agents = this.agents.filter((agent) => agent.id !== _id);
+  }
+
+  async rename(id: string, title: string): Promise<AgentRecord> {
+    const agent = this.agents.find((candidate) => candidate.id === id);
+    if (!agent) throw new Error(`unknown agent: ${id}`);
+    const clean = title.trim().split(/\s+/).filter(Boolean).join(" ");
+    agent.title = clean || agent.id;
+    agent.title_source = clean ? "user" : "default";
+    return { ...agent };
   }
 
   async saveWindow(id: string, window: Partial<AgentWindowGeometry>): Promise<void> {

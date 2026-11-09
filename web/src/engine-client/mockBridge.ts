@@ -2053,4 +2053,9 @@ export class MockBridgeEngineClient implements EngineClient {
   subscribeRuns(onEvent: (event: RunEvent | undefined) => void): () => void {
     return this.on("run", onEvent);
   }
+
+  /** The mock's definitions change only through this client, whose actions re-fetch the list themselves. */
+  subscribeWorkflows(): () => void {
+    return () => {};
+  }
 }

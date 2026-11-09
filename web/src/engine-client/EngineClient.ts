@@ -272,6 +272,8 @@ export interface EngineClient {
   /** Subscribes to `run` pings on the shared events socket. A resync after a socket reopen calls the
    * listener with no event, meaning "re-fetch everything". */
   subscribeRuns(onEvent: (event: RunEvent | undefined) => void): () => void;
+  /** Subscribes to `workflows` pings: a workflow definition was saved or deleted (in any workspace). */
+  subscribeWorkflows(onChange: () => void): () => void;
   /** One fully-loaded work item (GET /repos/{id}/epics/items/{id}); `expand` names one stage node
    * id to populate its sections. Rejects with a readable message on 404. */
   getEpicsItem(itemId: string, expand?: string): Promise<EpicWorkItem>;
@@ -318,10 +320,14 @@ export const AGENT_EVENT_TYPES = [
   "agent-status",
   "agent-history-cleared",
   "agent-questions",
+  "agent-title",
   "branch-removed",
 ] as const;
 
 type AgentEventType = (typeof AGENT_EVENT_TYPES)[number];
+
+/** Pings that concern every workspace: agent lifecycle (the list spans every workspace) and workflow definitions (machine-wide). */
+const GLOBAL_EVENT_TYPES: readonly string[] = [...AGENT_EVENT_TYPES, "workflows"];
 
 /** Message `type` values the shared events socket fans out, each with its own listener set.
  * Derived from the kind unions rather than hand-listed, so a new skill-run family (including the
@@ -331,6 +337,7 @@ type EventType =
   | "trace"
   | "canvas"
   | "run"
+  | "workflows"
   | DiagramEventKind
   | `${SkillRunKind}-status`
   | `${SkillRunKind}-output`
@@ -797,6 +804,10 @@ export class HttpEngineClient implements EngineClient {
     return this.on("run", onEvent);
   }
 
+  subscribeWorkflows(onChange: () => void): () => void {
+    return this.on("workflows", () => onChange());
+  }
+
   async getEpicsItem(itemId: string, expand?: string): Promise<EpicWorkItem> {
     const query = expand ? `?expand=${encodeURIComponent(expand)}` : "";
     return this.getJson<EpicWorkItem>(`/epics/items/${encodeURIComponent(itemId)}${query}`);
@@ -951,8 +962,7 @@ export class HttpEngineClient implements EngineClient {
   /** A ping for a workspace this client isn't drawing — an agent's edits must not refetch the
    * user's own view, and vice versa. Main's pings carry no key at all, so absent means "main". */
   private isForAnotherWorkspace(message: { type?: string } & Record<string, unknown>): boolean {
-    // Agent lifecycle pings are global by nature: the list spans every workspace.
-    if ((AGENT_EVENT_TYPES as readonly string[]).includes(message.type ?? "")) return false;
+    if (GLOBAL_EVENT_TYPES.includes(message.type ?? "")) return false;
     const workspace = typeof message.workspace === "string" ? message.workspace : MAIN_WORKSPACE;
     return workspace !== this.repoId;
   }

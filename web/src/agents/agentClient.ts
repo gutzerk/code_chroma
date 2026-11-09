@@ -53,7 +53,7 @@ export interface AgentClient {
   /** Creates an agent in worktree tab `workspace` (`br_*`). `attachTo` (an agent id or a PR id like "pr-282";
    * "main" is refused) shares that agent's worktree, or forks a new one from the PR's head commit.
    * `context` with `contextKind` "view" (default) rides hidden with the first prompt (Claude only),
-   * "task" is the actionable first message; `diagram` names the diagram a task draws. */
+   * "task" is the actionable first message; `diagram` names the diagram a task draws; `workflowRequest` makes a task agent design a workflow. */
   create(
     title: string,
     kind?: string,
@@ -62,6 +62,7 @@ export interface AgentClient {
     contextKind?: "view" | "task",
     diagram?: DiagramTaskHint,
     workspace?: string,
+    workflowRequest?: string,
   ): Promise<AgentRecord>;
   /** A claude agent in workflow run `runId`'s worktree whose first start forks `sessionId` (`--resume <id> --fork-session`). */
   openStepSession(title: string, runId: string, sessionId: string): Promise<AgentRecord>;
@@ -71,6 +72,8 @@ export interface AgentClient {
   stop(id: string): Promise<AgentRecord>;
   /** Removes the card; the worktree and the branch only when explicitly asked for. */
   remove(id: string, options?: { worktree?: boolean; branch?: boolean; force?: boolean }): Promise<void>;
+  /** Renames the agent by hand, locking its title against auto-title; "" hands it back (PATCH /agents/{id}). */
+  rename?(id: string, title: string): Promise<AgentRecord>;
   /** Fired on mouse release, the way saveC1Layout already is — not on every pointer move. */
   saveWindow(id: string, window: Partial<AgentWindowGeometry>): Promise<void>;
   /** What blocks a PR, so the button can render disabled with the reason as its label. */
@@ -158,6 +161,7 @@ export class HttpAgentClient implements AgentClient {
     contextKind?: "view" | "task",
     diagram?: DiagramTaskHint,
     workspace?: string,
+    workflowRequest?: string,
   ): Promise<AgentRecord> {
     return this.request<AgentRecord>(
       "/agents",
@@ -170,6 +174,7 @@ export class HttpAgentClient implements AgentClient {
         context_kind: contextKind,
         diagram_type: diagram?.type,
         diagram_request: diagram?.request,
+        workflow_request: workflowRequest,
       }),
     );
   }
@@ -203,6 +208,10 @@ export class HttpAgentClient implements AgentClient {
     if (options.force) query.set("force", "true");
     const suffix = query.toString() ? `?${query.toString()}` : "";
     await this.request<unknown>(`/agents/${id}${suffix}`, this.json("DELETE"));
+  }
+
+  rename(id: string, title: string): Promise<AgentRecord> {
+    return this.request<AgentRecord>(`/agents/${id}`, this.json("PATCH", { title }));
   }
 
   async saveWindow(id: string, window: Partial<AgentWindowGeometry>): Promise<void> {

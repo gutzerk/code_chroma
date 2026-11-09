@@ -73,11 +73,11 @@ public static class AgentHook
         return 0;
     }
 
-    /// <summary>Only what the bridge reads off a report (never tool_response, which can be a whole file): the event, the tool, its target keys, the notification type and the SessionStart source.</summary>
+    /// <summary>Only what the bridge reads off a report (never tool_response, which can be a whole file): the event, the tool, its target keys, the notification type, the SessionStart source and the transcript path.</summary>
     public static JsonObject Slim(JsonObject report)
     {
         var slim = new JsonObject();
-        foreach (var key in new[] { "hook_event_name", "tool_name", "notification_type", "source" })
+        foreach (var key in new[] { "hook_event_name", "tool_name", "notification_type", "source", "transcript_path" })
             if (report.TryGetPropertyValue(key, out var value)) slim[key] = value?.DeepClone();
         if (report["tool_input"] is JsonObject input)
         {

@@ -100,7 +100,17 @@ export function RunWorkflowDialog({
       {workflow ? (
         <InputsForm key={workflow.id} workflow={workflow} busy={busy} onCancel={onClose} onStart={(v) => void start(v)} />
       ) : (
-        <p>No saved workflows yet. Create one from All workflows.</p>
+        <>
+          <p>No saved workflows yet.</p>
+          <div className="wf-dialog-actions">
+            <button type="button" className="wf-btn" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="button" className="wf-btn wf-btn-primary" data-testid="run-dialog-new-workflow" onClick={() => workflowStore.setDialog({ kind: "create" })}>
+              Create workflow
+            </button>
+          </div>
+        </>
       )}
     </ModalDialog>
   );

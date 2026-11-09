@@ -60,7 +60,8 @@ export function AllWorkflows({
   runs: Run[];
   actions: WorkflowActions;
   onBack: () => void;
-  onEdit: (workflow: WorkflowDef) => void;
+  /** No workflow: the New workflow chooser. */
+  onEdit: (workflow?: WorkflowDef) => void;
   onRun: (workflow: WorkflowDef) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -87,7 +88,16 @@ export function AllWorkflows({
         </label>
       </div>
       {shown.length === 0 ? (
-        <p className="workflow-empty">{workflows.length === 0 ? "No saved workflows. Use New workflow to create one." : "No workflow matches the search."}</p>
+        workflows.length === 0 ? (
+          <div className="workflow-empty">
+            <p>No saved workflows yet.</p>
+            <button type="button" className="wf-btn wf-btn-primary" data-testid="empty-new-workflow" onClick={() => onEdit()}>
+              Create your first workflow
+            </button>
+          </div>
+        ) : (
+          <p className="workflow-empty">No workflow matches the search.</p>
+        )
       ) : (
         <div className="wf-table" role="table" aria-label="Workflows">
           <div className="wf-row wf-row-head" role="row">

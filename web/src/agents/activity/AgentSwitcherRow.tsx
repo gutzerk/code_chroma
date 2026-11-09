@@ -1,11 +1,29 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import type { AgentRecord } from "../../state/types";
 import { useAgentClient } from "../AgentClientContext";
-import { AgentLed } from "../AgentLed";
 import { selectAgent } from "../agentFocus";
 import { AgentStatusActions, AgentStatusLine } from "./AgentStatusLine";
-import { agentMeta } from "./agentStatusText";
+import { agentMeta, useAgentStatus } from "./agentStatusText";
 import { ChevronDownIcon } from "./icons";
+
+/** An agent row: its background is tinted by the shown status (`data-status`); the status is also spoken text, never colour alone. */
+function AgentRowButton({
+  agent,
+  children,
+  ...props
+}: { agent: AgentRecord; children?: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const { shown, label } = useAgentStatus(agent.status, agent.id);
+  return (
+    <button type="button" {...props} data-status={shown}>
+      <span className="visually-hidden">{label}</span>
+      <span className="activity-switcher-text">
+        <span className="activity-switcher-title">{agent.title}</span>
+        <AgentStatusLine agent={agent} />
+      </span>
+      {children}
+    </button>
+  );
+}
 
 /** Full screen's left column: every agent with its status and branch; the terminal sits beside it. */
 export function AgentList({ agents, activeId }: { agents: AgentRecord[]; activeId: string | undefined }) {
@@ -15,21 +33,15 @@ export function AgentList({ agents, activeId }: { agents: AgentRecord[]; activeI
       <div className="activity-agent-list-heading">Agents · {agents.length}</div>
       {agents.map((agent) => (
         <div key={agent.id} className="activity-agent-list-row">
-          <button
-            type="button"
+          <AgentRowButton
+            agent={agent}
             className="activity-agent-list-item"
             aria-current={agent.id === activeId || undefined}
             data-testid={`agent-tab-${agent.id}`}
             data-diagram={agent.context_kind === "task" || undefined}
             title={agentMeta(agent)}
             onClick={() => selectAgent(client, agent)}
-          >
-            <AgentLed status={agent.status} agentId={agent.id} size="icon" />
-            <span className="activity-switcher-text">
-              <span className="activity-switcher-title">{agent.title}</span>
-              <AgentStatusLine agent={agent} />
-            </span>
-          </button>
+          />
           <AgentStatusActions agent={agent} />
         </div>
       ))}
@@ -51,6 +63,7 @@ export function AgentSwitcherRow({
   const menuId = useId();
   const active = agents.find((a) => a.id === activeId);
   const activeIndex = agents.findIndex((a) => a.id === activeId);
+  const activeStatus = useAgentStatus(active?.status ?? "idle", active?.id ?? "");
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
@@ -71,13 +84,15 @@ export function AgentSwitcherRow({
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         aria-label="Select agent"
+        aria-description={active ? activeStatus.label : undefined}
+        data-status={active ? activeStatus.shown : undefined}
+        data-testid="agent-switcher-trigger"
         title="Switch agents: Ctrl/Cmd+Alt+Up/Down · next waiting agent: Ctrl/Cmd+Shift+J"
         disabled={agents.length === 0}
         onClick={() => setOpen((v) => !v)}
       >
         {active ? (
           <>
-            <AgentLed status={active.status} agentId={active.id} size="icon" />
             <span className="activity-switcher-text">
               <span className="activity-switcher-title">{active.title}</span>
               <AgentStatusLine agent={active} />
@@ -102,20 +117,16 @@ export function AgentSwitcherRow({
         <ul id={menuId} className="activity-switcher-menu" aria-label="Agents">
           {agents.map((agent) => (
             <li key={agent.id} className="activity-switcher-option">
-              <button
-                type="button"
+              <AgentRowButton
+                agent={agent}
                 className="activity-switcher-option-button"
                 aria-current={agent.id === activeId || undefined}
                 data-diagram={agent.context_kind === "task" || undefined}
+                data-testid={`agent-option-${agent.id}`}
                 onClick={() => select(agent)}
               >
-                <AgentLed status={agent.status} agentId={agent.id} size="icon" />
-                <span className="activity-switcher-text">
-                  <span className="activity-switcher-title">{agent.title}</span>
-                  <AgentStatusLine agent={agent} />
-                </span>
                 {agent.context_kind === "task" && <span className="activity-agent-badge">Diagram</span>}
-              </button>
+              </AgentRowButton>
               {agent.id !== activeId && <AgentStatusActions agent={agent} />}
             </li>
           ))}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { attachAgent } from "../../../agents/attachAgent";
 import { useAgentClient } from "../../../agents/AgentClientContext";
-import { agentStore, useIsAtAgentCapacity, useIsLaunchingAgent, useMaxAgents } from "../../../agents/agentStore";
+import { agentCapacityReason, agentStore, useIsAtAgentCapacity, useIsLaunchingAgent, useMaxAgents } from "../../../agents/agentStore";
 import { DiagramKindCard } from "./DiagramKindCard";
 import { drawDialogStore, useDrawDialog } from "./drawDialogStore";
 import { useDiagramKinds, type DrawCard } from "./useDiagramKinds";
@@ -52,7 +52,7 @@ function DrawDialogBody() {
   const blockedReason = tutorialActive
     ? undefined
     : isAtCapacity
-      ? `${maxAgents} agents is the limit — close one to start another`
+      ? agentCapacityReason(maxAgents)
       : isLaunching
         ? "Launching…"
         : undefined;

@@ -39,6 +39,18 @@ public sealed class WorkflowAgentRouteTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("view", "x")]
+    [InlineData("task", null)]
+    public async Task A_workflow_request_needs_a_task_launch_with_a_context(string contextKind, string? context)
+    {
+        var tab = await Tab();
+
+        var response = await _host.Client.PostAsync("/agents", Json(new { title = "a", workspace = tab, context, context_kind = contextKind, workflow_request = "plan then review" }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     [Fact]
     public async Task Saving_a_workflow_pings_every_canvas()
     {

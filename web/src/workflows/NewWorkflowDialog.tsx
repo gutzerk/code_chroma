@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import "./workflows.css";
 import { ModalDialog } from "../agents/ModalDialog";
 import { useOptionalAgentClient } from "../agents/AgentClientContext";
 import { agentCapacityReason, agentStore, useIsAtAgentCapacity, useIsLaunchingAgent, useMaxAgents } from "../agents/agentStore";
 import { launchWorkflowAgent } from "../agents/launchAgent";
+import { useActiveWorktreeId } from "../agents/worktreeStore";
 import { Icon } from "./icons";
 import { workflowStore } from "./workflowStore";
 
@@ -16,24 +17,27 @@ export function NewWorkflowDialog({ onClose }: { onClose: () => void }) {
   const isAtCapacity = useIsAtAgentCapacity();
   const isLaunching = useIsLaunchingAgent();
   const maxAgents = useMaxAgents();
+  const activeTab = useActiveWorktreeId();
+  const requestId = useId();
   const [withAgent, setWithAgent] = useState(false);
   const [request, setRequest] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const agentBlocked = !agentClient
     ? "Agents are not available here"
-    : isAtCapacity
-      ? agentCapacityReason(maxAgents)
-      : undefined;
+    : !activeTab
+      ? "Open a worktree tab first: the agent works in it"
+      : isAtCapacity
+        ? agentCapacityReason(maxAgents)
+        : undefined;
   const canStart = !agentBlocked && !isLaunching && request.trim().length > 0;
 
   const start = async () => {
     if (!agentClient || !canStart) return;
     setError(null);
-    await launchWorkflowAgent(agentClient, request.trim());
-    const failure = agentStore.getLaunchError();
-    if (failure) setError(failure);
-    else onClose();
+    // Stays open (keeping the description) unless an agent was created: git setup or a create error leaves it here.
+    if (await launchWorkflowAgent(agentClient, request.trim())) onClose();
+    else setError(agentStore.getLaunchError());
   };
 
   return (
@@ -43,7 +47,8 @@ export function NewWorkflowDialog({ onClose }: { onClose: () => void }) {
         <button
           type="button"
           className="wf-create-option"
-          aria-pressed={withAgent}
+          aria-expanded={withAgent}
+          aria-controls={withAgent ? requestId : undefined}
           data-testid="create-with-agent"
           disabled={!!agentBlocked}
           title={agentBlocked}
@@ -77,7 +82,7 @@ export function NewWorkflowDialog({ onClose }: { onClose: () => void }) {
         }}
       >
         {withAgent && (
-          <label className="wf-field">
+          <label className="wf-field" id={requestId}>
             <span>What should the workflow do?</span>
             <textarea
               className="wf-create-request"

@@ -36,6 +36,12 @@ public static partial class AutoTitle
     public const int HeuristicWords = 6;
     public const int HeuristicChars = 48;
 
+    /// <summary>A transcript line longer than this (a pasted image, a huge tool result) is skipped, never buffered whole.</summary>
+    public const int MaxLineBytes = 1024 * 1024;
+
+    /// <summary>At most this many transcripts are followed; past it the cache starts over (a later refresh rereads from the start).</summary>
+    public const int MaxFollowed = 256;
+
     private const string Ellipsis = "…";
 
     /// <summary>Per transcript: how far it was read and the topic read so far, so each refresh reads only the appended bytes.</summary>
@@ -50,8 +56,20 @@ public static partial class AutoTitle
     public static string? Suggest(AgentRecord record, Func<string?> sessionOf, string? projectsRoot = null, string? transcriptPath = null)
     {
         if (!record.HasClaudeSession) return null;
-        var path = File.Exists(transcriptPath) ? transcriptPath : sessionOf() is { Length: > 0 } sessionId ? Transcripts.Locate(sessionId, record.Worktree, projectsRoot) : null;
+        var root = projectsRoot ?? Transcripts.ProjectsDir();
+        var path = IsTranscript(transcriptPath, root) ? transcriptPath : sessionOf() is { Length: > 0 } sessionId ? Transcripts.Locate(sessionId, record.Worktree, root) : null;
         return Choose(path is null ? null : Read(path, wantsOpening: record.ContextKind != "task"), record);
+    }
+
+    /// <summary>True only for a plain `.jsonl` file under the claude projects root: a hook report's path is never trusted to name any other file.</summary>
+    public static bool IsTranscript(string? path, string projectsRoot)
+    {
+        if (string.IsNullOrEmpty(path) || !path.EndsWith(".jsonl", StringComparison.Ordinal)) return false;
+        var full = Path.GetFullPath(path);
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(projectsRoot)) + Path.DirectorySeparatorChar;
+        if (!full.StartsWith(root, OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)) return false;
+        var file = new FileInfo(full);
+        return file.Exists && file.LinkTarget is null;
     }
 
     /// <summary>The /rename name, else Claude's generated title, else a heuristic from the user's own words; a task agent's first prompt is the composed skill text, so it falls back to its request only.</summary>
@@ -71,7 +89,7 @@ public static partial class AutoTitle
         var words = Url().Replace(line, m => LastSegment(m.Value)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         var kept = string.Join(' ', words.Take(HeuristicWords));
         if (words.Length > HeuristicWords) kept = TrimTail(kept) + Ellipsis;
-        var shortened = Shorten(kept, HeuristicChars)!;
+        if (Shorten(kept, HeuristicChars) is not { } shortened) return null;
         return char.ToUpper(shortened[0], CultureInfo.InvariantCulture) + shortened[1..];
     }
 
@@ -107,22 +125,31 @@ public static partial class AutoTitle
             stream.Seek(offset, SeekOrigin.Begin);
             var chunk = new byte[64 * 1024];
             using var line = new MemoryStream();
+            long lineBytes = 0;
+            void Append(int start, int count)
+            {
+                lineBytes += count;
+                if (lineBytes <= MaxLineBytes) line.Write(chunk, start, count);
+                else line.SetLength(0);
+            }
             int read;
             while ((read = stream.Read(chunk)) > 0)
             {
                 var start = 0;
                 for (var i = Array.IndexOf(chunk, (byte)'\n', 0, read); i >= 0; i = Array.IndexOf(chunk, (byte)'\n', start, read - start))
                 {
-                    line.Write(chunk, start, i - start);
-                    topic = Absorb(topic, Encoding.UTF8.GetString(line.GetBuffer(), 0, (int)line.Length), wantsOpening);
-                    offset += line.Length + 1;
+                    Append(start, i - start);
+                    if (lineBytes <= MaxLineBytes) topic = Absorb(topic, Encoding.UTF8.GetString(line.GetBuffer(), 0, (int)line.Length), wantsOpening);
+                    offset += lineBytes + 1;
                     line.SetLength(0);
+                    lineBytes = 0;
                     start = i + 1;
                 }
-                line.Write(chunk, start, read - start);
+                Append(start, read - start);
             }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return topic; }
+        if (Followed.Count >= MaxFollowed && !Followed.ContainsKey(path)) Followed.Clear();
         Followed[path] = (offset, topic);
         return topic;
     }

@@ -868,10 +868,15 @@ names terminal tabs: no model call of our own, but what Claude Code already writ
 
 - Trigger: the `UserPromptSubmit` and `Stop` hook reports (`AutoTitle.Triggers`). `AgentRoutes.ScheduleAutoTitle` runs the
   refresh with `Task.Run` after the hook reply is built, so the hook and start never wait on it; one refresh per agent
-  at a time (`TitlesInFlight`). Only agents with `HasClaudeSession` and status hooks get one (a claude launched without
+  at a time (`TitleRefreshes`), and a report that lands during one runs one more after it, so a turn's `Stop` is never
+  lost. Only agents with `HasClaudeSession` and status hooks get one (a claude launched without
   hooks keeps its launch title).
 - Reading: `AutoTitle.Read` follows each transcript by byte offset and parses only appended lines that mention a
-  `-title"` entry or, until the opening is found, a `"user"` entry; a shorter file is read again from the start.
+  `-title"` entry or, until the opening is found, a `"user"` entry; a shorter file is read again from the start. A line
+  over `MaxLineBytes` (1 MB) is skipped, never buffered whole; at most `MaxFollowed` (256) transcripts are cached.
+- ⚠ The hook's `transcript_path` is used only when `AutoTitle.IsTranscript` accepts it: a plain `.jsonl` file (no
+  symlink) under the claude projects root (`Transcripts.ProjectsDir()`). Anything else falls back to
+  `Transcripts.Locate` by session id, so a hook report can never make the bridge read another file.
 - Titles are one line, at most 60 chars (`AutoTitle.Shorten`, cut at a word with `…`).
 - 🔴 Manual-rename guard: `AgentRecord.TitleSource` (`title_source`, persisted in agents.json, on every payload) is
   `default` (launch title or id), `auto` or `user`. `PATCH /agents/{id}` `{title}` (both bridges) renames by hand and

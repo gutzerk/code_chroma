@@ -258,13 +258,28 @@ export function bindWorkflows(client: EngineClient): () => void {
     if (event.event === "run.deleted") return workflowStore.removeRun(event.runId);
     refreshRun(event.runId);
   });
-  // A saved or deleted definition (an agent's save included) changes only the list, never the runs.
-  const unsubscribeWorkflows = client.subscribeWorkflows(() => {
+  // A saved or deleted definition (an agent's save included) changes only the list, never the runs; a burst refetches once more after the fetch in flight.
+  let listInFlight = false;
+  let listDirty = false;
+  const refreshList = (): void => {
+    if (listInFlight) {
+      listDirty = true;
+      return;
+    }
+    listInFlight = true;
     void client
       .listWorkflows()
       .then((workflows) => { if (!disposed) workflowStore.setWorkflows(workflows); })
-      .catch((err) => { if (!disposed) workflowStore.setError(messageOf(err)); });
-  });
+      .catch((err) => { if (!disposed) workflowStore.setError(messageOf(err)); })
+      .finally(() => {
+        listInFlight = false;
+        if (!disposed && listDirty) {
+          listDirty = false;
+          refreshList();
+        }
+      });
+  };
+  const unsubscribeWorkflows = client.subscribeWorkflows(refreshList);
   return () => { disposed = true; unsubscribe(); unsubscribeWorkflows(); };
 }
 

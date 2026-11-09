@@ -50,6 +50,7 @@ public sealed class AutoTitleTests : IDisposable
     [InlineData("посмотри задачу https://jira.example.com/browse/GDATA-6898", "Посмотри задачу GDATA-6898")]
     [InlineData("\n\n  add dark mode\nand also tests", "Add dark mode")]
     [InlineData("   ", null)]
+    [InlineData("\u0001\u0002", null)]
     public void A_heuristic_title_is_a_few_words_of_the_first_line_in_its_own_language(string prompt, string? expected)
     {
         var title = AutoTitle.Heuristic(prompt);
@@ -92,6 +93,53 @@ public sealed class AutoTitleTests : IDisposable
 
         Assert.Equal((null, "draw the login flow"), (before.AiTitle, before.Opening));
         Assert.Equal(("Login flow diagram", "draw the login flow"), (after.AiTitle, after.Opening));
+    }
+
+    [Fact]
+    public void A_line_too_long_to_buffer_is_skipped_and_the_lines_after_it_are_read()
+    {
+        var huge = User(new string('x', AutoTitle.MaxLineBytes + 10));
+        var path = Transcript(huge, AiTitle("After the paste"));
+
+        var topic = AutoTitle.Read(path);
+
+        Assert.Equal(("After the paste", null), (topic.AiTitle, topic.Opening));
+    }
+
+    [Fact]
+    public void Only_a_plain_jsonl_file_under_the_projects_root_counts_as_a_transcript()
+    {
+        var inside = Transcript(AiTitle("x"));
+        var outside = Path.Combine(_root, "elsewhere.jsonl");
+        File.WriteAllText(outside, AiTitle("x"));
+        var projects = Path.Combine(_root, "projects");
+        Directory.CreateDirectory(projects);
+        var link = Path.Combine(projects, "link.jsonl");
+        File.CreateSymbolicLink(link, outside);
+        var notJsonl = Path.ChangeExtension(inside, ".txt");
+        File.WriteAllText(notJsonl, "");
+
+        var verdicts = (
+            AutoTitle.IsTranscript(inside, _root),
+            AutoTitle.IsTranscript(outside, projects),
+            AutoTitle.IsTranscript(link, projects),
+            AutoTitle.IsTranscript(notJsonl, _root),
+            AutoTitle.IsTranscript(Path.Combine(projects, "..", "elsewhere.jsonl"), projects));
+
+        Assert.Equal((true, false, false, false, false), verdicts);
+    }
+
+    [Fact]
+    public void A_hook_path_outside_the_projects_root_is_ignored_for_the_session_transcript()
+    {
+        Transcript(User("the real session"));
+        var planted = Path.Combine(Path.GetTempPath(), "cc-planted-" + Guid.NewGuid().ToString("N")[..8] + ".jsonl");
+        File.WriteAllText(planted, CustomTitle("Planted") + "\n");
+
+        var title = AutoTitle.Suggest(Record(), () => "s1", _root, planted);
+        File.Delete(planted);
+
+        Assert.Equal("The real session", title);
     }
 
     [Fact]
@@ -164,7 +212,31 @@ public sealed class AutoTitleTests : IDisposable
         Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.NotFound), (invalid.StatusCode, missing.StatusCode));
     }
 
-    private static async Task<string> ReceiveTitle(WebSocket socket)
+    [Fact]
+    public async Task A_refresh_asked_for_while_one_runs_still_lands_the_later_title()
+    {
+        using var host = new BridgeHost();
+        var tab = await TerminalSocketTests.EnsureTab(host);
+        await host.Client.PostAsync("/agents", new StringContent($$"""{"title":"","workspace":"{{tab}}"}""", Encoding.UTF8, "application/json"));
+        var agents = host.Factory.Services.GetRequiredService<AgentManager>();
+        var record = agents.List().Single();
+        record.SessionId = "s1";
+        var dir = Path.Combine(_root, "-tree");
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "s1.jsonl");
+        File.WriteAllText(path, User("ship the release notes") + "\n");
+        var events = await host.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/repos/main/events"), CancellationToken.None);
+        var connections = host.Factory.Services.GetRequiredService<ConnectionManager>();
+
+        AgentRoutes.ScheduleAutoTitle(agents, connections, record, _root);
+        File.AppendAllText(path, AiTitle("Release notes") + "\n");
+        AgentRoutes.ScheduleAutoTitle(agents, connections, record, _root);
+        await ReceiveTitle(events, "Release notes");
+
+        Assert.Equal(("Release notes", AutoTitle.AutoSource), (agents.Get(record.Id).Title, agents.Get(record.Id).TitleSource));
+    }
+
+    private static async Task<string> ReceiveTitle(WebSocket socket, string? title = null)
     {
         var buffer = new byte[16384];
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -172,7 +244,7 @@ public sealed class AutoTitleTests : IDisposable
         {
             var result = await socket.ReceiveAsync(buffer, timeout.Token);
             var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            if (text.Contains(AutoTitle.TitleEvent)) return text;
+            if (text.Contains(AutoTitle.TitleEvent) && (title is null || (string?)JsonNode.Parse(text)!["title"] == title)) return text;
         }
     }
 }

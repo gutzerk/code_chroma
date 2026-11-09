@@ -47,17 +47,23 @@ All of it sits on one map, built from the real code structure (System → … �
 
 ## See it in action
 
-![A sequence diagram, a design-patterns diagram and a walkthrough on one canvas](docs/media/demo-canvas.jpg)
-
-*Several diagrams on one canvas — a sequence, design patterns and a walkthrough, each drawn from the real code.*
-
-![Four Claude Code agents in the agents panel, with context, token and cost meters](docs/media/demo-agents.jpg)
-
-*Run several Claude Code agents side by side and see each one's context, tokens and cost.*
+### Review a change as a process, not a diff
 
 ![The Change impact view of a pull request: 24 changed files grouped into 13 boxes](docs/media/demo-impact.jpg)
 
-*Review a pull request on the map: every changed box shows its added and removed lines and what it touches.*
+A pull request with 24 changed files, shown as 13 boxes. The numbered boxes follow the order the code runs, so you read the change as a story: what starts, what it calls, where the data goes. Each box is marked new, modified or context, shows its added and removed lines, and says in one line what it does. Labelled arrows show how the parts talk to each other. On the right, the agent that drew the view explains what it checked.
+
+### Keep every diagram on one map
+
+![A sequence diagram, a design-patterns diagram and two walkthroughs on one canvas](docs/media/demo-canvas.jpg)
+
+Four diagrams of the same code side by side: a sequence of how blocks are laid out, the design patterns behind it, and two step-by-step walkthroughs. Each one is drawn from the real code and linked to it. Use the Diagrams panel on the left to show, hide, delete or arrange them, or press **Draw** to ask for a new one.
+
+### Run several agents at once
+
+![Four Claude Code agents in the agents panel, with context, token and cost meters](docs/media/demo-agents.jpg)
+
+Four Claude Code agents, each on its own task and in its own git worktree, so they never get in each other's way. For each agent you see how full its context is, the tokens it used, the cache hit rate and the cost so far. Your past prompts are listed on the left, so you can jump back to any answer. When an agent is done, open a pull request with **Create PR**.
 
 ## More you can ask
 

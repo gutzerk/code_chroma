@@ -52,7 +52,7 @@ public static partial class AgentPrompts
         {
             if (Json.Bool(entry["isSidechain"]) || entry["message"] is not JsonObject message) return;
             var type = Json.Str(entry["type"]);
-            if (type == "user" && UserPrompt(entry) is { } text)
+            if (UserPrompt(entry) is { } text)
                 prompts.Add(new AgentPrompt(Json.Str(entry["uuid"]) ?? $"p{prompts.Count + 1}", text, Json.Str(entry["timestamp"]), 0, 0));
             else if (type == "assistant" && prompts.Count > 0 && message["content"] is JsonArray blocks)
                 prompts[^1] = Count(prompts[^1], blocks, seenTools);

@@ -1,11 +1,13 @@
 import type { WorktreeList } from "../state/types";
 import type { AgentClient } from "./agentClient";
+import { belongsToTab } from "./agentAttention";
 import { agentStore } from "./agentStore";
 import { messageOf } from "../util/reportError";
 import { workspaceStore } from "./workspaceStore";
 import { worktreeStore } from "./worktreeStore";
 import { getDesktopWorkspaceApi } from "./desktopWorkspaceApi";
 import { prStore } from "../pr/prStore";
+import { onWindowReturn } from "../util/windowReturn";
 
 function applyList(list: WorktreeList): void {
   worktreeStore.setList(list.branches, list.active);
@@ -73,21 +75,11 @@ const RECORD_COALESCE_MS = 1000;
 /** After boot: re-records this window's workspace as the last-viewed one whenever the window is shown or
  * focused again, so closing a desktop PR tab (which fronts its project tab) forgets that PR. */
 export function recordShownWorkspace(client: AgentClient): () => void {
-  let recordedAt = -Infinity;
-  const record = (): void => {
-    // Returning to the window fires both focus and visibilitychange; one record covers the pair.
-    if (document.visibilityState !== "visible" || Date.now() - recordedAt < RECORD_COALESCE_MS) return;
-    recordedAt = Date.now();
+  return onWindowReturn(() => {
     client.activateWorkspace(agentStore.getActiveWorkspace()).catch(() => {
       // Best effort: the record only matters for the next launch.
     });
-  };
-  document.addEventListener("visibilitychange", record);
-  window.addEventListener("focus", record);
-  return () => {
-    document.removeEventListener("visibilitychange", record);
-    window.removeEventListener("focus", record);
-  };
+  }, RECORD_COALESCE_MS);
 }
 
 /** The PR review the bridge last drew for this project, when it is still open; null otherwise. */
@@ -157,7 +149,7 @@ export async function closeWorktree(client: AgentClient, id: string, deleteWorkt
   agentStore.removeMany(
     agentStore
       .getAgents()
-      .filter((agent) => agent.workspace === id || agent.shares_workspace_with === id)
+      .filter((agent) => belongsToTab(agent, id))
       .map((agent) => agent.id),
   );
   await settleRemovedWorktree(client, id);

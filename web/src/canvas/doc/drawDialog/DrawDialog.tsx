@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { attachAgent } from "../../../agents/attachAgent";
 import { useAgentClient } from "../../../agents/AgentClientContext";
-import { agentCapacityReason, agentStore, useIsAtAgentCapacity, useIsLaunchingAgent, useMaxAgents } from "../../../agents/agentStore";
+import { agentStore, useAgentLaunchBlockedReason } from "../../../agents/agentStore";
 import { DiagramKindCard } from "./DiagramKindCard";
 import { drawDialogStore, useDrawDialog } from "./drawDialogStore";
 import { useDiagramKinds, type DrawCard } from "./useDiagramKinds";
@@ -40,22 +40,14 @@ function DrawDialogBody() {
   const agentClient = useAgentClient();
   const { cardId, prompt } = useDrawDialog();
   const { cards, loading, error: loadError } = useDiagramKinds(true);
-  const isAtCapacity = useIsAtAgentCapacity();
-  const isLaunching = useIsLaunchingAgent();
-  const maxAgents = useMaxAgents();
+  const launchBlocked = useAgentLaunchBlockedReason();
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const tutorialActive = useTutorialActive();
 
   const card = cards.find((c) => c.id === cardId) ?? cards.find((c) => c.id === "any") ?? cards[0];
-  const blockedReason = tutorialActive
-    ? undefined
-    : isAtCapacity
-      ? agentCapacityReason(maxAgents)
-      : isLaunching
-        ? "Launching…"
-        : undefined;
+  const blockedReason = tutorialActive ? undefined : launchBlocked;
   const canDraw = card !== undefined && !blockedReason;
   // The tutorial lets the user change the type only while it asks for one, so it draws what is shown.
   const pickCard = (id: string) => {

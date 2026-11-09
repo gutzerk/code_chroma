@@ -14,8 +14,10 @@ public sealed record DiagramHint(string? Type, string? Request, string? Workflow
             if (Json.Str(rawType) is not { } t || !DiagramKinds.Ids.Contains(t)) return Failed($"unknown diagram_type: {Json.Str(rawType) ?? rawType.ToJsonString()}");
             type = t;
         }
-        if (ReadRequest(body, "diagram_request", allowBlank: true) is var (request, requestError) && requestError is not null) return Failed(requestError);
-        if (ReadRequest(body, "workflow_request", allowBlank: false) is var (workflow, workflowError) && workflowError is not null) return Failed(workflowError);
+        var (request, requestError) = ReadRequest(body, "diagram_request", allowBlank: true);
+        if (requestError is not null) return Failed(requestError);
+        var (workflow, workflowError) = ReadRequest(body, "workflow_request", allowBlank: false);
+        if (workflowError is not null) return Failed(workflowError);
         if (workflow is not null && type is not null) return Failed("an agent draws a diagram or designs a workflow, not both");
         return new DiagramHint(type, request, workflow, null);
     }

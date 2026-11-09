@@ -15,7 +15,7 @@ public sealed class WorkflowAgentRouteTests : IDisposable
 
     private static StringContent Json(object body) => QuestionTestKit.JsonBody(System.Text.Json.JsonSerializer.SerializeToNode(body)!);
 
-    private async Task<string> Tab() => (await QuestionTestKit.Body(await _host.Client.PostAsync("/branches/ensure", null)))["branches"]![0]!["id"]!.GetValue<string>();
+    private Task<string> Tab() => Terminal.TerminalSocketTests.EnsureTab(_host);
 
     [Fact]
     public async Task A_task_agent_keeps_the_workflow_request()
@@ -28,25 +28,15 @@ public sealed class WorkflowAgentRouteTests : IDisposable
     }
 
     [Theory]
-    [InlineData("   ", null)]
-    [InlineData("plan", "sequence")]
-    public async Task A_blank_workflow_request_or_one_with_a_diagram_type_is_refused(string request, string? diagramType)
+    [InlineData("task", "x", "   ", null)]
+    [InlineData("task", "x", "plan", "sequence")]
+    [InlineData("view", "x", "plan then review", null)]
+    [InlineData("task", null, "plan then review", null)]
+    public async Task A_workflow_request_is_refused_unless_it_is_a_non_blank_task_launch_with_a_context_and_no_diagram_type(string contextKind, string? context, string request, string? diagramType)
     {
         var tab = await Tab();
 
-        var response = await _host.Client.PostAsync("/agents", Json(new { title = "a", workspace = tab, context = "x", context_kind = "task", workflow_request = request, diagram_type = diagramType }));
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Theory]
-    [InlineData("view", "x")]
-    [InlineData("task", null)]
-    public async Task A_workflow_request_needs_a_task_launch_with_a_context(string contextKind, string? context)
-    {
-        var tab = await Tab();
-
-        var response = await _host.Client.PostAsync("/agents", Json(new { title = "a", workspace = tab, context, context_kind = contextKind, workflow_request = "plan then review" }));
+        var response = await _host.Client.PostAsync("/agents", Json(new { title = "a", workspace = tab, context, context_kind = contextKind, workflow_request = request, diagram_type = diagramType }));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -58,15 +48,8 @@ public sealed class WorkflowAgentRouteTests : IDisposable
         var definition = new { id = "wf", name = "Flow", steps = new[] { new { id = "s1", slug = "go", kind = "agent", prompt = "go" } } };
 
         await _host.Client.PostAsync("/repos/main/workflows", Json(definition));
-        var seen = new List<string>();
-        var buffer = new byte[8192];
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        while (!seen.Any(m => m.Contains("\"workflows\"")))
-        {
-            var result = await socket.ReceiveAsync(buffer, timeout.Token);
-            seen.Add(Encoding.UTF8.GetString(buffer, 0, result.Count));
-        }
+        var ping = await Sockets.ReceiveUntil(socket, m => m.Contains("\"workflows\""));
 
-        Assert.Contains(seen, m => m.Contains("\"type\":\"workflows\""));
+        Assert.Contains("\"type\":\"workflows\"", ping);
     }
 }

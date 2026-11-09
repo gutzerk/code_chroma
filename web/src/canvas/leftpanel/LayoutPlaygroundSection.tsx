@@ -30,8 +30,16 @@ const NUMBER_FIELDS: { key: NumberKey; label: string; step?: number }[] = [
 ];
 
 const DIRECTIONS: LayoutDirection[] = ["auto", "DOWN", "RIGHT", "UP", "LEFT"];
-const NODE_PLACEMENTS = ["", "BRANDES_KOEPF", "NETWORK_SIMPLEX", "LINEAR_SEGMENTS", "SIMPLE"];
-const CROSSING_MINIMIZATIONS = ["", "LAYER_SWEEP", "INTERACTIVE", "NONE"];
+/** ELK strategy pickers; "" keeps ELK's own default. */
+const SELECT_FIELDS: { key: "nodePlacement" | "crossingMinimization"; label: string; options: string[] }[] = [
+  { key: "nodePlacement", label: "Node placement", options: ["", "BRANDES_KOEPF", "NETWORK_SIMPLEX", "LINEAR_SEGMENTS", "SIMPLE"] },
+  { key: "crossingMinimization", label: "Crossing minimization", options: ["", "LAYER_SWEEP", "INTERACTIVE", "NONE"] },
+];
+
+/** Ticks `layer` in the Diagrams tab so the next re-layout includes it. */
+function select(layer: string): void {
+  if (!diagramSelectionStore.isSelected(layer)) diagramSelectionStore.toggle(layer);
+}
 
 /** Dev-only knobs for the first layout plus a button that redraws the ticked diagrams from scratch. */
 export function LayoutPlaygroundSection() {
@@ -43,41 +51,38 @@ export function LayoutPlaygroundSection() {
   const [status, setStatus] = useState<string | null>(null);
   const changedCount = Object.keys(changedTuning(tuning)).length;
 
-  const relayout = async () => {
-    const layers = [...selected];
+  /** Runs one button's work with the panel busy; `task` returns the status line to show, if any. */
+  const runBusy = async (task: () => Promise<string | null>, fallback: string) => {
     setBusy(true);
     setStatus(null);
     try {
-      // One at a time: each fresh draw stacks below whatever is already on the canvas.
-      for (const layer of layers) {
-        const result = await redrawLayerFromScratch(engineClient, layer, { keepPlace });
-        if (!result.ok) {
-          setStatus(`${layer}: ${result.error}`);
-          return;
-        }
-        if (!diagramSelectionStore.isSelected(layer)) diagramSelectionStore.toggle(layer);
-      }
-      setStatus(`Re-laid out ${layers.length}`);
+      setStatus(await task());
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "re-layout failed");
+      setStatus(err instanceof Error ? err.message : fallback);
     } finally {
       setBusy(false);
     }
   };
 
-  const addSample = async () => {
-    setBusy(true);
-    setStatus(null);
-    try {
+  const relayout = () =>
+    runBusy(async () => {
+      const layers = [...selected];
+      // One at a time: each fresh draw stacks below whatever is already on the canvas.
+      for (const layer of layers) {
+        const result = await redrawLayerFromScratch(engineClient, layer, { keepPlace });
+        if (!result.ok) return `${layer}: ${result.error}`;
+        select(layer);
+      }
+      return `Re-laid out ${layers.length}`;
+    }, "re-layout failed");
+
+  const addSample = () =>
+    runBusy(async () => {
       const result = await addSampleDiagram(engineClient);
-      if (!result.ok) setStatus(result.error);
-      else if (!diagramSelectionStore.isSelected(SAMPLE_LAYER)) diagramSelectionStore.toggle(SAMPLE_LAYER);
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "sample add failed");
-    } finally {
-      setBusy(false);
-    }
-  };
+      if (!result.ok) return result.error;
+      select(SAMPLE_LAYER);
+      return null;
+    }, "sample add failed");
 
   const copyChanges = () => {
     const text = JSON.stringify(changedTuning(tuning), null, 2);
@@ -130,28 +135,16 @@ export function LayoutPlaygroundSection() {
             />
           </label>
         ))}
-        <label>
-          Node placement
-          <select
-            value={tuning.nodePlacement}
-            onChange={(e) => layoutTuningStore.update({ nodePlacement: e.target.value })}
-          >
-            {NODE_PLACEMENTS.map((v) => (
-              <option key={v} value={v}>{v || "ELK default"}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Crossing minimization
-          <select
-            value={tuning.crossingMinimization}
-            onChange={(e) => layoutTuningStore.update({ crossingMinimization: e.target.value })}
-          >
-            {CROSSING_MINIMIZATIONS.map((v) => (
-              <option key={v} value={v}>{v || "ELK default"}</option>
-            ))}
-          </select>
-        </label>
+        {SELECT_FIELDS.map(({ key, label, options }) => (
+          <label key={key}>
+            {label}
+            <select value={tuning[key]} onChange={(e) => layoutTuningStore.update({ [key]: e.target.value })}>
+              {options.map((v) => (
+                <option key={v} value={v}>{v || "ELK default"}</option>
+              ))}
+            </select>
+          </label>
+        ))}
       </div>
       <label className="layout-playground-check">
         <input

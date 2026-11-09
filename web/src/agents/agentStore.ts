@@ -137,7 +137,7 @@ class AgentStore extends Store {
     this.emit();
   };
 
-  /** Lands an `agent-title` event or a rename reply: the new title and who set it. */
+  /** Lands an `agent-title` event: the new title and who set it. */
   setTitle = (id: string, title: string, titleSource: AgentTitleSource): void => {
     const current = this.getAgent(id);
     if (!current || (current.title === title && current.title_source === titleSource)) return;
@@ -366,6 +366,20 @@ export const agentCapacityReason = (maxAgents: number): string => `${maxAgents} 
 
 export function useMaxAgents(): number {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getMaxAgents);
+}
+
+/** Why no agent can start because too many are open, or undefined. */
+export function useAgentCapacityReason(): string | undefined {
+  const isAtCapacity = useIsAtAgentCapacity();
+  const maxAgents = useMaxAgents();
+  return isAtCapacity ? agentCapacityReason(maxAgents) : undefined;
+}
+
+/** Why a launch button is disabled right now (at capacity, or another launch running), or undefined. */
+export function useAgentLaunchBlockedReason(): string | undefined {
+  const capacity = useAgentCapacityReason();
+  const isLaunching = useIsLaunchingAgent();
+  return capacity ?? (isLaunching ? "Launching…" : undefined);
 }
 
 export function useAgentLaunchError(): string | null {

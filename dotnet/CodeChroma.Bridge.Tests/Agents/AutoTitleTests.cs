@@ -188,16 +188,7 @@ public sealed class AutoTitleTests : IDisposable
     public async Task A_rename_route_and_an_auto_title_both_reach_the_canvas()
     {
         using var host = new BridgeHost();
-        var tab = await TerminalSocketTests.EnsureTab(host);
-        await host.Client.PostAsync("/agents", new StringContent($$"""{"title":"","workspace":"{{tab}}"}""", Encoding.UTF8, "application/json"));
-        var agents = host.Factory.Services.GetRequiredService<AgentManager>();
-        var record = agents.List().Single();
-        record.SessionId = "s1";
-        var dir = Path.Combine(_root, "-tree");
-        Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "s1.jsonl"), User("ship the release notes") + "\n" + AiTitle("Release notes") + "\n");
-        var events = await host.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/repos/main/events"), CancellationToken.None);
-        var connections = host.Factory.Services.GetRequiredService<ConnectionManager>();
+        var (agents, record, connections, events, _) = await SessionAgent(host, User("ship the release notes") + "\n" + AiTitle("Release notes") + "\n");
 
         AgentRoutes.ScheduleAutoTitle(agents, connections, record, _root);
         var pushed = JsonNode.Parse(await ReceiveTitle(events))!;
@@ -216,17 +207,7 @@ public sealed class AutoTitleTests : IDisposable
     public async Task A_refresh_asked_for_while_one_runs_still_lands_the_later_title()
     {
         using var host = new BridgeHost();
-        var tab = await TerminalSocketTests.EnsureTab(host);
-        await host.Client.PostAsync("/agents", new StringContent($$"""{"title":"","workspace":"{{tab}}"}""", Encoding.UTF8, "application/json"));
-        var agents = host.Factory.Services.GetRequiredService<AgentManager>();
-        var record = agents.List().Single();
-        record.SessionId = "s1";
-        var dir = Path.Combine(_root, "-tree");
-        Directory.CreateDirectory(dir);
-        var path = Path.Combine(dir, "s1.jsonl");
-        File.WriteAllText(path, User("ship the release notes") + "\n");
-        var events = await host.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/repos/main/events"), CancellationToken.None);
-        var connections = host.Factory.Services.GetRequiredService<ConnectionManager>();
+        var (agents, record, connections, events, path) = await SessionAgent(host, User("ship the release notes") + "\n");
 
         AgentRoutes.ScheduleAutoTitle(agents, connections, record, _root);
         File.AppendAllText(path, AiTitle("Release notes") + "\n");
@@ -236,15 +217,22 @@ public sealed class AutoTitleTests : IDisposable
         Assert.Equal(("Release notes", AutoTitle.AutoSource), (agents.Get(record.Id).Title, agents.Get(record.Id).TitleSource));
     }
 
-    private static async Task<string> ReceiveTitle(WebSocket socket, string? title = null)
+    private static Task<string> ReceiveTitle(WebSocket socket, string? title = null) =>
+        Sockets.ReceiveUntil(socket, text => text.Contains(AutoTitle.TitleEvent) && (title is null || (string?)JsonNode.Parse(text)!["title"] == title));
+
+    /// <summary>An agent on the first tab whose claude session "s1" has `transcript`, plus an open events socket.</summary>
+    private async Task<(AgentManager Agents, AgentRecord Record, ConnectionManager Connections, WebSocket Events, string Transcript)> SessionAgent(BridgeHost host, string transcript)
     {
-        var buffer = new byte[16384];
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-        while (true)
-        {
-            var result = await socket.ReceiveAsync(buffer, timeout.Token);
-            var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            if (text.Contains(AutoTitle.TitleEvent) && (title is null || (string?)JsonNode.Parse(text)!["title"] == title)) return text;
-        }
+        var tab = await TerminalSocketTests.EnsureTab(host);
+        await host.Client.PostAsync("/agents", new StringContent($$"""{"title":"","workspace":"{{tab}}"}""", Encoding.UTF8, "application/json"));
+        var agents = host.Factory.Services.GetRequiredService<AgentManager>();
+        var record = agents.List().Single();
+        record.SessionId = "s1";
+        var dir = Path.Combine(_root, "-tree");
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "s1.jsonl");
+        File.WriteAllText(path, transcript);
+        var events = await host.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/repos/main/events"), CancellationToken.None);
+        return (agents, record, host.Factory.Services.GetRequiredService<ConnectionManager>(), events, path);
     }
 }

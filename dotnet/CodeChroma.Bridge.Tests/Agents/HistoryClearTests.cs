@@ -65,18 +65,6 @@ public sealed class HistoryClearTests : IDisposable
         return request;
     }
 
-    private static async Task<string> ReceiveUntil(WebSocket socket, Func<string, bool> done)
-    {
-        var buffer = new byte[16384];
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-        while (true)
-        {
-            var result = await socket.ReceiveAsync(buffer, timeout.Token);
-            var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            if (done(text)) return text;
-        }
-    }
-
     [Fact]
     public async Task A_clear_reported_by_claudes_SessionStart_hook_drops_the_history()
     {
@@ -109,7 +97,7 @@ public sealed class HistoryClearTests : IDisposable
         var events = await _host.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/repos/main/events"), CancellationToken.None);
 
         await _host.Client.SendAsync(Hook("shouter", """{"hook_event_name":"SessionStart","source":"clear"}"""));
-        var pushed = JsonNode.Parse(await ReceiveUntil(events, text => text.Contains(AgentRuntime.HistoryClearedEvent)))!;
+        var pushed = JsonNode.Parse(await Sockets.ReceiveUntil(events, text => text.Contains(AgentRuntime.HistoryClearedEvent)))!;
         var sent = new StringBuilder();
         while (window.Output.TryRead(out var chunk)) sent.Append(chunk);
 

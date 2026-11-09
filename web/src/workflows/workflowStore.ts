@@ -208,78 +208,57 @@ export function useWorkflowError(): string | null {
   return useSyncExternalStore(workflowStore.subscribe, workflowStore.getError);
 }
 
+/** One `run(key)` at a time per key; a call while it runs re-runs it once afterwards, so a burst ends with one fresh fetch. */
+function coalesce(run: (key: string) => Promise<unknown>, alive: () => boolean): (key?: string) => void {
+  const inFlight = new Set<string>();
+  const dirty = new Set<string>();
+  const trigger = (key = ""): void => {
+    if (inFlight.has(key)) {
+      dirty.add(key);
+      return;
+    }
+    inFlight.add(key);
+    void run(key).finally(() => {
+      inFlight.delete(key);
+      if (alive() && dirty.delete(key)) trigger(key);
+    });
+  };
+  return trigger;
+}
+
 /** Loads workflows and runs, then re-fetches off every `run` ping; returns the unsubscribe fn. */
 export function bindWorkflows(client: EngineClient): () => void {
   let disposed = false;
   workflowStore.reset();
-  let allInFlight = false;
-  let allDirty = false;
-  const refreshAll = (): void => {
-    if (allInFlight) {
-      allDirty = true;
-      return;
-    }
-    allInFlight = true;
-    void Promise.all([client.listWorkflows(), client.listRuns()])
-      .then(([workflows, runs]) => {
-        if (disposed) return;
-        workflowStore.setWorkflows(workflows);
-        workflowStore.setRuns(runs);
-      })
-      .catch((err) => { if (!disposed) workflowStore.setError(messageOf(err)); })
-      .finally(() => {
-        allInFlight = false;
-        if (!disposed && allDirty) {
-          allDirty = false;
-          refreshAll();
-        }
-      });
-  };
+  const alive = () => !disposed;
+  const fail = (err: unknown) => { if (!disposed) workflowStore.setError(messageOf(err)); };
+  const refreshAll = coalesce(
+    () =>
+      Promise.all([client.listWorkflows(), client.listRuns()])
+        .then(([workflows, runs]) => {
+          if (disposed) return;
+          workflowStore.setWorkflows(workflows);
+          workflowStore.setRuns(runs);
+        })
+        .catch(fail),
+    alive,
+  );
   refreshAll();
-  const inFlight = new Set<string>();
-  const dirty = new Set<string>();
-  const refreshRun = (runId: string): void => {
-    if (inFlight.has(runId)) {
-      dirty.add(runId);
-      return;
-    }
-    inFlight.add(runId);
-    void client
-      .getRun(runId)
-      .then((run) => { if (!disposed) workflowStore.upsertRun(run); })
-      .catch((err) => { if (!disposed) workflowStore.setError(messageOf(err)); })
-      .finally(() => {
-        inFlight.delete(runId);
-        if (!disposed && dirty.delete(runId)) refreshRun(runId);
-      });
-  };
+  const refreshRun = coalesce(
+    (runId) => client.getRun(runId).then((run) => { if (!disposed) workflowStore.upsertRun(run); }).catch(fail),
+    alive,
+  );
   const unsubscribe = client.subscribeRuns((event) => {
     if (!event) return refreshAll();
     if (event.event === "run.deleted") return workflowStore.removeRun(event.runId);
     refreshRun(event.runId);
   });
-  // A saved or deleted definition (an agent's save included) changes only the list, never the runs; a burst refetches once more after the fetch in flight.
-  let listInFlight = false;
-  let listDirty = false;
-  const refreshList = (): void => {
-    if (listInFlight) {
-      listDirty = true;
-      return;
-    }
-    listInFlight = true;
-    void client
-      .listWorkflows()
-      .then((workflows) => { if (!disposed) workflowStore.setWorkflows(workflows); })
-      .catch((err) => { if (!disposed) workflowStore.setError(messageOf(err)); })
-      .finally(() => {
-        listInFlight = false;
-        if (!disposed && listDirty) {
-          listDirty = false;
-          refreshList();
-        }
-      });
-  };
-  const unsubscribeWorkflows = client.subscribeWorkflows(refreshList);
+  // A saved or deleted definition (an agent's save included) changes only the list, never the runs.
+  const refreshList = coalesce(
+    () => client.listWorkflows().then((workflows) => { if (!disposed) workflowStore.setWorkflows(workflows); }).catch(fail),
+    alive,
+  );
+  const unsubscribeWorkflows = client.subscribeWorkflows(() => refreshList());
   return () => { disposed = true; unsubscribe(); unsubscribeWorkflows(); };
 }
 

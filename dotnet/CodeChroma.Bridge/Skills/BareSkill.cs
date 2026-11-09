@@ -84,8 +84,7 @@ public static partial class BareSkill
     public static string? ComposeWorkflow(string repoRoot, string request)
     {
         if (SkillSync.SkillSource(WorkflowSkill) is not { } source || !File.Exists(Path.Combine(source, "SKILL.md"))) return null;
-        var body = StripFrontmatter(File.ReadAllText(Path.Combine(source, "SKILL.md")))
-            .Replace("{BRIDGE}", BridgeUrl ?? "http://localhost:8000").Replace("{WORKSPACE}", Workspace.MainId).Replace("{REPO_ROOT}", repoRoot);
+        var body = FillCommon(StripFrontmatter(File.ReadAllText(Path.Combine(source, "SKILL.md"))), source, repoRoot, Workspace.MainId);
         return new StringBuilder()
             .Append("Repository root: ").AppendLine(repoRoot).AppendLine()
             .AppendLine(body).AppendLine()
@@ -129,10 +128,15 @@ public static partial class BareSkill
 
     private static string Fill(string body, string type, string source, string repoRoot, string workspaceId)
     {
-        var bridge = BridgeUrl ?? "http://localhost:8000";
-        return body.Replace("{SKILL_DIR}", source).Replace("{BRIDGE}", bridge).Replace("{WORKSPACE}", workspaceId).Replace("{REPO_ROOT}", repoRoot)
-            .Replace("{OUTPUT_PATH}", Workspace.DiagramPath(repoRoot, type)).Replace("{CHECK_COMMAND}", CheckCommand(source, $"--kind {type} --url {bridge} --repo {workspaceId}"));
+        return FillCommon(body, source, repoRoot, workspaceId)
+            .Replace("{OUTPUT_PATH}", Workspace.DiagramPath(repoRoot, type)).Replace("{CHECK_COMMAND}", CheckCommand(source, $"--kind {type} --url {Bridge} --repo {workspaceId}"));
     }
+
+    private static string Bridge => BridgeUrl ?? "http://localhost:8000";
+
+    /// <summary>The placeholders every skill body shares, whatever diagram type (if any) it draws.</summary>
+    private static string FillCommon(string body, string source, string repoRoot, string workspaceId) =>
+        body.Replace("{SKILL_DIR}", source).Replace("{BRIDGE}", Bridge).Replace("{WORKSPACE}", workspaceId).Replace("{REPO_ROOT}", repoRoot);
 
     private static string StripFrontmatter(string markdown)
     {

@@ -21,7 +21,6 @@ public static partial class AutoTitle
     public const string DefaultSource = "default";
     public const string AutoSource = "auto";
     public const string UserSource = "user";
-    public static readonly string[] Sources = [DefaultSource, AutoSource, UserSource];
 
     /// <summary>The events-socket message carrying a renamed agent's title, so its row and window update in place.</summary>
     public const string TitleEvent = "agent-title";
@@ -50,7 +49,7 @@ public static partial class AutoTitle
     /// <summary>The hook reports that refresh the title: a submitted prompt, and the end of a turn, by when Claude Code has written its ai-title.</summary>
     public static bool Triggers(JsonObject report) => Json.Str(report["hook_event_name"]) is "UserPromptSubmit" or "Stop";
 
-    public static string CoerceSource(string? value) => value is not null && Sources.Contains(value) ? value : DefaultSource;
+    public static string CoerceSource(string? value) => value is DefaultSource or AutoSource or UserSource ? value : DefaultSource;
 
     /// <summary>The title the agent's session suggests, or null when it suggests none yet; the hook's `transcriptPath` saves locating the transcript by session id.</summary>
     public static string? Suggest(AgentRecord record, Func<string?> sessionOf, string? projectsRoot = null, string? transcriptPath = null)
@@ -65,10 +64,8 @@ public static partial class AutoTitle
     public static bool IsTranscript(string? path, string projectsRoot)
     {
         if (string.IsNullOrEmpty(path) || !path.EndsWith(".jsonl", StringComparison.Ordinal)) return false;
-        var full = Path.GetFullPath(path);
-        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(projectsRoot)) + Path.DirectorySeparatorChar;
-        if (!full.StartsWith(root, OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)) return false;
-        var file = new FileInfo(full);
+        if (!Routes.SourceText.IsWithin(projectsRoot, path)) return false;
+        var file = new FileInfo(Path.GetFullPath(path));
         return file.Exists && file.LinkTarget is null;
     }
 
@@ -139,7 +136,8 @@ public static partial class AutoTitle
                 for (var i = Array.IndexOf(chunk, (byte)'\n', 0, read); i >= 0; i = Array.IndexOf(chunk, (byte)'\n', start, read - start))
                 {
                     Append(start, i - start);
-                    if (lineBytes <= MaxLineBytes) topic = Absorb(topic, Encoding.UTF8.GetString(line.GetBuffer(), 0, (int)line.Length), wantsOpening);
+                    if (lineBytes <= MaxLineBytes && MayMatter(line.GetBuffer().AsSpan(0, (int)line.Length), topic, wantsOpening))
+                        topic = Absorb(topic, Encoding.UTF8.GetString(line.GetBuffer(), 0, (int)line.Length), wantsOpening);
                     offset += lineBytes + 1;
                     line.SetLength(0);
                     lineBytes = 0;
@@ -153,6 +151,10 @@ public static partial class AutoTitle
         Followed[path] = (offset, topic);
         return topic;
     }
+
+    /// <summary>Absorb's cheap filter run on the raw bytes, so lines it would reject are never decoded.</summary>
+    private static bool MayMatter(ReadOnlySpan<byte> line, SessionTopic topic, bool wantsOpening) =>
+        line.IndexOf("-title\""u8) >= 0 || (wantsOpening && topic.Opening is null && line.IndexOf("\"user\""u8) >= 0);
 
     /// <summary>One transcript line: the last name of each kind wins, the first opening stays (looked for only when `wantsOpening`; tool results are never one).</summary>
     public static SessionTopic Absorb(SessionTopic topic, string line, bool wantsOpening = true)

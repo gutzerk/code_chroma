@@ -220,3 +220,17 @@ describe("RootCanvas agent launch error", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("the limit of 5 concurrent agents is reached");
   });
 });
+
+describe("RootCanvas impact summary", () => {
+  it("hides the impact legend and review card with the collapsed Impact diagram", async () => {
+    const canvas = makeCanvasState();
+    await canvas.patchCanvas({ ops: [{ op: "add_element", render: "note", layer: "impact", label: "Impact" }] });
+    renderCanvas(canvas);
+    await screen.findByTestId("impact-change-summary");
+
+    act(() => collapsedLayersStore.collapse("impact"));
+
+    expect(screen.queryByTestId("impact-change-summary")).toBeNull();
+    expect(screen.queryByTestId("impact-legend")).toBeNull();
+  });
+});

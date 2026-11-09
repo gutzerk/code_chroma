@@ -21,6 +21,7 @@ import { useOpenFilesLiveRefresh } from "./useOpenFilesLiveRefresh";
 import { useDiagramReadinessWatcher } from "./doc/useDiagramReadinessWatcher";
 import { GamesMenu } from "../games/GamesMenu";
 import { useHasCanvasLayer } from "./doc/canvasDocStore";
+import { useCollapsedLayers } from "./doc/collapsedLayersStore";
 import { CodePopupContext } from "./CodePopupContext";
 import { CodePopup } from "./CodePopup";
 import { InspectorPanel } from "./InspectorPanel";
@@ -144,6 +145,8 @@ export function RootCanvas() {
   // block unconditionally (see single-canvas.md), so disabling the fetch here would silently kill
   // hierarchy diff badges for anyone who hasn't added the Impact diagram to their canvas.
   const hasImpactLayer = useHasCanvasLayer("impact");
+  // The legend/review board is part of the Impact diagram, so the Diagrams tab's collapse hides it too.
+  const isImpactCollapsed = useCollapsedLayers().has("impact");
   // Always-on diff + status data for the Impact layer: its blocks show diffs and color their
   // file/function lists by status even with the global Diff toggle off (see useSidecar.ts). Gated
   // on the impact layer's presence, like useImpactChangesSidecar's review fetch below — with no
@@ -535,7 +538,7 @@ export function RootCanvas() {
                 {/* Inside .canvas-content on purpose (unlike SidecarSummaryCard below, which is
                     deliberately screen-fixed chrome): a big PR's change list
                     should pan and zoom with the diagram it's annotating, same as any block. */}
-                {hasImpactLayer && (
+                {hasImpactLayer && !isImpactCollapsed && (
                   <ImpactChangeSummary
                     review={impactReview}
                     outputLines={impactReviewOutput}

@@ -29,7 +29,7 @@ export interface DiagramTaskHint {
   title?: string;
 }
 
-/** A claude agent's session usage for the full-screen strip; `costUsd` is null for an unpriced model. */
+/** A claude agent's session usage for the full-screen strip. */
 export interface AgentUsage {
   contextTokens: number;
   contextWindow: number;
@@ -37,7 +37,6 @@ export interface AgentUsage {
   outputTokens: number;
   cacheReadTokens: number;
   cacheHitRatio: number;
-  costUsd: number | null;
 }
 
 /** The answer to a PermissionRequest hook (POST /agents/{id}/permission). */

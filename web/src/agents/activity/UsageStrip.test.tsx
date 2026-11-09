@@ -23,7 +23,6 @@ const usage: AgentUsage = {
   outputTokens: 12_000,
   cacheReadTokens: 143_520,
   cacheHitRatio: 0.78,
-  costUsd: 0.84,
 };
 
 beforeEach(() => {
@@ -34,23 +33,16 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("UsageStrip", () => {
-  it("shows context, tokens, cache hit and cost with a context meter", () => {
+  it("shows context, tokens and cache hit with a context meter", () => {
     render(<UsageStrip usage={usage} />);
 
     const strip = screen.getByTestId("agent-usage-strip");
     expect(strip).toHaveTextContent("Context62k / 200k · 31%");
     expect(strip).toHaveTextContent("Tokens184k in · 12k out");
     expect(strip).toHaveTextContent("Cache hit78%");
-    expect(strip).toHaveTextContent("Cost$0.84");
     const meter = screen.getByRole("meter", { name: "Context used" });
     expect(meter).toHaveAttribute("aria-valuenow", "62000");
     expect(meter).toHaveAttribute("aria-valuemax", "200000");
-  });
-
-  it("hides the cost when the model has no price", () => {
-    render(<UsageStrip usage={{ ...usage, costUsd: null }} />);
-
-    expect(screen.getByTestId("agent-usage-strip")).not.toHaveTextContent("Cost");
   });
 
   it.each([

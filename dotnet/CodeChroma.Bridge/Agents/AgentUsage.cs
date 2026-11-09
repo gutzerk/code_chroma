@@ -6,29 +6,26 @@ namespace CodeChroma.Bridge.Agents;
 public static class AgentUsage
 {
     /// <summary>Null for an agent with no claude session, one with no session yet, or a session with no billed reply; `sessionOf` runs only when a claude session backs the agent.</summary>
-    public static JsonObject? Read(AgentRecord record, Func<string?> sessionOf, string? projectsRoot = null)
+    public static JsonObject? Read(AgentRecord record, Func<string?> sessionOf, string? projectsRoot = null, string? catalogDir = null)
     {
         var sessionId = record.HasClaudeSession ? sessionOf() : null;
         if (string.IsNullOrEmpty(sessionId)) return null;
-        return Transcripts.ReadSession(sessionId, record.Worktree, projectsRoot) is { } session ? Payload(session.Last, session.Totals) : null;
+        return Transcripts.ReadSession(sessionId, record.Worktree, projectsRoot) is { } session ? Payload(session.Last, session.Total, catalogDir) : null;
     }
 
-    /// <summary>Context from the last main-thread reply; tokens, cache hit and cost summed over every reply.</summary>
-    public static JsonObject? Payload(TranscriptUsage? last, IReadOnlyDictionary<string, TokenCounts>? totals)
+    /// <summary>Context from the last main-thread reply; tokens and cache hit summed over every reply.</summary>
+    private static JsonObject? Payload(TranscriptUsage? last, TokenCounts total, string? catalogDir)
     {
-        if (last is null && totals is not { Count: > 0 }) return null;
-        var sum = totals?.Values.Aggregate(new TokenCounts(0, 0, 0, 0), (a, b) => a + b) ?? new TokenCounts(0, 0, 0, 0);
-        var input = sum.Input + sum.CacheRead + sum.CacheWrite;
-        var cost = totals is { Count: > 0 } ? ModelSpecs.Cost(totals) : null;
+        if (last is null && total == TokenCounts.Zero) return null;
+        var input = total.Input + total.CacheRead + total.CacheWrite;
         return new JsonObject
         {
             ["contextTokens"] = last?.ContextTokens ?? 0,
-            ["contextWindow"] = ModelSpecs.ContextWindow(last?.Model, last?.ContextTokens ?? 0),
+            ["contextWindow"] = ModelSpecs.ContextWindow(last?.Model, last?.ContextTokens ?? 0, catalogDir),
             ["inputTokens"] = input,
-            ["outputTokens"] = sum.Output,
-            ["cacheReadTokens"] = sum.CacheRead,
-            ["cacheHitRatio"] = input > 0 ? Math.Round((double)sum.CacheRead / input, 4) : 0,
-            ["costUsd"] = cost is { } usd ? JsonValue.Create(Math.Round(usd, 4)) : null,
+            ["outputTokens"] = total.Output,
+            ["cacheReadTokens"] = total.CacheRead,
+            ["cacheHitRatio"] = input > 0 ? Math.Round((double)total.CacheRead / input, 4) : 0,
             ["model"] = last?.Model,
         };
     }

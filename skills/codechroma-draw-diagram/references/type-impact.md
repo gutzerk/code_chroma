@@ -27,9 +27,11 @@ type needs:
 curl -s "${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/impact/context?source=diff"
 # or, when working from a feature's spec files, the plan slice (name the feature directory):
 curl -s ".../impact/context?source=plan&feature=specs/006-graph-research-endpoint"
+# -> {"coverage": null, "staleness": null,
+#     "generation_data": {"source", "feature", "nodes", "relations", "seed_count", "node_count", "truncated", "fingerprint"}}
 ```
 
-Returns the rich slice: `nodes` each with `id`/`name`/`node_id` (a **real** hierarchy node id you
+The slice lives under `generation_data` (not at the top level): `nodes` each with `id`/`name`/`node_id` (a **real** hierarchy node id you
 must copy verbatim whenever you render it), `seed` (true = touched directly by the change/plan),
 `path`, `level` (`function`/`class`/`file`/`dir`), `reason` (for a seed: the git status word like
 `modified`, or the spec line naming the path), and `anchors` (the System→… path it lives under —
@@ -65,9 +67,9 @@ fields at the top level plus in each node's `meta`:
   "feature": "specs/006-graph-research-endpoint",
   "fingerprint": "<copy verbatim from impact/context>",
   "nodes": [
-    { "id": "server/internal/fit/rank.go::class::RankRequest", "name": "RankRequest", "node_id": "server/internal/fit/rank.go::class::RankRequest", "seed": true, "description": "New struct the plan adds: DeployTargetRef field.", "meta": { "status": "new" } },
-    { "id": "server/api/handlers.go::function::Recommend", "name": "Recommend", "node_id": "server/api/handlers.go::function::Recommend", "seed": true, "description": "Existing handler the plan changes to accept DeployTargetRef.", "meta": { "status": "modified" } },
-    { "id": "collapsed::auth", "name": "Auth (unchanged)", "node_id": "dir::server", "seed": false, "description": "Unchanged background the change passes through.", "meta": { "status": "context" } },
+    { "id": "server/internal/fit/rank.go::class::RankRequest", "name": "RankRequest", "node_id": "server/internal/fit/rank.go::class::RankRequest", "seed": true, "description": "New struct carrying a DeployTargetRef, so ranking can be limited to one deploy target.", "meta": { "status": "new" } },
+    { "id": "server/api/handlers.go::function::Recommend", "name": "Recommend", "node_id": "server/api/handlers.go::function::Recommend", "seed": true, "description": "Will accept a DeployTargetRef and pass it into RankRequest, so the API can rank per target.", "meta": { "status": "modified" } },
+    { "id": "collapsed::auth", "name": "Auth (unchanged)", "node_id": "dir::server", "seed": false, "description": "Unchanged; every changed handler still authorizes through it.", "meta": { "status": "context" } },
     { "id": "server/internal/fit/wire.go::class::Wire", "name": "Wire (fragile)", "node_id": "server/internal/fit/wire.go::class::Wire", "seed": false, "style": { "background": "rgba(230, 80, 110, 0.15)", "border-color": "#e06c75" }, "meta": { "status": "context" } }
   ],
   "relations": [
@@ -92,6 +94,20 @@ Rules:
   real boxes when they carry the story (a key caller), or be collapsed: give a collapsed box the
   closest real ancestor `node_id` (e.g. a directory) as its primary id, plus `"seed": false` and a
   `description` naming what it collapses ("unchanged background").
+- 🔴 **`nodes[].description` says what changed and why** — the reviewer reads it in the box's FOCUS
+  panel and must learn what this PR does there without opening the code. Write in the language of
+  the user's request:
+  - a changed box (`new`/`modified`/`deleted`): one or two short sentences — first **what** the code
+    now does differently (behaviour, not a count), then **why**: which goal of this change it serves.
+    `"Passes the stored unit limit to the gateway publisher, so every unit registers under the limit
+    set in the panel."`, not `"3 functions changed"` and not `"Door template context now carries the
+    limits."` (what, but no why);
+  - a context box: **why it is on the diagram** — how it relates to the change (`"Unchanged; calls
+    the door renderer, so it now receives the limits too."`);
+  - take the "why" from the PR description, the commit messages, the spec or the code; when none of
+    them shows a motive, say what the change enables instead of guessing one;
+  - the self-check flags a changed box with no description (`NOWHY`), a bare count or status word
+    (`COUNT-ONLY`) and a description that repeats the name (`ECHO-LABEL`).
 - 🔴 **`nodes[].node_id` is required, unlike system-context/custom.** Impact never resolves a `path` itself — a
   box with no `node_id` you already resolved yourself is dropped outright, not kept.
 - `nodes[].style` (optional) — see `drawing-rules.md`. Use it when a box needs a colour beyond the
@@ -120,8 +136,8 @@ Rules:
       struct/file/endpoint). Rare — most plan slices only add or change things.
   - **Both sources**: `"context"` — an entity that does **not** change (an unchanged neighbour/caller
     pulled into the slice, or a collapsed background box). Default when a box isn't a change target.
-- `relations[].label` (optional) — a short caption on an arrow describing the call/relationship:
-  `"builds RankRequest"`, `"calls Rank()"`, `"writes submission"`. Add it on the arrows that matter
+- `relations[].label` (optional) — a short caption on an arrow saying what this change sends across
+  it: `"builds RankRequest"`, `"passes V1Limits"`, `"writes submission"` — not a bare `"calls"`. Add it on the arrows that matter
   to the story, not on every edge.
 - `relations[].hero` (optional, boolean) — mark **at most 1-2** relations `true`: the edge(s) that
   most directly explain what this PR's change does architecturally (the new call into a payment
@@ -133,7 +149,7 @@ Rules:
   `from` → a callee `to`), matching what `impact/context`'s `relations` already spells.
 - **Every id must be unique** across `nodes[]`. Copy `node_id`/`id` from `impact/context` for any
   real node; never invent a class/function that isn't in the context.
-- **5-second read (022):** write top-level `question` (what the diagram answers) and `summary` (one line) strings, and mark the 1-2 main-path relations `hero: true`; the self-check advises `NOSUMMARY`/`NOHERO` otherwise and a diagram without them renders exactly like the old one. `meta.order`/`meta.lane` stay optional here — impact shows what a change touches, not a process.
+- **5-second read (022):** write top-level `question` (what the diagram answers) and `summary` (one line: what this change does and why) strings, and mark the 1-2 main-path relations `hero: true`; the self-check advises `NOSUMMARY`/`NOHERO` otherwise and a diagram without them renders exactly like the old one. `meta.order`/`meta.lane` stay optional here — impact shows what a change touches, not a process.
 
 ## Procedure
 
@@ -146,12 +162,11 @@ Rules:
      one box addressed at that file's component node — not a box per changed symbol. Give the merged
      box the file's `component::<path>` id (e.g. `component::application/backend/cmd/server/main.go`)
      — this prefix is what the self-check allows free, so you needn't find it in the slice's own
-     node list — `"seed": true`, and a `description` like `"<n> functions changed"` (or the status
-     word, e.g. `"Added: TestStatusHTTP*"`). Add `relations` from it the way the slice spells the
+     node list — `"seed": true`, and a "what + why" `description` covering the merged changes together
+     (see the `nodes[].description` rule above) — never `"<n> functions changed"`. Add `relations` from it the way the slice spells the
      function edges it aggregates;
    - ⚠ **`component::<path>` only applies to one real file — never a directory.** If the change
-     touches several files inside one package (a description like "5 files changed: recommend.go,
-     deploy.go, handlers_test.go, …"), the box addresses the package, not any single file, so its id
+     touches several files inside one package (several files in one package), the box addresses the package, not any single file, so its id
      must be `dir::<path-to-the-package>` (e.g. `dir::gateway-orchestration/internal/api/blueprint`)
      — the same prefix used for a collapsed context box. A `component::` id built from a directory
      path resolves to nothing; the self-check catches this (a `BROKEN … does not exist` line), but
@@ -172,7 +187,7 @@ Rules:
 4. Wire `relations[]` between the boxes you kept; put a short `label` on the arrows that carry the
    story ("builds X", "calls Y()"), and mark 1-2 of them `hero: true` — the edge(s) a reviewer most
    needs to see first.
-5. Write the file. Copy `fingerprint` from `impact/context` so the canvas can flag staleness.
+5. Write the file. Copy `generation_data.fingerprint` from `impact/context` so the canvas can flag staleness.
 6. **Self-check — never report success on a run that didn't print `OK`:**
 
    ```bash

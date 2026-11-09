@@ -36,7 +36,7 @@ curl -s "$CODECHROMA_BRIDGE_URL/repos/$CODECHROMA_WORKSPACE_ID/wiki-general/upda
 curl -s -X POST "$CODECHROMA_BRIDGE_URL/repos/$CODECHROMA_WORKSPACE_ID/wiki-general/update-plan"
 ```
 
-`delta.components` and `delta.containers` each hold `created`, `rewritten`, `deleted`, `unaffected`.
+`delta.components` and `delta.containers` (top-level `components`/`containers` in the GET preview) each hold `created`, `rewritten`, `deleted`, `unaffected`.
 Call the POST exactly once per run (a second call sees the already-updated manifest and returns an
 empty plan). Do **not** call `POST .../wiki-general/update` from a terminal: that starts a second,
 headless agent that duplicates your work.

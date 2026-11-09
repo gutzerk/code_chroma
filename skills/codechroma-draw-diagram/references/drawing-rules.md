@@ -528,8 +528,8 @@ The user wants a diagram none of the router rows covers. In this order:
    ```
 
    - **`render`** is the field for a box's kind, and its value is one of
-     `RENDER_KINDS = ("hierarchy", "c1", "pattern", "impact", "epic", "custom", "group", "note")`
-     (`canvas/document.py`). For an ordinary diagram box, use `"custom"` — not `"box"`/`"node"`/
+     `RENDER_KINDS = ("hierarchy", "c1", "pattern", "impact", "epic", "spec", "task", "custom", "group",
+     "note", "sequence", "question", "route")` (`canvas/document.py`, C# `CanvasDoc.RenderKinds`). For an ordinary diagram box, use `"custom"` — not `"box"`/`"node"`/
      `"shape"`, none of which exist. `"group"`/`"note"` are for a native group container or sticky
      note, not a generic diagram node.
    - **`temp_id`** is a scratch id **you invent** on `add_element`/`add_edge` — later ops in the

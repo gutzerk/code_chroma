@@ -61,6 +61,7 @@ describe("tutorialSimStore", () => {
 
   it.each([
     [1, { revealed: [], agent1Listed: false, wiki: "idle" }],
+    [2, { revealed: ["patterns"], agent1Listed: false, wiki: "done" }],
     [3, { revealed: ["patterns"], agent1Listed: false, wiki: "done" }],
     [4, { revealed: ["patterns"], agent1Listed: true, wiki: "done" }],
     [5, { revealed: [], agent1Listed: false, wiki: "done", pr: "none", prImpact: false }],

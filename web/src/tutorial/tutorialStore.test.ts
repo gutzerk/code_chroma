@@ -26,6 +26,21 @@ describe("tutorialStore", () => {
 
     expect(tutorialStore.getStepIndex()).toBe(0);
   });
+
+  it("puts diagram drawing first and the code tree in stage 2", () => {
+    tutorialStore.start();
+    tutorialStore.next();
+    const firstAction = tutorialStore.currentStepId();
+    tutorialStore.goToStage(2);
+
+    expect(firstAction).toBe("generate");
+    expect(tutorialStore.currentStepId()).toBe("open-tree");
+    expect(TUTORIAL_STEPS[0].stage).toBe(1);
+    expect(TUTORIAL_STEPS.find((step) => step.id === "draw")?.stage).toBe(1);
+    expect(TUTORIAL_STEPS.find((step) => step.id === "choose-diagram")?.target).toBe(
+      '[data-testid="draw-card-patterns"]',
+    );
+  });
 });
 
 describe("tutorialStore.goToStage", () => {

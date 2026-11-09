@@ -77,10 +77,11 @@ public static class AgentRoutes
             }
             var hint = DiagramHint.Parse(body);
             if (hint.Error is not null) return Reply.Error(400, hint.Error);
+            if (hint.WorkflowRequest is not null && (contextKind != "task" || AgentRecord.CleanContext(context) is null))
+                return Reply.Error(400, "workflow_request needs context_kind 'task' and a context");
             var drawing = contextKind == "task" && hint.Type is not null;
-            var designing = contextKind == "task" ? hint.WorkflowRequest : null;
             AgentRecord record;
-            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, drawing ? hint.Type : null, drawing ? hint.Request : null, workspace, designing)); }
+            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, drawing ? hint.Type : null, drawing ? hint.Request : null, workspace, hint.WorkflowRequest)); }
             catch (UnknownAgentException) { return Reply.Error(404, attachTo is null ? $"unknown workspace: {workspace}" : $"unknown attach_to: {attachTo}"); }
             catch (WorktreeException error) { return Reply.Error(400, error.Message); }
             registry.Register(record.Id, record.Worktree, sharesWorkspaceWith: record.SharesWorkspaceWith);
@@ -123,12 +124,12 @@ public static class AgentRoutes
             else if (taskText is not null && record.WorkflowRequest is { } workflowRequest)
             {
                 var workspaceId = record.SharesWorkspaceWith ?? record.Id;
-                if (BareSkill.ComposeWorkflow(TryWorkspace(registry, workspaceId)?.Root ?? record.Worktree, workflowRequest) is { } composed)
-                {
-                    taskText = composed;
-                    bare = BareSkill.Enabled();
-                    visible = bare ? workflowRequest : null;
-                }
+                // without the skill the agent would get neither the workflow shape nor the user's description
+                if (BareSkill.ComposeWorkflow(TryWorkspace(registry, workspaceId)?.Root ?? record.Worktree, workflowRequest) is not { } composed)
+                    return Reply.Error(503, $"the {BareSkill.WorkflowSkill} skill is not installed");
+                taskText = composed;
+                bare = BareSkill.Enabled();
+                visible = bare ? workflowRequest : null;
             }
             var trackingFile = AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString());
             var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork, agentId: agentId, bridgeUrl: BareSkill.BridgeUrl,
@@ -353,22 +354,48 @@ public static class AgentRoutes
         }
     }
 
-    /// <summary>Agents whose auto-title refresh is running, so a burst of hook reports reads the transcript once.</summary>
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> TitlesInFlight = new();
+    /// <summary>Agents whose auto-title refresh is running: whether another report asked for one meanwhile, and its transcript path.</summary>
+    private static readonly Dictionary<string, (bool Again, string? TranscriptPath)> TitleRefreshes = new();
 
-    /// <summary>Re-derives the agent's title from its session off the request path and pushes it when it changed; a hand-set title is left alone.</summary>
+    /// <summary>Re-derives the agent's title from its session off the request path and pushes it when it changed; a hand-set title is left alone. A report during a refresh runs one more after it, so a turn's Stop is never lost.</summary>
     public static void ScheduleAutoTitle(AgentManager agents, ConnectionManager connections, AgentRecord record, string? projectsRoot = null, string? transcriptPath = null)
     {
-        if (record.TitleSource == AutoTitle.UserSource || !record.HasClaudeSession || !TitlesInFlight.TryAdd(record.Id, 0)) return;
+        if (record.TitleSource == AutoTitle.UserSource || !record.HasClaudeSession) return;
+        lock (TitleRefreshes)
+        {
+            if (TitleRefreshes.TryGetValue(record.Id, out var running))
+            {
+                TitleRefreshes[record.Id] = (true, transcriptPath ?? running.TranscriptPath);
+                return;
+            }
+            TitleRefreshes[record.Id] = (false, transcriptPath);
+        }
         _ = Task.Run(async () =>
         {
+            var path = transcriptPath;
+            var finished = false;
             try
             {
-                if (AutoTitle.Suggest(record, () => agents.CaptureSessionId(record.Id), projectsRoot, transcriptPath) is { } title && agents.ApplyAutoTitle(record.Id, title) is { } renamed)
-                    await BroadcastTitle(connections, renamed);
+                while (!finished)
+                {
+                    try
+                    {
+                        if (AutoTitle.Suggest(record, () => agents.CaptureSessionId(record.Id), projectsRoot, path) is { } title && agents.ApplyAutoTitle(record.Id, title) is { } renamed)
+                            await BroadcastTitle(connections, renamed);
+                    }
+                    catch (Exception error) when (error is UnknownAgentException or IOException or UnauthorizedAccessException) { }
+                    lock (TitleRefreshes)
+                    {
+                        var state = TitleRefreshes[record.Id];
+                        if (state.Again) (TitleRefreshes[record.Id], path) = ((false, state.TranscriptPath), state.TranscriptPath);
+                        else finished = TitleRefreshes.Remove(record.Id);
+                    }
+                }
             }
-            catch (Exception error) when (error is UnknownAgentException or IOException or UnauthorizedAccessException) { }
-            finally { TitlesInFlight.TryRemove(record.Id, out _); }
+            finally
+            {
+                if (!finished) lock (TitleRefreshes) TitleRefreshes.Remove(record.Id);
+            }
         });
     }
 

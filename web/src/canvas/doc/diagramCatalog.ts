@@ -329,7 +329,7 @@ export async function removeLayerAndRefresh(
   layer: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const doc = canvasDocStore.getDoc();
-  const layerElements = Object.values(doc.elements).filter((element) => element.layer === layer);
+  const layerElements = layerMembers(doc, layer);
   captureLayerPositions(layerElements, layer);
   const elementIds = layerElements.map((element) => element.id);
   const deleting = new Set(elementIds);
@@ -363,52 +363,49 @@ export async function redrawLayerFromScratch(
   layer: string,
   { keepPlace }: { keepPlace: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const before = layerTopLeft(canvasDocStore.getDoc(), layer);
-  if (isRecipeBackedLayer(layer)) {
-    const removed = await removeLayerAndRefresh(engineClient, layer);
-    if (!removed.ok) return removed;
-    forgetLayerPositions(layer);
-    const drawn = await runRecipeAndLayout(engineClient, layer);
-    if (!drawn.ok) return drawn;
-  } else {
-    const doc = canvasDocStore.getDoc();
-    const ids = Object.values(doc.elements)
-      .filter((element) => element.layer === layer)
-      .map((element) => element.id);
-    const { positions, sizes } = await layoutNewElements(doc, ids);
-    const result = await patchCanvasDoc(engineClient, layoutOps(positions, sizes), {
+  const before = layerTopLeft(layerMembers(canvasDocStore.getDoc(), layer).map((element) => element.position));
+  const anchorAt = (after: { x: number; y: number } | null) =>
+    keepPlace && before && after ? { dx: before.x - after.x, dy: before.y - after.y } : { dx: 0, dy: 0 };
+  if (!isRecipeBackedLayer(layer)) {
+    const members = layerMembers(canvasDocStore.getDoc(), layer);
+    const { positions, sizes } = await layoutNewElements(canvasDocStore.getDoc(), members.map((element) => element.id));
+    const laidOut = members.map((element) => positions[element.id] ?? element.position);
+    const { dx, dy } = anchorAt(layerTopLeft(laidOut));
+    const shifted = Object.fromEntries(Object.entries(positions).map(([id, at]) => [id, { x: at.x + dx, y: at.y + dy }]));
+    const result = await patchCanvasDoc(engineClient, layoutOps(shifted, sizes), {
       layer,
       explanation: "layout playground: re-layout",
     });
-    if (!result.ok) return { ok: false, error: result.errors[0]?.message ?? "re-layout failed" };
+    return result.ok ? { ok: true } : { ok: false, error: result.errors[0]?.message ?? "re-layout failed" };
   }
-  const after = layerTopLeft(canvasDocStore.getDoc(), layer);
-  if (!keepPlace || !before || !after) return { ok: true };
-  const dx = before.x - after.x;
-  const dy = before.y - after.y;
+  const removed = await removeLayerAndRefresh(engineClient, layer);
+  if (!removed.ok) return removed;
+  forgetLayerPositions(layer);
+  const drawn = await runRecipeAndLayout(engineClient, layer);
+  if (!drawn.ok) return drawn;
+  const members = layerMembers(canvasDocStore.getDoc(), layer);
+  const { dx, dy } = anchorAt(layerTopLeft(members.map((element) => element.position)));
   if (dx === 0 && dy === 0) return { ok: true };
-  const shifted = Object.values(canvasDocStore.getDoc().elements)
-    .filter((element) => element.layer === layer)
-    .map((element) => ({
+  const moved = await patchCanvasDoc(
+    engineClient,
+    members.map((element) => ({
       op: "update_element" as const,
       id: element.id,
       position: { x: element.position.x + dx, y: element.position.y + dy },
-    }));
-  const moved = await patchCanvasDoc(engineClient, shifted, {
-    layer,
-    explanation: "layout playground: keep place",
-  });
+    })),
+    { layer, explanation: "layout playground: keep place" },
+  );
   return moved.ok ? { ok: true } : { ok: false, error: moved.errors[0]?.message ?? "move failed" };
 }
 
-/** The smallest box-centre x and y on `layer` -- an anchor that moves exactly with the whole layer. */
-function layerTopLeft(doc: CanvasDoc, layer: string): { x: number; y: number } | null {
-  const members = Object.values(doc.elements).filter((element) => element.layer === layer);
-  if (members.length === 0) return null;
-  return {
-    x: Math.min(...members.map((element) => element.position.x)),
-    y: Math.min(...members.map((element) => element.position.y)),
-  };
+function layerMembers(doc: CanvasDoc, layer: string): CanvasElement[] {
+  return Object.values(doc.elements).filter((element) => element.layer === layer);
+}
+
+/** The smallest box-centre x and y -- an anchor that moves exactly with the whole layer. */
+function layerTopLeft(centres: CanvasPosition[]): { x: number; y: number } | null {
+  if (centres.length === 0) return null;
+  return { x: Math.min(...centres.map((at) => at.x)), y: Math.min(...centres.map((at) => at.y)) };
 }
 
 /** The rail's own delete action -- unlike `removeLayerAndRefresh` above (canvas-only, no

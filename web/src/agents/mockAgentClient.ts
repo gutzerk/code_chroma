@@ -259,15 +259,6 @@ export class MockAgentClient implements AgentClient {
     this.agents = this.agents.filter((agent) => agent.id !== _id);
   }
 
-  async rename(id: string, title: string): Promise<AgentRecord> {
-    const agent = this.agents.find((candidate) => candidate.id === id);
-    if (!agent) throw new Error(`unknown agent: ${id}`);
-    const clean = title.trim().split(/\s+/).filter(Boolean).join(" ");
-    agent.title = clean || agent.id;
-    agent.title_source = clean ? "user" : "default";
-    return { ...agent };
-  }
-
   async saveWindow(id: string, window: Partial<AgentWindowGeometry>): Promise<void> {
     const agent = this.agents.find((candidate) => candidate.id === id);
     if (agent) agent.window = { ...agent.window, ...window };

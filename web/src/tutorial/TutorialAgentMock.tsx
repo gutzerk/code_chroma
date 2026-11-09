@@ -178,7 +178,6 @@ export function TutorialAgentMock() {
     const resumed = (step?.stage ?? 0) >= 4;
     const client = createDrawDiagramClient(
       {
-        onChosen: () => advanceTutorialFrom("choose-diagram"),
         onDone: drawFirstDiagram,
       },
       resumed,

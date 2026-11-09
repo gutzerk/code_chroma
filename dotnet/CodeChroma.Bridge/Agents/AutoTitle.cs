@@ -21,7 +21,6 @@ public static partial class AutoTitle
     public const string DefaultSource = "default";
     public const string AutoSource = "auto";
     public const string UserSource = "user";
-    public static readonly string[] Sources = [DefaultSource, AutoSource, UserSource];
 
     /// <summary>The events-socket message carrying a renamed agent's title, so its row and window update in place.</summary>
     public const string TitleEvent = "agent-title";
@@ -36,6 +35,12 @@ public static partial class AutoTitle
     public const int HeuristicWords = 6;
     public const int HeuristicChars = 48;
 
+    /// <summary>A transcript line longer than this (a pasted image, a huge tool result) is skipped, never buffered whole.</summary>
+    public const int MaxLineBytes = 1024 * 1024;
+
+    /// <summary>At most this many transcripts are followed; past it the cache starts over (a later refresh rereads from the start).</summary>
+    public const int MaxFollowed = 256;
+
     private const string Ellipsis = "…";
 
     /// <summary>Per transcript: how far it was read and the topic read so far, so each refresh reads only the appended bytes.</summary>
@@ -44,14 +49,24 @@ public static partial class AutoTitle
     /// <summary>The hook reports that refresh the title: a submitted prompt, and the end of a turn, by when Claude Code has written its ai-title.</summary>
     public static bool Triggers(JsonObject report) => Json.Str(report["hook_event_name"]) is "UserPromptSubmit" or "Stop";
 
-    public static string CoerceSource(string? value) => value is not null && Sources.Contains(value) ? value : DefaultSource;
+    public static string CoerceSource(string? value) => value is DefaultSource or AutoSource or UserSource ? value : DefaultSource;
 
     /// <summary>The title the agent's session suggests, or null when it suggests none yet; the hook's `transcriptPath` saves locating the transcript by session id.</summary>
     public static string? Suggest(AgentRecord record, Func<string?> sessionOf, string? projectsRoot = null, string? transcriptPath = null)
     {
         if (!record.HasClaudeSession) return null;
-        var path = File.Exists(transcriptPath) ? transcriptPath : sessionOf() is { Length: > 0 } sessionId ? Transcripts.Locate(sessionId, record.Worktree, projectsRoot) : null;
+        var root = projectsRoot ?? Transcripts.ProjectsDir();
+        var path = IsTranscript(transcriptPath, root) ? transcriptPath : sessionOf() is { Length: > 0 } sessionId ? Transcripts.Locate(sessionId, record.Worktree, root) : null;
         return Choose(path is null ? null : Read(path, wantsOpening: record.ContextKind != "task"), record);
+    }
+
+    /// <summary>True only for a plain `.jsonl` file under the claude projects root: a hook report's path is never trusted to name any other file.</summary>
+    public static bool IsTranscript(string? path, string projectsRoot)
+    {
+        if (string.IsNullOrEmpty(path) || !path.EndsWith(".jsonl", StringComparison.Ordinal)) return false;
+        if (!Routes.SourceText.IsWithin(projectsRoot, path)) return false;
+        var file = new FileInfo(Path.GetFullPath(path));
+        return file.Exists && file.LinkTarget is null;
     }
 
     /// <summary>The /rename name, else Claude's generated title, else a heuristic from the user's own words; a task agent's first prompt is the composed skill text, so it falls back to its request only.</summary>
@@ -71,7 +86,7 @@ public static partial class AutoTitle
         var words = Url().Replace(line, m => LastSegment(m.Value)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         var kept = string.Join(' ', words.Take(HeuristicWords));
         if (words.Length > HeuristicWords) kept = TrimTail(kept) + Ellipsis;
-        var shortened = Shorten(kept, HeuristicChars)!;
+        if (Shorten(kept, HeuristicChars) is not { } shortened) return null;
         return char.ToUpper(shortened[0], CultureInfo.InvariantCulture) + shortened[1..];
     }
 
@@ -107,25 +122,39 @@ public static partial class AutoTitle
             stream.Seek(offset, SeekOrigin.Begin);
             var chunk = new byte[64 * 1024];
             using var line = new MemoryStream();
+            long lineBytes = 0;
+            void Append(int start, int count)
+            {
+                lineBytes += count;
+                if (lineBytes <= MaxLineBytes) line.Write(chunk, start, count);
+                else line.SetLength(0);
+            }
             int read;
             while ((read = stream.Read(chunk)) > 0)
             {
                 var start = 0;
                 for (var i = Array.IndexOf(chunk, (byte)'\n', 0, read); i >= 0; i = Array.IndexOf(chunk, (byte)'\n', start, read - start))
                 {
-                    line.Write(chunk, start, i - start);
-                    topic = Absorb(topic, Encoding.UTF8.GetString(line.GetBuffer(), 0, (int)line.Length), wantsOpening);
-                    offset += line.Length + 1;
+                    Append(start, i - start);
+                    if (lineBytes <= MaxLineBytes && MayMatter(line.GetBuffer().AsSpan(0, (int)line.Length), topic, wantsOpening))
+                        topic = Absorb(topic, Encoding.UTF8.GetString(line.GetBuffer(), 0, (int)line.Length), wantsOpening);
+                    offset += lineBytes + 1;
                     line.SetLength(0);
+                    lineBytes = 0;
                     start = i + 1;
                 }
-                line.Write(chunk, start, read - start);
+                Append(start, read - start);
             }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return topic; }
+        if (Followed.Count >= MaxFollowed && !Followed.ContainsKey(path)) Followed.Clear();
         Followed[path] = (offset, topic);
         return topic;
     }
+
+    /// <summary>Absorb's cheap filter run on the raw bytes, so lines it would reject are never decoded.</summary>
+    private static bool MayMatter(ReadOnlySpan<byte> line, SessionTopic topic, bool wantsOpening) =>
+        line.IndexOf("-title\""u8) >= 0 || (wantsOpening && topic.Opening is null && line.IndexOf("\"user\""u8) >= 0);
 
     /// <summary>One transcript line: the last name of each kind wins, the first opening stays (looked for only when `wantsOpening`; tool results are never one).</summary>
     public static SessionTopic Absorb(SessionTopic topic, string line, bool wantsOpening = true)

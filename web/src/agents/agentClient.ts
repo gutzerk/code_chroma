@@ -72,8 +72,6 @@ export interface AgentClient {
   stop(id: string): Promise<AgentRecord>;
   /** Removes the card; the worktree and the branch only when explicitly asked for. */
   remove(id: string, options?: { worktree?: boolean; branch?: boolean; force?: boolean }): Promise<void>;
-  /** Renames the agent by hand, locking its title against auto-title; "" hands it back (PATCH /agents/{id}). */
-  rename?(id: string, title: string): Promise<AgentRecord>;
   /** Fired on mouse release, the way saveC1Layout already is — not on every pointer move. */
   saveWindow(id: string, window: Partial<AgentWindowGeometry>): Promise<void>;
   /** What blocks a PR, so the button can render disabled with the reason as its label. */
@@ -208,10 +206,6 @@ export class HttpAgentClient implements AgentClient {
     if (options.force) query.set("force", "true");
     const suffix = query.toString() ? `?${query.toString()}` : "";
     await this.request<unknown>(`/agents/${id}${suffix}`, this.json("DELETE"));
-  }
-
-  rename(id: string, title: string): Promise<AgentRecord> {
-    return this.request<AgentRecord>(`/agents/${id}`, this.json("PATCH", { title }));
   }
 
   async saveWindow(id: string, window: Partial<AgentWindowGeometry>): Promise<void> {

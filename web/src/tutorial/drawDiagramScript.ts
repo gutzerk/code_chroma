@@ -1,9 +1,6 @@
 import { createScriptedClient, type ScriptedClient } from "./scriptedSession";
 
-const DIAGRAM_CHOICES = [{ label: "Design patterns", recipe: "patterns" }] as const;
-
 export interface DrawDiagramHooks {
-  onChosen: () => void;
   onDone: (recipe: string) => void;
 }
 
@@ -20,21 +17,16 @@ export function createDrawDiagramClient(
     }
     session.open();
     session.play({
-      prompt: "Draw a diagram of this project",
+      prompt: "Draw a Design patterns diagram of this project",
       intro: "I will use the codechroma-draw-diagram skill.",
-      question: "Which diagram would you like?",
-      options: DIAGRAM_CHOICES.map((choice) => choice.label),
       workLines: [
         "Reading the architecture wiki…",
-        "Finding the people who use the app…",
-        "Finding the systems it depends on…",
+        "Finding the patterns in the code…",
         "Drawing boxes and arrows…",
         "Self-check passed.",
       ],
-      ack: (choice) => `${DIAGRAM_CHOICES[choice].label} it is.`,
-      doneLine: (choice) => `Done. The ${DIAGRAM_CHOICES[choice].label} diagram is on your canvas.`,
-      onChosen: hooks.onChosen,
-      onDone: (choice) => hooks.onDone(DIAGRAM_CHOICES[choice].recipe),
+      doneLine: () => "Done. The Design patterns diagram is on your canvas.",
+      onDone: () => hooks.onDone("patterns"),
     });
   });
 }

@@ -33,14 +33,14 @@
   box-sizing: border-box;
   padding: 3px 6px;
   border: 1px solid var(--bg-raised-2);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--bg-raised);
   color: var(--text-strong);
   font: inherit;
 }
 
 .layout-playground textarea {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   resize: vertical;
 }
 

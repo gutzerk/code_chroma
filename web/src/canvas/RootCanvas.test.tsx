@@ -16,7 +16,7 @@ import { terminalPanelStore } from "../terminal/terminalPanelStore";
 import { collapsedLayersStore } from "./doc/collapsedLayersStore";
 import { codeViewModeStore } from "./codeViewModeStore";
 import type { EngineClient } from "../engine-client/EngineClient";
-import { EMPTY_CANVAS_DOC } from "../state/types";
+import { EMPTY_CANVAS_DOC, EMPTY_IMPACT_CHANGES } from "../state/types";
 import type { CanvasBatch, CanvasBatchResult, CanvasDoc, CanvasElement, HierarchyNodeRef } from "../state/types";
 import type { TerminalClient } from "../terminal/TerminalClient";
 
@@ -135,6 +135,7 @@ afterEach(() => {
   codeViewModeStore.reset();
   inspectorStore.reset();
   terminalPanelStore.reset();
+  window.localStorage.clear();
   vi.restoreAllMocks();
 });
 
@@ -225,12 +226,14 @@ describe("RootCanvas impact summary", () => {
   it("hides the impact legend and review card with the collapsed Impact diagram", async () => {
     const canvas = makeCanvasState();
     await canvas.patchCanvas({ ops: [{ op: "add_element", render: "note", layer: "impact", label: "Impact" }] });
-    renderCanvas(canvas);
-    await screen.findByTestId("impact-change-summary");
+    const changes = { ...EMPTY_IMPACT_CHANGES, unassigned: [{ path: "a.py", status: "modified" as const }], changed_file_count: 1 };
+    renderCanvas({ ...canvas, getSidecar: (async () => changes) as EngineClient["getSidecar"] });
+    await screen.findByTestId("impact-legend");
 
     act(() => collapsedLayersStore.collapse("impact"));
 
     expect(screen.queryByTestId("impact-change-summary")).toBeNull();
     expect(screen.queryByTestId("impact-legend")).toBeNull();
+    expect(screen.queryByTestId("impact-change-summary-unassigned")).toBeNull();
   });
 });

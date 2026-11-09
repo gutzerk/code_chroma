@@ -552,7 +552,10 @@ rendering by a workspace-scoped client store keyed on `Element.layer`, and never
 reports) feeds both the element map and `visibleDoc`'s edge list, so a collapsed diagram's edges
 disappear for free via the same "edge whose endpoint is missing" filter that already existed for a
 partial batch. The Diagrams tab's own remove/delete rows are the only way to actually delete a
-diagram's elements/edges from `CanvasDoc`. ⚠ Chrome drawn outside `CanvasDocView` must check the same store: `RootCanvas` hides `ImpactChangeSummary` (the Impact board's legend, review card and outside strip) when `"impact"` is collapsed (`RootCanvas.test.tsx`). 🔵 The filter is layer-name-agnostic, so it also works,
+diagram's elements/edges from `CanvasDoc`. ⚠ Chrome drawn outside `CanvasDocView` must check the
+same store: `RootCanvas` hides `ImpactChangeSummary` (the Impact board's legend, review card and
+outside strip) when `"impact"` is collapsed (`RootCanvas.test.tsx`). 🔵 The filter is
+layer-name-agnostic, so it also works,
 unmodified, on the seeded root hierarchy element's own `"hierarchy"` layer — `RootCanvas.tsx`'s rail
 button that used to switch the code-popup/inline mode (`code-view-mode-button`) was repurposed into a
 `collapsedLayersStore.toggle("hierarchy")` call (`RailIcon name="hierarchy"`), so the whole code tree

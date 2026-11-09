@@ -61,6 +61,7 @@ export function AgentSwitcherRow({
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const menuId = useId();
+  const statusId = useId();
   const active = agents.find((a) => a.id === activeId);
   const activeIndex = agents.findIndex((a) => a.id === activeId);
   const activeStatus = useAgentStatus(active?.status ?? "idle", active?.id ?? "");
@@ -84,7 +85,7 @@ export function AgentSwitcherRow({
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         aria-label="Select agent"
-        aria-description={active ? activeStatus.label : undefined}
+        aria-describedby={active ? statusId : undefined}
         data-status={active ? activeStatus.shown : undefined}
         data-testid="agent-switcher-trigger"
         title="Switch agents: Ctrl/Cmd+Alt+Up/Down · next waiting agent: Ctrl/Cmd+Shift+J"
@@ -93,6 +94,9 @@ export function AgentSwitcherRow({
       >
         {active ? (
           <>
+            <span className="visually-hidden" id={statusId}>
+              {activeStatus.label}
+            </span>
             <span className="activity-switcher-text">
               <span className="activity-switcher-title">{active.title}</span>
               <AgentStatusLine agent={active} />

@@ -24,7 +24,7 @@ interface SimSnapshot {
   feature: string | null;
   /** The next exchange the first agent's terminal should play. */
   scene: SimScene | null;
-  /** The wiki notice was already shown and dismissed (a lesson that starts after stage 2). */
+  /** The wiki notice was already shown and dismissed (a lesson that starts after stage 1). */
   wikiAcked: boolean;
   /** The canvas has been set up for the current stage, so a step may watch it. */
   stageReady: boolean;
@@ -135,10 +135,10 @@ class TutorialSimStore extends Store {
       ...INITIAL,
       gateOn: this.snapshot.gateOn,
       railResets: this.snapshot.railResets + 1,
-      wiki: stage >= 3 ? "done" : "idle",
-      wikiPercent: stage >= 3 ? 100 : 0,
-      wikiAcked: stage >= 3,
-      revealed: stage === 3 || stage === 4 ? ["patterns"] : [],
+      wiki: stage >= 2 ? "done" : "idle",
+      wikiPercent: stage >= 2 ? 100 : 0,
+      wikiAcked: stage >= 2,
+      revealed: stage >= 2 && stage <= 4 ? ["patterns"] : [],
       agent1Listed: stage === 4,
     };
     this.emit();

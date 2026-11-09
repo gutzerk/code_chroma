@@ -6,7 +6,9 @@
   every subscriber); `mockBridge.ts` is the fixture-backed stand-in the app uses by default. It has
   no live backend, so its `subscribe*` methods register on an in-memory `Map<EventType, Set<listener>>`
   bus instead: they only deliver a ping when a test drives the bus via the test-facing
-  `emit(type, payload)`, so the ping→refetch layer stays visible in mock-backed specs.
+  `emit(type, payload)`, so the ping→refetch layer stays visible in mock-backed specs. Its canned
+  System context, Patterns and Change impact diagrams connect every fixture block through explicit
+  relationships, with a reachability regression test for each one.
   🔴 **A reopen resyncs**: every ping sent while the socket was down is gone, so on any reconnect
   after the first successful open `notifyResync()` nudges every bare-ping listener set once (skipping
   `-status`/`-output`/agent kinds, whose listeners expect payloads) — without this the canvas showed

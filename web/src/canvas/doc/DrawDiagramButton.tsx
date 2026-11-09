@@ -1,8 +1,7 @@
-import { agentCapacityReason, useIsAtAgentCapacity, useIsLaunchingAgent, useMaxAgents } from "../../agents/agentStore";
+import { useAgentLaunchBlockedReason } from "../../agents/agentStore";
 import { RailIcon } from "../../icons/RailIcon";
 import { RailButton } from "../RailButton";
-import { tutorialSimStore } from "../../tutorial/tutorialSim";
-import { tutorialStore } from "../../tutorial/tutorialStore";
+import { useTutorialActive } from "../../tutorial/tutorialStore";
 import { useDiagramWatcherError } from "./diagramWatcherErrorStore";
 import { drawDialogStore } from "./drawDialog/drawDialogStore";
 
@@ -19,19 +18,12 @@ import { drawDialogStore } from "./drawDialog/drawDialogStore";
  * `useDiagramReadinessWatcher` (mounted once by `RootCanvas`); this button only reads its cached map.
  */
 export function DrawDiagramButton() {
-  const isLaunchingAgent = useIsLaunchingAgent();
-  const isAtAgentCapacity = useIsAtAgentCapacity();
-  const maxAgents = useMaxAgents();
+  const launchBlocked = useAgentLaunchBlockedReason();
   const error = useDiagramWatcherError();
+  const tutorialActive = useTutorialActive();
 
-  const onDrawDiagram = () => {
-    // The tutorial opens a scripted mock agent instead of the dialog.
-    if (tutorialStore.isActive()) {
-      tutorialSimStore.openAgent();
-      return;
-    }
-    drawDialogStore.open();
-  };
+  const onDrawDiagram = () => drawDialogStore.open();
+  const blockedReason = tutorialActive ? undefined : launchBlocked;
 
   return (
     <div className="draw-diagram-button-wrap">
@@ -39,14 +31,8 @@ export function DrawDiagramButton() {
         className="draw-diagram-button"
         testId="draw-diagram-button"
         label="Draw…"
-        disabled={isAtAgentCapacity || isLaunchingAgent}
-        tooltip={
-          isAtAgentCapacity
-            ? agentCapacityReason(maxAgents)
-            : isLaunchingAgent
-              ? "Launching…"
-              : undefined
-        }
+        disabled={!!blockedReason}
+        tooltip={blockedReason}
         onClick={onDrawDiagram}
       >
         <RailIcon name="draw" /><span>Draw…</span>

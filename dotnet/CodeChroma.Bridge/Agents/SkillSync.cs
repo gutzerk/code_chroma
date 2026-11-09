@@ -161,7 +161,10 @@ public static class DiagramSeed
         if (SamePath(prRoot, mainRoot)) return;
         SeedFromMain(mainRoot, prRoot);
         SeedCanvasDoc(prRoot, mainRoot);
-        CopyTree(Path.Combine(mainRoot, ".codechroma", "diagrams"), Path.Combine(prRoot, ".codechroma", "diagrams"), file => file.EndsWith("projection.json", StringComparison.Ordinal));
+        // Feature plans' artifacts stay behind (per-task, not standing), so their projections would be orphans.
+        var diagrams = Path.Combine(mainRoot, ".codechroma", "diagrams");
+        CopyTree(diagrams, Path.Combine(prRoot, ".codechroma", "diagrams"), file => file.EndsWith("projection.json", StringComparison.Ordinal)
+            && !Path.GetRelativePath(diagrams, file).Replace('\\', '/').StartsWith("feature-plan/", StringComparison.Ordinal));
         CopyTree(Path.Combine(mainRoot, ".codechroma", "diagrams", "custom"), Path.Combine(prRoot, ".codechroma", "diagrams", "custom"), file => !file.EndsWith("projection.json", StringComparison.Ordinal));
         foreach (var uri in new[] { DefaultRequirementsSource, DefaultDeliverySource })
         {

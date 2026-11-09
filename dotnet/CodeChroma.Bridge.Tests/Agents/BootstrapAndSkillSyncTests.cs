@@ -345,6 +345,19 @@ public class SkillSyncTests : IDisposable
     }
 
     [Fact]
+    public void Seeding_a_pull_request_leaves_mains_feature_plans_out()
+    {
+        var pr = _repo.Sibling("pr");
+        _repo.Write(".codechroma/diagrams/feature-plan/auth/projection.json", "{\"elements\":{}}");
+        _repo.Write(".codechroma/diagrams/impact/projection.json", "{\"elements\":{}}");
+
+        DiagramSeed.SeedPullRequestFromMain(pr, _repo.Root);
+
+        Assert.False(Directory.Exists(Path.Combine(pr, ".codechroma", "diagrams", "feature-plan")));
+        Assert.True(File.Exists(Path.Combine(pr, ".codechroma", "diagrams", "impact", "projection.json")));
+    }
+
+    [Fact]
     public void Seeding_a_pull_request_copies_canvas_projections_custom_types_and_requirements()
     {
         var pr = _repo.Sibling("pr");

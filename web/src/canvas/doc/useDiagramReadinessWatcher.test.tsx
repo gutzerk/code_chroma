@@ -19,10 +19,10 @@ const OK_RUN = { ok: true as const, batch_id: "b1", id_map: {}, affected: [] };
 
 function renderWatcher(
   runRecipe: () => Promise<unknown>,
-  status: DiagramsStatus = { c1: { ready: true, fingerprint: "a" } },
+  status: DiagramsStatus | (() => Promise<DiagramsStatus>) = { c1: { ready: true, fingerprint: "a" } },
 ) {
   const client = {
-    getDiagramsStatus: async () => status,
+    getDiagramsStatus: typeof status === "function" ? status : async () => status,
     subscribeDiagram: () => () => {},
     runRecipe,
     getCanvas: async () => canvasDocStore.getDoc(),
@@ -44,7 +44,10 @@ beforeEach(() => {
   writeCachedDiagramsStatus({ c1: { ready: false } });
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("useDiagramReadinessWatcher", () => {
   it("surfaces a failed auto-draw so the next ping retries", async () => {
@@ -103,5 +106,20 @@ describe("useDiagramReadinessWatcher", () => {
 
     await waitFor(() => expect(readCachedDiagramsStatus("pr-275")).toEqual({ impact: { ready: true, fingerprint: "fp" } }));
     expect(readCachedDiagramsStatus()).toEqual({ c1: { ready: false } });
+  });
+
+  it("retries a failed status fetch when the user comes back to the window", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const getStatus = vi
+      .fn<() => Promise<DiagramsStatus>>()
+      .mockRejectedValueOnce(new Error("timed out"))
+      .mockResolvedValue({ impact: { ready: true, fingerprint: "fp" } });
+    const runRecipe = vi.fn(async () => OK_RUN);
+    renderWatcher(runRecipe, getStatus);
+    await waitFor(() => expect(getStatus).toHaveBeenCalledTimes(1));
+
+    window.dispatchEvent(new Event("focus"));
+
+    await waitFor(() => expect(runRecipe).toHaveBeenCalledWith("impact"));
   });
 });

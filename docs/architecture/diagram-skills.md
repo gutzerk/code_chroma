@@ -910,7 +910,10 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   kinds whose run is still in flight. The left panel's delete removes the artifact too, so a deleted
   diagram cannot come back; a canvas-only removal (`removeLayerAndRefresh`, e.g. the tutorial)
   records the layer in `canvas/doc/dismissedDiagrams.ts` with its fingerprint, and the watcher leaves it
-  off until the fingerprint changes or `runRecipeAndLayout` draws it on purpose.
+  off until the fingerprint changes or `runRecipeAndLayout` draws it on purpose. A failed status fetch or
+  a missed ping is retried when the user returns to the window (`util/windowReturn.ts`). Every skip
+  (doc not loaded, layer still drawing or dismissed, a held-back canvas snapshot) is logged as
+  `[codechroma] …` via `reportSkip`, so a missed refresh can be traced in the webview console.
 - The brand-new-draw path is one thing; editing a diagram already on the canvas (e.g. adding a
   `style` to an existing C1 block) is another — a content edit doesn't flip `ready`, so it used to sit
   invisible until the user removed and re-added the layer by hand. `get_diagrams_status` now also

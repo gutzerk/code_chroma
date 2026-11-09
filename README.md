@@ -3,14 +3,23 @@
 
 <p align="center">
   <a href="#install"><img src="https://img.shields.io/badge/license-MIT-666666?labelColor=333333" alt="MIT license" /></a>
-  <a href="https://github.com/gutzerk/code-chroma/stargazers"><img src="https://img.shields.io/github/stars/gutzerk/code-chroma?labelColor=333333&color=666666&logo=github" alt="GitHub stars" /></a>
+  <a href="https://github.com/gutzerk/code_chroma/stargazers"><img src="https://img.shields.io/github/stars/gutzerk/code_chroma?labelColor=333333&color=666666&logo=github" alt="GitHub stars" /></a>
 </p>
+
+**See your codebase's architecture, let AI agents change it, and understand every change on the map.**
 
 https://github.com/user-attachments/assets/51791ff0-7b0e-4c2c-b70b-2a4588432f22
 
 [Watch the demo](docs/media/schema-diagram.mp4)
 
-**Navigate any codebase like a map, not a maze.**
+## how it works
+
+1. **Open a repo** — a local folder or a GitHub URL. No API key needed.
+2. **See its architecture** — CodeChroma builds a zoomable map (System → … → Code) from the real code structure, not the folder layout.
+3. **Launch an AI agent** — start Claude Code sessions from the canvas, each in its own git worktree.
+4. **Understand the changes** — the Change Impact view shows which boxes the agent touched, and the map updates live as files change.
+
+## features
 
 - **zoomable canvas** — the code hierarchy (System → … → Code) lives in a left Project tree, and every diagram (C1, patterns, epics, …) sits as a layer on the same canvas.
 - **live sync** — edit a file and the map updates in place: new blocks appear, deleted ones fade out, no reload.

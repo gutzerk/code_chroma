@@ -147,6 +147,7 @@ async def post_agent(request: Request, services: Services) -> dict:
     services.registry.register(
         record.id, Path(record.worktree), shares_workspace_with=record.shares_workspace_with
     )
+    await asyncio.to_thread(agent_view.forget_leftovers, services.registry, record.id)
     payload = record.to_payload()
     await services.connections.broadcast({"type": "agent-added", "agent": payload})
     return payload

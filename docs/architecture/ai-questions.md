@@ -176,6 +176,7 @@ Not yet written: the Playwright journey (ask in the docked panel, answer in the 
 - 🔴 The MCP session manager only runs inside the bridge lifespan; a test app without lifespan gets a
   503 from `/mcp`. A session manager runs once, hence a fresh app per `running()`.
 - Delivery is best effort: with no live session (window closed, bridge restarted) the answer stays on the element meta (nothing is removed, `awaiting_delivery` stays true), `ask_user_result` returns it, and `GET /questions` reports `waiting: false`. The cards are cleared only by a later completed batch of the same agent id with a live session.
+- 🔴 **A new agent never inherits a closed agent's questions.** Agent ids are title slugs, so an "Add agent here" agent closed and recreated under the same title gets the same id, and closing leaves its questions on the shared canvas. `POST /agents` therefore drops every question (and option diagram) carrying the new id (`QuestionStore.ForgetAgent` / `store.forget_agent`); it checks the canvas on disk first so no workspace is brought up when there is nothing to drop, and a failure never fails the create.
 - After delivery the elements are gone, so `ask_user_result` for a delivered question returns `{pending: true}`; the typed message is the agent's only record.
 - Answers are typed into the PTY, so `delivery._one_line` strips control characters; keep that when changing the message text (the C# `QuestionDelivery.OneLine` mirrors it).
 - `commit_canvas_batch` is imported lazily in `store.py` (import cycle with `bridge.routes`).

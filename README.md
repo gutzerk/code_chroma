@@ -2,8 +2,8 @@
 <h1 align="center">CodeChroma</h1>
 
 <p align="center">
-  <b>See what your AI agent changed — on a map of your architecture.</b><br>
-  Agents write code fast. CodeChroma makes sure you still understand it.
+  <b>Stop reading code. Work with the processes it runs.</b><br>
+  Investigate, plan, build and review through diagrams — AI agents handle the code.
 </p>
 
 <p align="center">
@@ -28,6 +28,23 @@ curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distributi
 
 Windows and other options: [install](#install).
 
+## Why
+
+With AI agents, a team writes more code than it can read. A month in, no one can say how the product works.
+
+Code visualizers don't fix this: they draw the code, and then you go back to reading files. CodeChroma changes the process instead. You look at the processes your system runs, decide on diagrams, and let agents write and change the code. Code is still one click away — you just rarely need it.
+
+## The loop
+
+| Step | What you do | What you see |
+|---|---|---|
+| **1. Investigate** | Ask `walk me through how checkout works` | A step-by-step walkthrough over the real functions it runs, not a file list |
+| **2. Plan** | Ask `draw a plan for token auth` | Planned boxes for code that does not exist yet, next to the code they will touch. When the agent needs a decision, it asks you on the canvas with a small diagram per option |
+| **3. Implement** | Launch agents from the canvas | Several Claude Code agents at once, each in its own git worktree, with their context, tokens and cost |
+| **4. Review** | Ask `show me what this PR affects` or `review my diff` | Every box the change touched, with a before/after note — not a 2,000-line diff |
+
+All of it sits on one map, built from the real code structure (System → … → Code), not the folder layout. The map updates live as files change.
+
 ## See it in action
 
 ![A sequence diagram, a design-patterns diagram and a walkthrough on one canvas](docs/media/demo-canvas.jpg)
@@ -42,25 +59,21 @@ Windows and other options: [install](#install).
 
 *Review a pull request on the map: every changed box shows its added and removed lines and what it touches.*
 
-## You ask → you see
+## More you can ask
 
 Type a request in an agent window or the canvas terminal. The answer is a diagram on the map, not a wall of text.
 
 | You ask | What you see |
 |---|---|
-| `show me what this PR affects` | The Change Impact view: every box the change touches, linked to the code |
-| `walk me through how checkout works` | A step-by-step walkthrough over the real functions it runs |
-| `review my diff` | Each touched box gets a before/after note from the agent |
 | `regenerate the system context diagram` | Your system, its users and outside services, rebuilt from the code |
-| `draw a plan for token auth` | Planned boxes for code that does not exist yet, next to the code it will touch |
 | `confirm the detected patterns` | The design patterns CodeChroma found, checked by the agent |
+| `highlight the auth check on this diagram` | The path of one process traced on a diagram you already have |
 
-## How it works
+## Get started
 
 1. **Open a repo** — a local folder or a GitHub URL. No API key needed.
-2. **See its architecture** — CodeChroma builds a zoomable map (System → … → Code) from the real code structure, not the folder layout.
-3. **Launch an AI agent** — start Claude Code sessions from the canvas, each in its own git worktree.
-4. **Understand the changes** — the Change Impact view shows which boxes the agent touched, and the map updates live as files change.
+2. **Look around** — the map is built for you; zoom from System down to a single function.
+3. **Ask or launch an agent** — start with step 1 of [the loop](#the-loop).
 
 ## Features
 

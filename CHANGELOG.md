@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.1](https://github.com/gutzerk/code_chroma/compare/v1.17.0...v1.17.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **agents:** read the context window from Claude Code's model catalog ([516b931](https://github.com/gutzerk/code_chroma/commit/516b93139fa739862253d185bcf9f92fb188158f))
+
 ## [1.17.0](https://github.com/gutzerk/code_chroma/compare/v1.16.0...v1.17.0) (2026-11-09)
 
 

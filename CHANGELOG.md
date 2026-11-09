@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.17.0](https://github.com/gutzerk/code_chroma/compare/v1.16.0...v1.17.0) (2026-11-09)
+
+
+### Features
+
+* **agents:** create workflows with an agent, status-tinted agent rows and auto titles ([941ae78](https://github.com/gutzerk/code_chroma/commit/941ae78c5b2fb99d56838aa58ab03db22e623365))
+* **agents:** create workflows with an agent, status-tinted agent rows and auto titles ([4f05d4a](https://github.com/gutzerk/code_chroma/commit/4f05d4afbeeb772330014eed0fb8ffd91c271f5a))
+* **agents:** create workflows with an agent, status-tinted agent rows and auto titles ([6b7dd3e](https://github.com/gutzerk/code_chroma/commit/6b7dd3e122f35a7a8e095f35fdd091fc2e18a1c4))
+* **agents:** workflow agents, auto titles and question fixes ([ce8d3d7](https://github.com/gutzerk/code_chroma/commit/ce8d3d745224dd2734f4997957e972fd95aafa92))
+* **canvas:** add a layout playground for tuning first-draw ELK options ([54ad5f8](https://github.com/gutzerk/code_chroma/commit/54ad5f8da244288741fcd1123680b83616cc8494))
+* **canvas:** add a layout playground for tuning first-draw ELK options ([62349e4](https://github.com/gutzerk/code_chroma/commit/62349e46810a6f4b87e2da6b2d041387eb54918b))
+
+
+### Bug Fixes
+
+* **agents:** harden auto-title transcript reads and the New workflow agent launch ([94298e9](https://github.com/gutzerk/code_chroma/commit/94298e9e74d57883e617f62b54f26fbbb00030a5))
+* **bridge:** stop seeding main's feature plans into a PR worktree ([65766fd](https://github.com/gutzerk/code_chroma/commit/65766fd7fb766020dd052601775a2c80b9ed9cb5))
+* **bridge:** stop seeding main's feature plans into a PR worktree ([3ad93c1](https://github.com/gutzerk/code_chroma/commit/3ad93c17c1b2592d1cecbae60a4f8ae298a5b5ca))
+* **bridge:** stop seeding main's feature plans into a PR worktree ([49d3c75](https://github.com/gutzerk/code_chroma/commit/49d3c75ca61242c72e411ddf8b970d97d0441697))
+* **canvas:** hide the Impact summary board when the Impact diagram is collapsed ([7a8f877](https://github.com/gutzerk/code_chroma/commit/7a8f8772c708094489f5e86de9c41235df7aeb1c))
+* **canvas:** place ready diagrams the watcher missed and open an alias agent's owner workspace ([64c86d5](https://github.com/gutzerk/code_chroma/commit/64c86d5d53800ba2d331e6e275411fc81bc99dba))
+* **canvas:** place ready diagrams the watcher missed and open an alias agent's owner workspace ([3228f19](https://github.com/gutzerk/code_chroma/commit/3228f1979163369436f1f2a9da2dd4424124a000))
+* **canvas:** place ready diagrams the watcher missed and open an alias agent's owner workspace ([1fef72e](https://github.com/gutzerk/code_chroma/commit/1fef72ee6c4589816243dc8414d923dd200a5a96))
+* **canvas:** re-read the canvas and diagram status when the user returns to the window ([4e99b05](https://github.com/gutzerk/code_chroma/commit/4e99b05b3cb67e586bb34c1e15a5ead8856e6153))
+* **canvas:** re-read the canvas and diagram status when the user returns to the window ([508fbf7](https://github.com/gutzerk/code_chroma/commit/508fbf787647609f1a4b66c60ff3a85a670dd8ff))
+* **canvas:** re-read the canvas and diagram status when the user returns to the window ([cd57317](https://github.com/gutzerk/code_chroma/commit/cd57317d8f6c05f63c8c68a11cc0db4fe62163af))
+* **canvas:** use radius and font tokens in the layout playground styles ([a80d7f8](https://github.com/gutzerk/code_chroma/commit/a80d7f813b647b5e1867ae321aeba7cbec950739))
+* Impact diagram reaches the canvas and explains what changed and why ([5fcc236](https://github.com/gutzerk/code_chroma/commit/5fcc236965dedec4c1f1c984712d2d3826591de0))
+* **questions:** focus the agent terminal when the user clicks Chat about it ([6e1f55d](https://github.com/gutzerk/code_chroma/commit/6e1f55d110d352d3d56726a005da0bb7a08ea871))
+* **questions:** focus the agent terminal when the user clicks Chat about it ([a3477d5](https://github.com/gutzerk/code_chroma/commit/a3477d500305b51549d35568e433268341d8fe85))
+* **questions:** stop a new agent from showing a closed agent's questions ([a5e754a](https://github.com/gutzerk/code_chroma/commit/a5e754a45a7ae4cbbac0d9d71172e1cc5f2c5d90))
+* **shell:** detach the macOS WebView script handler before a tab is disposed ([36b52c4](https://github.com/gutzerk/code_chroma/commit/36b52c438a90c475b43019d9a6916ff3e979fb83))
+* **shell:** detach the macOS WebView script handler before a tab is disposed ([c48c619](https://github.com/gutzerk/code_chroma/commit/c48c6196d084faaf4a10b643dcc012e15041f775))
+* **skills:** match bridge response shapes and make impact boxes say what changed and why ([0bc952c](https://github.com/gutzerk/code_chroma/commit/0bc952c6159fee509c1de75968a867052113d007))
+* **skills:** match bridge response shapes and make impact boxes say what changed and why ([a477397](https://github.com/gutzerk/code_chroma/commit/a4773977bfbc5a9890e1f8894b7d56f759f90310))
+* **skills:** match bridge response shapes and make impact boxes say what changed and why ([43557a3](https://github.com/gutzerk/code_chroma/commit/43557a38a9319f6d498b748b6a5acb670bf17395))
+
 ## [1.16.0](https://github.com/gutzerk/code_chroma/compare/v1.15.0...v1.16.0) (2026-11-07)
 
 

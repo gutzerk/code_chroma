@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { clickTreeNodeName, gotoApp } from "./helpers";
+import { clickTreeNodeName, gotoApp, seedCanvasDoc } from "./helpers";
 
 const step = (id: string, order: number, title: string, kind: string, node_ids: string[], children: object[] = []) =>
   ({ id, order, title, kind, node_ids, children });
@@ -19,17 +19,12 @@ const ROUTE = {
 };
 
 async function seedRouteDiagram(page: Page): Promise<void> {
-  await page.evaluate(async ({ steps, route }) => {
-    const path = "/src/canvas/doc/canvasDocStore.ts";
-    const { canvasDocStore } = await import(/* @vite-ignore */ path);
-    const doc = canvasDocStore.getDoc();
-    const elements = Object.fromEntries(steps.map((s: { id: string; order: number; title: string }, i: number) => [s.id, {
-      id: s.id, render: "custom", layer: "custom/update-map", label: s.title, description: "", node_id: null,
-      position: { x: 500 + i * 260, y: 350 }, size: { w: 220, h: 110 },
-      group_id: null, meta: { route, route_step: s }, created_by: "ai",
-    }]));
-    canvasDocStore.setDoc({ ...doc, doc_id: "route-test", elements, edges: {} });
-  }, { steps: STEPS, route: ROUTE });
+  const elements = Object.fromEntries(STEPS.map((s, i) => [s.id, {
+    id: s.id, render: "custom", layer: "custom/update-map", label: s.title, description: "", node_id: null,
+    position: { x: 500 + i * 260, y: 350 }, size: { w: 220, h: 110 },
+    group_id: null, meta: { route: ROUTE, route_step: s }, created_by: "ai",
+  }]));
+  await seedCanvasDoc(page, { doc_id: "route-test", elements });
 }
 
 function trackConsoleErrors(page: Page): string[] {

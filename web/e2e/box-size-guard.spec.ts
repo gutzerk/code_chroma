@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { gotoApp } from "./helpers";
+import { gotoApp, seedCanvasDoc } from "./helpers";
 
 // measureBoxSize.ts and sequenceBoard.ts copy pixel metrics from styles.css; jsdom has no layout, so only a real browser catches drift.
 const TOLERANCE_PX = 2;
@@ -20,13 +20,9 @@ const ROLE_VARIANTS: Record<string, { label?: string; description?: string; node
   plan: { description: DESCRIPTION, meta: { plan_kind: "add" } },
 };
 
-/** Replaces the canvas doc with `elements` (plain JSON built here), through the page's own store. */
+/** Replaces the canvas doc with `elements` (plain JSON built here), in the page's store and its mock bridge. */
 async function seedCanvas(page: Page, docId: string, elements: { id: string }[]): Promise<void> {
-  await page.evaluate(async ({ docId, elements }) => {
-    const path = "/src/canvas/doc/canvasDocStore.ts";
-    const { canvasDocStore } = await import(/* @vite-ignore */ path);
-    canvasDocStore.setDoc({ ...canvasDocStore.getDoc(), doc_id: docId, edges: {}, elements: Object.fromEntries(elements.map((e) => [e.id, e])) });
-  }, { docId, elements });
+  await seedCanvasDoc(page, { doc_id: docId, elements: Object.fromEntries(elements.map((e) => [e.id, e])) });
 }
 
 const BASE = { description: "", node_id: null, size: null, group_id: null, created_by: "ai" };

@@ -157,6 +157,23 @@ describe("restoreAgentWindow", () => {
     expect(agentStore.getActiveWorkspace()).toBe("pr-282");
   });
 
+  it("opens the workspace an alias agent shares, not the alias id whose pings would be dropped", async () => {
+    const activateWorkspace = vi.fn(async (id: string) => ({
+      id,
+      state: "ready" as const,
+      progress: "",
+      error: null,
+    }));
+    agentStore.setActiveWorkspace("main");
+    agentStore.upsert(record({ id: "agent4", shares_workspace_with: "pr-275", source_pr: "pr-275" }));
+
+    restoreAgentWindow(client(activateWorkspace), "agent4");
+    await Promise.resolve();
+
+    expect(activateWorkspace).toHaveBeenCalledWith("pr-275");
+    expect(agentStore.getActiveWorkspace()).toBe("pr-275");
+  });
+
   it("still switches for an agent with its own worktree, whose data the canvas is not drawing", async () => {
     const activateWorkspace = vi.fn(async (id: string) => ({
       id,

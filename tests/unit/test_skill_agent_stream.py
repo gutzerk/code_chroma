@@ -17,7 +17,7 @@ VALID_C1 = {
     "nodes": [{"id": "system", "name": "Sample", "description": ""}],
 }
 
-_SETTLE_SECONDS = 0.05
+_RUN_TIMEOUT_SECONDS = 10
 
 
 @pytest.fixture(autouse=True)
@@ -60,11 +60,13 @@ def _tool_use(name, **tool_input):
 
 
 def _settle(repo_root, on_output=None):
-    """Starts a generation and lets its background task drain the fake feed."""
+    """Starts a generation and awaits its task, so a slow CI box cannot cut the run short."""
 
     async def _drive():
         await AGENT.start("default", repo_root, _noop_change, on_output)
-        await asyncio.sleep(_SETTLE_SECONDS)
+        task = AGENT.tasks.get("default")
+        if task is not None:
+            await asyncio.wait_for(task, _RUN_TIMEOUT_SECONDS)
 
     asyncio.run(_drive())
 

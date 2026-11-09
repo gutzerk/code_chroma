@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import type { EngineClient } from "../../engine-client/EngineClient";
 import type { CanvasBatchResult, CanvasOp } from "../../state/types";
-import { reportAsyncError } from "../../util/reportError";
+import { reportAsyncError, reportSkip } from "../../util/reportError";
+import { onWindowReturn } from "../../util/windowReturn";
 import { undoStore } from "../../state/undoStore";
 import { canvasDocStore } from "./canvasDocStore";
 import { findUnplaced, layoutUnplaced } from "./pileLayout";
@@ -28,13 +29,17 @@ async function fetchAndApplyCanvasDoc(
     const layouts = Object.values(doc.elements).filter((element) => element.layer === layer);
     return layouts.length > 0 && layouts.every((element) => element.position.x === 0 && element.position.y === 0);
   });
-  if (transientPile) return;
+  if (transientPile) {
+    reportSkip("canvas doc", "held back a snapshot while a diagram is mid-layout");
+    return;
+  }
   // Boxes that arrived on the origin (a position-less write nobody laid out) get the ELK pass here --
   // a whole piled layer from scratch, a few new boxes next to the placed ones -- so layout never
   // depends on which path drew the diagram.
   const skip = new Set([...canvasDocStore.unlayoutableLayers, ...canvasDocStore.layersMidLayout()]);
   const unplaced = Object.entries(findUnplaced(doc, skip, canvasDocStore.autoPlacedIds));
   if (unplaced.length > 0) {
+    reportSkip("canvas doc", `laying out unplaced boxes first (${unplaced.map(([layer]) => layer).join(", ")})`);
     for (const [layer, ids] of unplaced) {
       canvasDocStore.deferLayout(layer);
       for (const id of ids) canvasDocStore.autoPlacedIds.add(id);
@@ -59,7 +64,8 @@ async function fetchAndApplyCanvasDoc(
     }
     return;
   }
-  if (canvasDocStore.isLatestFetchSeq(seq) && !isStale()) canvasDocStore.setDoc(doc);
+  if (!canvasDocStore.isLatestFetchSeq(seq)) reportSkip("canvas doc", "dropped a snapshot a newer fetch replaced");
+  else if (!isStale()) canvasDocStore.setDoc(doc);
 }
 
 /** Fetch + subscribe + dedupe for the canvas document, mirroring useDiagram's shape but pushing
@@ -77,10 +83,13 @@ export function useLoadCanvasDoc(engineClient: EngineClient): void {
     refetch();
     const unsubscribeCanvas = engineClient.subscribeCanvas(refetch);
     const unsubscribeChanged = engineClient.subscribe(refetch);
+    // A lost ping or a dropped snapshot otherwise needs a reload; coming back to the window re-reads the doc.
+    const unsubscribeReturn = onWindowReturn(refetch);
     return () => {
       cancelled = true;
       unsubscribeCanvas();
       unsubscribeChanged();
+      unsubscribeReturn();
     };
   }, [engineClient]);
 }

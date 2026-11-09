@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useActiveWorkspace } from "../../agents/agentStore";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
+import { reportAsyncError, reportSkip } from "../../util/reportError";
+import { onWindowReturn } from "../../util/windowReturn";
 import type { DiagramsStatus } from "../../state/types";
 import { canvasDocStore, collectActiveLayers, useCanvasDocLoaded } from "./canvasDocStore";
 import { runRecipeAndLayout, WATCHED_DIAGRAM_EVENT_KINDS } from "./diagramCatalog";
@@ -38,12 +40,16 @@ export function useDiagramReadinessWatcher(): void {
     let next: DiagramsStatus;
     try {
       next = await engineClient.getDiagramsStatus();
-    } catch {
-      // Keep the last known status rather than dropping to null — see computeReadyDiagrams' own note.
+    } catch (err) {
+      // Keep the last known status rather than dropping to null; the next ping or window return retries.
+      reportAsyncError("diagram status", err);
       return;
     }
     // Until this workspace's doc is in, every placed layer would look missing and be redrawn.
-    if (!canvasDocStore.isLoaded()) return;
+    if (!canvasDocStore.isLoaded()) {
+      reportSkip("diagram watcher", "canvas doc not loaded yet, will retry once it is");
+      return;
+    }
     // Another workspace's status is no baseline for this one: compare against this one's own cache.
     if (lastStatusRef.current.workspace !== workspace) {
       lastStatusRef.current = { workspace, status: readCachedDiagramsStatus(workspace) };
@@ -52,13 +58,15 @@ export function useDiagramReadinessWatcher(): void {
     lastStatusRef.current = { workspace, status: next };
     writeCachedDiagramsStatus(next, workspace);
     const placed = collectActiveLayers(canvasDocStore.getDoc());
-    const arrived = Object.keys(next).filter(
+    const missing = Object.keys(next).filter((kind) => next[kind]?.ready && !placed.has(kind));
+    const arrived = missing.filter(
       (kind) =>
-        next[kind]?.ready &&
-        !placed.has(kind) &&
         !runningRef.current.has(kind) &&
         !isDiagramDismissed(workspace, kind, next[kind]?.fingerprint ?? null),
     );
+    for (const kind of missing.filter((kind) => !arrived.includes(kind))) {
+      reportSkip("diagram watcher", `${kind} is ready but not placed: ${runningRef.current.has(kind) ? "still drawing" : "taken off the canvas"}`);
+    }
     const stale = Object.keys(next).filter((kind) => {
       if (!placed.has(kind) || !next[kind]?.ready || runningRef.current.has(kind)) return false;
       const nextFp = next[kind]?.fingerprint;
@@ -108,6 +116,8 @@ export function useDiagramReadinessWatcher(): void {
     const unsubscribes = WATCHED_DIAGRAM_EVENT_KINDS.map((kind) =>
       engineClient.subscribeDiagram(kind, scheduleRefetch),
     );
+    // A missed ping or a failed status fetch otherwise waits for the next ping; coming back to the window retries.
+    unsubscribes.push(onWindowReturn(scheduleRefetch));
     return () => {
       for (const unsubscribe of unsubscribes) unsubscribe();
     };

@@ -6,9 +6,9 @@ describe("chromeInsets", () => {
     const insets = chromeInsets({ leftOpen: true, agentsMode: "normal" });
 
     expect(insets).toEqual({
-      terminalLeft: 286,
+      terminalLeft: 364,
       terminalRight: 424,
-      arrangeOrigin: { x: 290, y: 28 },
+      arrangeOrigin: { x: 368, y: 28 },
     });
   });
 
@@ -30,7 +30,7 @@ describe("chromeInsets", () => {
 
 describe("agentsWideWidth", () => {
   it("stops at the open left panel edge", () => {
-    expect(agentsWideWidth(1400, true)).toBe(1400 - 286 - 12);
+    expect(agentsWideWidth(1400, true)).toBe(1400 - 364 - 12);
   });
 
   it("stops at the chrome inset when the left panel is closed", () => {

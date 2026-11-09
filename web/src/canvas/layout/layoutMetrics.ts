@@ -8,7 +8,7 @@ export const Z_POPOVER = 6;
 
 /** Gap (px) between the canvas-area edge and floating chrome (left panel, collapsed bars). */
 const CHROME_INSET = 12;
-const LEFT_PANEL_WIDTH = 262;
+const LEFT_PANEL_WIDTH = 340;
 /** Breathing room between the open left panel and whatever sits beside it. */
 const LEFT_PANEL_GAP = 12;
 /** Left edge (px) of in-flow content when the left panel is open. */

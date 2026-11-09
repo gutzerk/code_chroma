@@ -3,7 +3,7 @@
   left: var(--chrome-inset, 12px);
   top: 12px;
   bottom: calc(12px + var(--terminal-clearance, 0px));
-  width: var(--left-panel-width, 262px);
+  width: var(--left-panel-width, 340px);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -46,6 +46,11 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+/* Sections keep their natural height so a tall Diagrams tab scrolls instead of squashing them. */
+.left-panel-body > * {
+  flex-shrink: 0;
 }
 
 .left-panel-header {

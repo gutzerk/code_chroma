@@ -12,6 +12,7 @@ import {
   isRecipeBackedLayer,
   labelForDiagramLayer,
   listActiveDiagramLayers,
+  redrawLayerFromScratch,
   removeLayerAndRefresh,
   runRecipeAndLayout,
 } from "./diagramCatalog";
@@ -229,6 +230,49 @@ describe("remove-then-re-add position preservation", () => {
     // on it directly -- rather than behind an `if` -- fails loudly if that assumption ever changes.
     const layoutBatch = patchCalls.at(-1) as { ops: { id: string; position: unknown }[] };
     expect(layoutBatch.ops[0]?.position).not.toEqual(DRAGGED_POSITION);
+  });
+});
+
+/** A bridge fake that applies delete/update ops and re-adds the recipe's one box at the origin. */
+function fakeBridge(start: CanvasDoc): EngineClient {
+  let doc = structuredClone(start);
+  return {
+    patchCanvas: async (batch: { ops: { op: string; id: string; position?: { x: number; y: number } }[] }) => {
+      for (const op of batch.ops) {
+        if (op.op === "delete_element") delete doc.elements[op.id];
+        if (op.op === "update_element" && op.position && doc.elements[op.id]) {
+          doc.elements[op.id] = { ...doc.elements[op.id], position: op.position };
+        }
+      }
+      return { ok: true, batch_id: "b", id_map: {}, affected: [] };
+    },
+    runRecipe: async () => {
+      doc = docWith([...Object.values(doc.elements), docWithElement("e2", { x: 0, y: 0 }).elements.e2]);
+      return { ok: true as const, batch_id: "r", id_map: { temp1: "e2" }, affected: ["e2"] };
+    },
+    getCanvas: async () => structuredClone(doc),
+  } as unknown as EngineClient;
+}
+
+describe("redrawLayerFromScratch", () => {
+  it("ignores the remembered position and lays the diagram out afresh", async () => {
+    const start = docWithElement("e1", DRAGGED_POSITION);
+    canvasDocStore.setDoc(start);
+
+    const result = await redrawLayerFromScratch(fakeBridge(start), "system-context", { keepPlace: false });
+
+    expect(result.ok).toBe(true);
+    expect(canvasDocStore.getDoc().elements.e2?.position).not.toEqual(DRAGGED_POSITION);
+  });
+
+  it("shifts the fresh layout back to the old spot when keepPlace is on", async () => {
+    const start = docWithElement("e1", DRAGGED_POSITION);
+    canvasDocStore.setDoc(start);
+
+    const result = await redrawLayerFromScratch(fakeBridge(start), "system-context", { keepPlace: true });
+
+    expect(result.ok).toBe(true);
+    expect(canvasDocStore.getDoc().elements.e2?.position).toEqual(DRAGGED_POSITION);
   });
 });
 

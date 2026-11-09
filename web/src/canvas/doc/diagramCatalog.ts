@@ -17,7 +17,7 @@ import { isEpicsLayerName, parentEpicKey } from "./epicsLayout";
 import { BLOCK_RULES } from "./elementRules";
 import { canvasDocStore, collectActiveLayers } from "./canvasDocStore";
 import { patchCanvasDoc } from "./canvasDocSync";
-import { captureLayerPositions, takeCachedPosition } from "./layerPositionCache";
+import { captureLayerPositions, forgetLayerPositions, takeCachedPosition } from "./layerPositionCache";
 import { agentStore } from "../../agents/agentStore";
 import { readCachedDiagramsStatus } from "./diagramStatusCache";
 import { dismissDiagram, undismissDiagram } from "./dismissedDiagrams";
@@ -353,6 +353,62 @@ export async function removeLayerAndRefresh(
   });
   if (!result.ok) return { ok: false, error: result.errors[0]?.message ?? "remove failed" };
   return { ok: true };
+}
+
+/** Redraws `layer` as a first draw would (the layout playground): a recipe-backed layer is removed and
+ * re-run with its cached positions forgotten; a freeform layer is re-laid-out in place. With
+ * `keepPlace` the result is shifted so its top-left anchor stays where the old one was. */
+export async function redrawLayerFromScratch(
+  engineClient: EngineClient,
+  layer: string,
+  { keepPlace }: { keepPlace: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const before = layerTopLeft(canvasDocStore.getDoc(), layer);
+  if (isRecipeBackedLayer(layer)) {
+    const removed = await removeLayerAndRefresh(engineClient, layer);
+    if (!removed.ok) return removed;
+    forgetLayerPositions(layer);
+    const drawn = await runRecipeAndLayout(engineClient, layer);
+    if (!drawn.ok) return drawn;
+  } else {
+    const doc = canvasDocStore.getDoc();
+    const ids = Object.values(doc.elements)
+      .filter((element) => element.layer === layer)
+      .map((element) => element.id);
+    const { positions, sizes } = await layoutNewElements(doc, ids);
+    const result = await patchCanvasDoc(engineClient, layoutOps(positions, sizes), {
+      layer,
+      explanation: "layout playground: re-layout",
+    });
+    if (!result.ok) return { ok: false, error: result.errors[0]?.message ?? "re-layout failed" };
+  }
+  const after = layerTopLeft(canvasDocStore.getDoc(), layer);
+  if (!keepPlace || !before || !after) return { ok: true };
+  const dx = before.x - after.x;
+  const dy = before.y - after.y;
+  if (dx === 0 && dy === 0) return { ok: true };
+  const shifted = Object.values(canvasDocStore.getDoc().elements)
+    .filter((element) => element.layer === layer)
+    .map((element) => ({
+      op: "update_element" as const,
+      id: element.id,
+      position: { x: element.position.x + dx, y: element.position.y + dy },
+    }));
+  const moved = await patchCanvasDoc(engineClient, shifted, {
+    layer,
+    explanation: "layout playground: keep place",
+  });
+  return moved.ok ? { ok: true } : { ok: false, error: moved.errors[0]?.message ?? "move failed" };
+}
+
+/** The smallest box-centre x and y on `layer` -- an anchor that moves exactly with the whole layer. */
+function layerTopLeft(doc: CanvasDoc, layer: string): { x: number; y: number } | null {
+  const members = Object.values(doc.elements).filter((element) => element.layer === layer);
+  if (members.length === 0) return null;
+  return {
+    x: Math.min(...members.map((element) => element.position.x)),
+    y: Math.min(...members.map((element) => element.position.y)),
+  };
 }
 
 /** The rail's own delete action -- unlike `removeLayerAndRefresh` above (canvas-only, no

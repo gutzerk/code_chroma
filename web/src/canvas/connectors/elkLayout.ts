@@ -1,8 +1,8 @@
 import ELK, { type ElkNode } from "elkjs/lib/elk.bundled.js";
-import { ELK_NODE_SEP, ELK_RANK_SEP } from "../collision/constants";
 import { leadingOrderDigits } from "../doc/elementMeta";
 import { isFailureLane } from "./laneKind";
 import type { LayoutBoxSpec, PositionedBox } from "./diagramLayout";
+import { layoutTuning, parseElkOptions } from "./layoutTuning";
 
 /** Directed edge shape `layoutBoxes()` accepts; a `feedback`/`return` `kind` gets ELK feedback-edge treatment. */
 export interface LayoutEdge {
@@ -10,9 +10,6 @@ export interface LayoutEdge {
   to: string;
   kind?: string;
 }
-
-/** Outer canvas margin. */
-const MARGIN = 40;
 
 const elk = new ELK();
 
@@ -107,22 +104,28 @@ export async function computeElkLayout(
   const laneIndex = orderedLanes(nodes);
   const hasLanes = laneIndex.size > 0 && nodes.every((node) => node.lane);
 
+  // Read per call so the layout playground's overrides reach the next draw without a reload.
+  const tuning = layoutTuning();
+  const margin = tuning.margin;
   const graph: ElkNode = {
     id: "root",
     layoutOptions: {
       "elk.algorithm": "layered",
-      "elk.direction": hasLanes ? "RIGHT" : "DOWN",
+      "elk.direction": tuning.direction !== "auto" ? tuning.direction : hasLanes ? "RIGHT" : "DOWN",
       ...(hasLanes ? { "elk.partitioning.activate": "true" } : {}),
-      "elk.spacing.nodeNode": String(ELK_NODE_SEP),
-      "elk.layered.spacing.nodeNodeBetweenLayers": String(ELK_RANK_SEP),
-      "elk.padding": `[top=${MARGIN},left=${MARGIN},bottom=${MARGIN},right=${MARGIN}]`,
+      "elk.spacing.nodeNode": String(tuning.nodeSep),
+      "elk.layered.spacing.nodeNodeBetweenLayers": String(tuning.rankSep),
+      "elk.padding": `[top=${margin},left=${margin},bottom=${margin},right=${margin}]`,
       "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
-      "elk.spacing.componentComponent": String(ELK_NODE_SEP),
-      "elk.separateConnectedComponents": "true",
-      "elk.aspectRatio": "1.6",
-      "elk.layered.nodePlacement.strategy": "LINEAR_SEGMENTS",
-      "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
+      "elk.spacing.componentComponent": String(tuning.componentSep),
+      "elk.separateConnectedComponents": String(tuning.separateComponents),
+      "elk.aspectRatio": String(tuning.aspectRatio),
       ...(hasFeedback ? { "elk.layered.feedbackEdges": "true" } : {}),
+      ...(tuning.nodePlacement ? { "elk.layered.nodePlacement.strategy": tuning.nodePlacement } : {}),
+      ...(tuning.crossingMinimization
+        ? { "elk.layered.crossingMinimization.strategy": tuning.crossingMinimization }
+        : {}),
+      ...parseElkOptions(tuning.extraElkOptions),
     },
     children: clusterByLane(nodes).map((node) => {
       const options: Record<string, string> = {};

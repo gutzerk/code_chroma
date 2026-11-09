@@ -25,13 +25,16 @@ public static class AgentRoutes
     // one status read-and-send at a time, so a stale snapshot is never broadcast after a newer one
     private static readonly object StatusGate = new();
 
+    /// <summary>How a launch's view context starts, so auto-title can tell it from the user's own words.</summary>
+    public const string ContextPrefix = "[Context]";
+
     /// <summary>The hidden context a canvas launch adds to the user's first prompt.</summary>
     public static string ViewContext(string view) =>
         $"This agent was launched from the CodeChroma canvas while the user was looking at: {view}. Use it as background for the user's message.";
 
     /// <summary>The launch context typed as its own turn for a CLI without the hidden first-prompt hook.</summary>
     public static string TypedViewContext(string view) =>
-        $"[Context] You were just launched from the CodeChroma canvas. The user is currently looking at: {view}. "
+        $"{ContextPrefix} You were just launched from the CodeChroma canvas. The user is currently looking at: {view}. "
         + "Please acknowledge you understand this context. Do not act on it or start any work — just confirm you've read it and say you're ready.";
 
     public static void Map(WebApplication app, string repoRoot)
@@ -73,9 +76,11 @@ public static class AgentRoutes
             }
             var hint = DiagramHint.Parse(body);
             if (hint.Error is not null) return Reply.Error(400, hint.Error);
+            if (hint.WorkflowRequest is not null && (contextKind != "task" || AgentRecord.CleanContext(context) is null))
+                return Reply.Error(400, "workflow_request needs context_kind 'task' and a context");
             var drawing = contextKind == "task" && hint.Type is not null;
             AgentRecord record;
-            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, drawing ? hint.Type : null, drawing ? hint.Request : null, workspace)); }
+            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, drawing ? hint.Type : null, drawing ? hint.Request : null, workspace, hint.WorkflowRequest)); }
             catch (UnknownAgentException) { return Reply.Error(404, attachTo is null ? $"unknown workspace: {workspace}" : $"unknown attach_to: {attachTo}"); }
             catch (WorktreeException error) { return Reply.Error(400, error.Message); }
             registry.Register(record.Id, record.Worktree, sharesWorkspaceWith: record.SharesWorkspaceWith);
@@ -114,6 +119,16 @@ public static class AgentRoutes
                     banner = asksInTerminal ? BareSkill.InteractiveQuestion : null;
                 }
             }
+            else if (taskText is not null && record.WorkflowRequest is { } workflowRequest)
+            {
+                var workspaceId = record.SharesWorkspaceWith ?? record.Id;
+                // without the skill the agent would get neither the workflow shape nor the user's description
+                if (BareSkill.ComposeWorkflow(TryWorkspace(registry, workspaceId)?.Root ?? record.Worktree, workflowRequest) is not { } composed)
+                    return Reply.Error(503, $"the {BareSkill.WorkflowSkill} skill is not installed");
+                taskText = composed;
+                bare = BareSkill.Enabled();
+                visible = bare ? workflowRequest : null;
+            }
             var trackingFile = AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString());
             var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork, agentId: agentId, bridgeUrl: BareSkill.BridgeUrl,
                 newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile, workdir: record.Worktree);
@@ -151,6 +166,7 @@ public static class AgentRoutes
             var outcome = session.ApplyHook(body);
             var context = AgentHook.IsPromptSubmit(body) ? session.TakePromptContext() : null;
             if (outcome.Changed) await BroadcastStatus(connections, sessions, record);
+            if (AutoTitle.Triggers(body)) ScheduleAutoTitle(agents, connections, record, transcriptPath: Json.Str(body["transcript_path"]));
             if (outcome.Decision is not { } waiting)
             {
                 var reply = new JsonObject { ["ok"] = true };
@@ -259,6 +275,17 @@ public static class AgentRoutes
             catch (UnknownAgentException) { return Reply.Error(404, $"unknown agent: {agentId}"); }
         }));
 
+        app.MapPatch("/agents/{agentId}", (string agentId, HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, ConnectionManager connections) => Reply.GuardAsync(async () =>
+        {
+            var body = await Reply.LenientBody(request);
+            if (Json.Str(body["title"]) is not { } title) return Reply.Error(400, "title must be a string");
+            if (title.Trim().Length > AutoTitle.MaxUserChars) return Reply.Error(400, $"title must be at most {AutoTitle.MaxUserChars} characters");
+            OrNotFound(agents, agentId);
+            var record = agents.Rename(agentId, title);
+            await BroadcastTitle(connections, record);
+            return Reply.Json(Payload(sessions, record));
+        }));
+
         app.MapPatch("/agents/{agentId}/window", (string agentId, HttpRequest request, AgentManager agents) => Reply.GuardAsync(async () =>
         {
             try { return Reply.Json(agents.UpdateWindow(agentId, await Reply.LenientBody(request)).Window); }
@@ -324,6 +351,55 @@ public static class AgentRoutes
             return connections.Broadcast(message);
         }
     }
+
+    /// <summary>Agents whose auto-title refresh is running: whether another report asked for one meanwhile, and its transcript path.</summary>
+    private static readonly Dictionary<string, (bool Again, string? TranscriptPath)> TitleRefreshes = new();
+
+    /// <summary>Re-derives the agent's title from its session off the request path and pushes it when it changed; a hand-set title is left alone. A report during a refresh runs one more after it, so a turn's Stop is never lost.</summary>
+    public static void ScheduleAutoTitle(AgentManager agents, ConnectionManager connections, AgentRecord record, string? projectsRoot = null, string? transcriptPath = null)
+    {
+        if (record.TitleSource == AutoTitle.UserSource || !record.HasClaudeSession) return;
+        lock (TitleRefreshes)
+        {
+            if (TitleRefreshes.TryGetValue(record.Id, out var running))
+            {
+                TitleRefreshes[record.Id] = (true, transcriptPath ?? running.TranscriptPath);
+                return;
+            }
+            TitleRefreshes[record.Id] = (false, transcriptPath);
+        }
+        _ = Task.Run(async () =>
+        {
+            var path = transcriptPath;
+            var finished = false;
+            try
+            {
+                while (!finished)
+                {
+                    try
+                    {
+                        if (AutoTitle.Suggest(record, () => agents.CaptureSessionId(record.Id), projectsRoot, path) is { } title && agents.ApplyAutoTitle(record.Id, title) is { } renamed)
+                            await BroadcastTitle(connections, renamed);
+                    }
+                    catch (Exception error) when (error is UnknownAgentException or IOException or UnauthorizedAccessException) { }
+                    lock (TitleRefreshes)
+                    {
+                        var state = TitleRefreshes[record.Id];
+                        if (state.Again) (TitleRefreshes[record.Id], path) = ((false, state.TranscriptPath), state.TranscriptPath);
+                        else finished = TitleRefreshes.Remove(record.Id);
+                    }
+                }
+            }
+            finally
+            {
+                if (!finished) lock (TitleRefreshes) TitleRefreshes.Remove(record.Id);
+            }
+        });
+    }
+
+    /// <summary>The `agent-title` push: the new title and who set it.</summary>
+    public static Task BroadcastTitle(ConnectionManager connections, AgentRecord record) =>
+        connections.Broadcast(new JsonObject { ["type"] = AutoTitle.TitleEvent, ["id"] = record.Id, ["title"] = record.Title, ["title_source"] = record.TitleSource });
 
     /// <summary>Clears a failed start and a session's exit error, so the agent reads as stopped; true when either was set.</summary>
     private static bool DismissError(AgentSessionRegistry sessions, AgentRecord record)

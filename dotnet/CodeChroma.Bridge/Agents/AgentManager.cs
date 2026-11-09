@@ -122,7 +122,7 @@ public sealed partial class AgentManager
     // --- writes ---
 
     /// <summary>Slug, record, persist: the agent shares attach_to's worktree, or its tab's (workspace) when attach_to is absent; main is never a target.</summary>
-    public AgentRecord Create(string title, string kind = AgentRecord.DefaultKind, string? attachTo = null, string? context = null, string contextKind = "view", string? diagramType = null, string? diagramRequest = null, string? workspace = null)
+    public AgentRecord Create(string title, string kind = AgentRecord.DefaultKind, string? attachTo = null, string? context = null, string contextKind = "view", string? diagramType = null, string? diagramRequest = null, string? workspace = null, string? workflowRequest = null)
     {
         if (attachTo == Workspace.MainId) throw new WorktreeException("agents cannot attach to main");
         if (attachTo is null && string.IsNullOrEmpty(workspace)) throw new WorktreeException("workspace is required");
@@ -165,6 +165,7 @@ public sealed partial class AgentManager
                 ContextKind = contextKind,
                 DiagramType = diagramType,
                 DiagramRequest = diagramRequest,
+                WorkflowRequest = workflowRequest,
             };
         });
     }
@@ -408,6 +409,36 @@ public sealed partial class AgentManager
         record.Context = null;
         Save();
         return pending;
+    }
+
+    /// <summary>A rename by hand locks the title against AutoTitle; an empty title hands the agent back to it, showing its id until then.</summary>
+    public AgentRecord Rename(string agentId, string title)
+    {
+        AgentRecord record;
+        lock (_lock)
+        {
+            record = Get(agentId);
+            var clean = AgentRecord.CleanContext(title);
+            record.Title = clean ?? record.Id;
+            record.TitleSource = clean is null ? AutoTitle.DefaultSource : AutoTitle.UserSource;
+        }
+        Save();
+        return record;
+    }
+
+    /// <summary>Applies a title AutoTitle derived from the session; null (nothing saved) when the user named the agent by hand or the title is unchanged.</summary>
+    public AgentRecord? ApplyAutoTitle(string agentId, string title)
+    {
+        AgentRecord record;
+        lock (_lock)
+        {
+            record = Get(agentId);
+            if (record.TitleSource == AutoTitle.UserSource || record.Title == title) return null;
+            record.Title = title;
+            record.TitleSource = AutoTitle.AutoSource;
+        }
+        Save();
+        return record;
     }
 
     /// <summary>Merges a geometry patch onto the stored window, dropping keys and types it cannot use.</summary>

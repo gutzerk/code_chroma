@@ -53,7 +53,7 @@ export interface AgentClient {
   /** Creates an agent in worktree tab `workspace` (`br_*`). `attachTo` (an agent id or a PR id like "pr-282";
    * "main" is refused) shares that agent's worktree, or forks a new one from the PR's head commit.
    * `context` with `contextKind` "view" (default) rides hidden with the first prompt (Claude only),
-   * "task" is the actionable first message; `diagram` names the diagram a task draws. */
+   * "task" is the actionable first message; `diagram` names the diagram a task draws; `workflowRequest` makes a task agent design a workflow. */
   create(
     title: string,
     kind?: string,
@@ -62,6 +62,7 @@ export interface AgentClient {
     contextKind?: "view" | "task",
     diagram?: DiagramTaskHint,
     workspace?: string,
+    workflowRequest?: string,
   ): Promise<AgentRecord>;
   /** A claude agent in workflow run `runId`'s worktree whose first start forks `sessionId` (`--resume <id> --fork-session`). */
   openStepSession(title: string, runId: string, sessionId: string): Promise<AgentRecord>;
@@ -158,6 +159,7 @@ export class HttpAgentClient implements AgentClient {
     contextKind?: "view" | "task",
     diagram?: DiagramTaskHint,
     workspace?: string,
+    workflowRequest?: string,
   ): Promise<AgentRecord> {
     return this.request<AgentRecord>(
       "/agents",
@@ -170,6 +172,7 @@ export class HttpAgentClient implements AgentClient {
         context_kind: contextKind,
         diagram_type: diagram?.type,
         diagram_request: diagram?.request,
+        workflow_request: workflowRequest,
       }),
     );
   }

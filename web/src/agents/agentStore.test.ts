@@ -33,6 +33,14 @@ describe("agentStore", () => {
     expect(agentStore.getAgents().map((entry) => entry.id)).toEqual(["refund-flow"]);
   });
 
+  it("lands an agent-title event on the card, keeping the rest of it", () => {
+    agentStore.upsert(agent("agent-1", { status: "working" }));
+
+    agentStore.setTitle("agent-1", "Fix the uploader retries", "auto");
+
+    expect(agentStore.getAgent("agent-1")).toMatchObject({ title: "Fix the uploader retries", title_source: "auto", status: "working" });
+  });
+
   it("replaces rather than duplicates a card it already knows", () => {
     agentStore.upsert(agent("refund-flow"));
     agentStore.upsert(agent("refund-flow", { title: "renamed" }));

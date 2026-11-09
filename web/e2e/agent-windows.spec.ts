@@ -75,6 +75,7 @@ test("creates a workflow in the editor and starts its run", async ({ page }) => 
   await page.getByRole("tab", { name: /Workflows/ }).click();
   await page.getByRole("button", { name: "All workflows", exact: true }).click();
   await page.getByRole("button", { name: "New workflow", exact: true }).click();
+  await page.getByTestId("create-by-hand").click();
   const editor = page.getByRole("dialog", { name: "Workflow editor" });
   await editor.getByLabel("Workflow name").fill("Inspect project");
   await editor.getByRole("textbox", { name: /^Instructions/ }).fill("Inspect the project and summarize its structure.");

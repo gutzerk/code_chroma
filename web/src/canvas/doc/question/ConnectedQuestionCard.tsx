@@ -41,10 +41,15 @@ export function ConnectedQuestionCard({ question, client, doc, variant, selected
   };
 
   const { agentId } = question;
-  const chat = agentClient && agentId
+  const canOpen = Boolean(agentClient && agentId);
+  // The card sits inside the agent window, so chatting means typing into its terminal.
+  const chat = canOpen || onReturnFocus
     ? () => {
-        layoutStore.setAgentsMode("full");
-        restoreAgentWindow(agentClient, agentId);
+        if (agentClient && agentId) {
+          layoutStore.setAgentsMode("full");
+          restoreAgentWindow(agentClient, agentId);
+        }
+        onReturnFocus?.();
       }
     : undefined;
 

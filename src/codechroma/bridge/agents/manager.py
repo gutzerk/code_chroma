@@ -53,13 +53,18 @@ DEFAULT_KIND = "claude"
 DEFAULT_WINDOW = {"x": 120, "y": 120, "width": 720, "height": 480, "minimized": False, "z": 1}
 
 _PERSISTED_FIELDS = (
-    "id", "title", "kind", "branch", "worktree", "session_id", "created_at",
+    "id", "title", "title_source", "kind", "branch", "worktree", "session_id", "created_at",
     "pr_url", "window", "pid", "shares_workspace_with", "base_branch", "source_pr",
     "context", "context_kind", "resolved_cli", "session_tracking_id", "workspace",
 )
 
 # "view" = existing acknowledge-only launch line; "task" = a real, actionable first message.
 CONTEXT_KINDS = ("view", "task")
+
+# Who named an agent: its launch title or id, the C# bridge's AutoTitle, or the user by hand.
+TITLE_SOURCES = ("default", "auto", "user")
+# The longest title a hand rename may set.
+MAX_USER_TITLE_CHARS = 120
 
 
 def _coerce_context_kind(value: object) -> str:
@@ -119,6 +124,8 @@ class AgentRecord:
     branch: str
     worktree: str
     created_at: str
+    # "user" once renamed by hand, which the C# bridge's auto-title never overwrites.
+    title_source: str = "default"
     session_id: str | None = None
     pr_url: str | None = None
     pid: int | None = None
@@ -176,6 +183,9 @@ class AgentRecord:
         return cls(
             id=cast(str, agent_id),
             title=cast(str, title),
+            title_source=(
+                raw.get("title_source") if raw.get("title_source") in TITLE_SOURCES else "default"
+            ),
             kind=raw_kind if isinstance(raw_kind, str) else DEFAULT_KIND,
             branch=cast(str, branch),
             worktree=cast(str, path),
@@ -677,6 +687,16 @@ class AgentManager:
         record.context = None
         self.save()
         return pending, kind
+
+    def rename(self, agent_id: str, title: str) -> AgentRecord:
+        """A hand rename locks the title; an empty one hands it back to auto-title."""
+        with self._lock:
+            record = self.get(agent_id)
+            clean = _clean_context(title)
+            record.title = clean or record.id
+            record.title_source = "user" if clean else "default"
+        self.save()
+        return record
 
     def update_window(self, agent_id: str, window: object) -> AgentRecord:
         """Merges a geometry patch onto the stored window, dropping keys/types it can't use."""

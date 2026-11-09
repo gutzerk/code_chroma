@@ -37,6 +37,13 @@ export function useDiagramReadinessWatcher(): void {
   const runningRef = useRef(new Set<string>());
 
   const refetchStatus = useCallback(async () => {
+    // Until this workspace's doc is in, every placed layer would look missing and be redrawn; the docLoaded effect retries.
+    const docIsIn = () => {
+      if (canvasDocStore.isLoaded()) return true;
+      reportSkip("diagram watcher", "canvas doc not loaded yet, will retry once it is");
+      return false;
+    };
+    if (!docIsIn()) return;
     let next: DiagramsStatus;
     try {
       next = await engineClient.getDiagramsStatus();
@@ -45,11 +52,7 @@ export function useDiagramReadinessWatcher(): void {
       reportAsyncError("diagram status", err);
       return;
     }
-    // Until this workspace's doc is in, every placed layer would look missing and be redrawn.
-    if (!canvasDocStore.isLoaded()) {
-      reportSkip("diagram watcher", "canvas doc not loaded yet, will retry once it is");
-      return;
-    }
+    if (!docIsIn()) return;
     // Another workspace's status is no baseline for this one: compare against this one's own cache.
     if (lastStatusRef.current.workspace !== workspace) {
       lastStatusRef.current = { workspace, status: readCachedDiagramsStatus(workspace) };

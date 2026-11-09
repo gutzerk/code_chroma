@@ -1,4 +1,4 @@
-import { useIsAtAgentCapacity, useIsLaunchingAgent, useMaxAgents } from "../../agents/agentStore";
+import { useAgentLaunchBlockedReason } from "../../agents/agentStore";
 import { RailIcon } from "../../icons/RailIcon";
 import { RailButton } from "../RailButton";
 import { useTutorialActive } from "../../tutorial/tutorialStore";
@@ -18,14 +18,12 @@ import { drawDialogStore } from "./drawDialog/drawDialogStore";
  * `useDiagramReadinessWatcher` (mounted once by `RootCanvas`); this button only reads its cached map.
  */
 export function DrawDiagramButton() {
-  const isLaunchingAgent = useIsLaunchingAgent();
-  const isAtAgentCapacity = useIsAtAgentCapacity();
-  const maxAgents = useMaxAgents();
+  const launchBlocked = useAgentLaunchBlockedReason();
   const error = useDiagramWatcherError();
   const tutorialActive = useTutorialActive();
 
   const onDrawDiagram = () => drawDialogStore.open();
-  const disabled = !tutorialActive && (isAtAgentCapacity || isLaunchingAgent);
+  const blockedReason = tutorialActive ? undefined : launchBlocked;
 
   return (
     <div className="draw-diagram-button-wrap">
@@ -33,16 +31,8 @@ export function DrawDiagramButton() {
         className="draw-diagram-button"
         testId="draw-diagram-button"
         label="Draw…"
-        disabled={disabled}
-        tooltip={
-          tutorialActive
-            ? undefined
-            : isAtAgentCapacity
-            ? `${maxAgents} agents is the limit — close one to start another`
-            : isLaunchingAgent
-              ? "Launching…"
-              : undefined
-        }
+        disabled={!!blockedReason}
+        tooltip={blockedReason}
         onClick={onDrawDiagram}
       >
         <RailIcon name="draw" /><span>Draw…</span>

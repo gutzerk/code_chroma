@@ -212,8 +212,21 @@ what changed since.
   entirely above y=0 also computes ≤ 0, so its offset silently collapsed to 0 and the next diagram
   landed unshifted, on top of it. Fixed to check `existingElements.length === 0` instead of the
   clamped value; regression test: `autoLayout.test.ts`.
-  🔵 ELK options live in `connectors/elkLayout.ts`: node placement is `LINEAR_SEGMENTS` and crossing
-  minimization is `LAYER_SWEEP`.
+  🔵 Layout playground (dev tool): the first-layout knobs (ELK gaps, direction, aspect ratio,
+  node placement, crossing minimization, extra `key=value` ELK options, the gap below existing
+  content, the default box size, the incremental-placement gaps) are read at call time from
+  `connectors/layoutTuning.ts`, which returns the built-in defaults unless the playground is on.
+  The defaults set ELK node placement to `LINEAR_SEGMENTS` and crossing minimization to `LAYER_SWEEP`.
+  Turn it on with `?layoutPlayground` in the URL (remembered in localStorage) or Ctrl/Cmd+Alt+L
+  while the left panel is open; `leftpanel/LayoutPlaygroundSection.tsx` then shows the knobs under
+  Arrange. Its button runs `diagramCatalog.redrawLayerFromScratch` on each ticked diagram: a
+  recipe-backed layer is removed and re-run with its `layerPositionCache` entry forgotten (the real
+  first-draw path), a freeform layer is re-laid-out in place; "Keep the diagram in place" shifts the
+  result back to the old spot. "Copy changes" copies the changed values as JSON, to bake into the
+  constants. "Add sample" (`leftpanel/layoutPlaygroundSample.ts`) PATCHes a fixed 14-box diagram
+  onto the freeform `layout-playground-sample` layer with no positions, so the pile path lays it out
+  as a first draw; delete it from the Diagrams tab. Tests: `layoutTuning.test.ts`,
+  `diagramCatalog.test.ts`, `layoutPlaygroundSample.test.ts`.
   🔴 Hard-layout layers (epics columns, sequence participants/messages) are never user-dragged, so a
   refresh re-runs their whole deterministic layout (`diagramCatalog.isHardLayoutLayer` — `isEpicsLayer`
   or `render === "sequence"`) instead of only the brand-new elements. Without this a sequence layer

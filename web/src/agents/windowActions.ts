@@ -1,5 +1,6 @@
 import { layoutStore } from "../canvas/layout/layoutStore";
 import type { AgentClient } from "./agentClient";
+import { belongsToTab } from "./agentAttention";
 import { agentStore } from "./agentStore";
 import { selectWorktree } from "./worktreeActions";
 
@@ -55,10 +56,8 @@ function shouldActivateWorkspace(agentId: string): boolean {
   const active = agentStore.getActiveWorkspace();
   if (active === agentId) return false;
   const agent = agentStore.getAgent(agentId);
-  if ((agent?.workspace ?? null) === active) return false;
-  if ((agent?.shares_workspace_with ?? null) === active) return false;
-  if (agent?.source_pr === active) return false;
-  return true;
+  if (agent && belongsToTab(agent, active)) return false;
+  return agent?.source_pr !== active;
 }
 
 /** Whether closing `id` may delete a worktree — true only when it is the *last* agent on its own

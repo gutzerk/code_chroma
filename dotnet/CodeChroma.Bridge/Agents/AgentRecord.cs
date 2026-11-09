@@ -11,6 +11,9 @@ public sealed class AgentRecord
 
     public required string Id { get; set; }
     public required string Title { get; set; }
+
+    /// <summary>Who named the agent: "default" (its launch title or id), "auto" (AutoTitle, from the session) or "user" (renamed by hand, never auto-renamed).</summary>
+    public string TitleSource { get; set; } = AutoTitle.DefaultSource;
     public required string Kind { get; set; }
     public required string Branch { get; set; }
     public required string Worktree { get; set; }
@@ -54,6 +57,9 @@ public sealed class AgentRecord
     /// <summary>What the user asked that diagram to show (trimmed, at most 2000 chars); null when they left it for the agent to ask.</summary>
     public string? DiagramRequest { get; set; }
 
+    /// <summary>What the user described for a new workflow ("New workflow → With an agent"); such an agent starts bare with the workflow skill inlined (BareSkill.ComposeWorkflow).</summary>
+    public string? WorkflowRequest { get; set; }
+
     /// <summary>Binary that launched this window; empty for legacy claude records.</summary>
     public string ResolvedCli { get; set; } = "";
 
@@ -76,24 +82,24 @@ public sealed class AgentRecord
     /// <summary>Only the persisted subset: status and worktree_lost are derived at startup, never stored.</summary>
     public JsonObject ToJson() => new()
     {
-        ["id"] = Id, ["title"] = Title, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["session_id"] = SessionId,
+        ["id"] = Id, ["title"] = Title, ["title_source"] = TitleSource, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["session_id"] = SessionId,
         ["session_tracking_id"] = SessionTrackingId,
         ["created_at"] = CreatedAt, ["pr_url"] = PrUrl, ["window"] = Window.DeepClone(), ["pid"] = Pid,
         ["shares_workspace_with"] = SharesWorkspaceWith, ["workspace"] = Workspace, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
         ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli, ["diagram_type"] = DiagramType,
-        ["diagram_request"] = DiagramRequest,
+        ["diagram_request"] = DiagramRequest, ["workflow_request"] = WorkflowRequest,
     };
 
     /// <summary>The record plus its last reported status and worktree health; AgentRoutes.Payload overlays the live status fields.</summary>
     public JsonObject ToPayload() => new()
     {
-        ["id"] = Id, ["title"] = Title, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["created_at"] = CreatedAt,
+        ["id"] = Id, ["title"] = Title, ["title_source"] = TitleSource, ["kind"] = Kind, ["branch"] = Branch, ["worktree"] = Worktree, ["created_at"] = CreatedAt,
         ["session_id"] = SessionId, ["pr_url"] = PrUrl, ["pid"] = Pid, ["window"] = Window.DeepClone(),
         ["shares_workspace_with"] = SharesWorkspaceWith, ["workspace"] = Workspace, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
         ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli,
-        ["diagram_type"] = DiagramType, ["diagram_request"] = DiagramRequest,
+        ["diagram_type"] = DiagramType, ["diagram_request"] = DiagramRequest, ["workflow_request"] = WorkflowRequest,
         ["status"] = Status, ["exit_code"] = ExitCode, ["worktree_lost"] = WorktreeLost,
         ["status_since"] = StatusSince is { } since ? Json.Iso(since) : null,
         ["activity"] = null, ["pending_permission"] = null, ["error"] = null,
@@ -114,6 +120,7 @@ public sealed class AgentRecord
         return new AgentRecord
         {
             Id = id, Title = title, Branch = branch, Worktree = worktree,
+            TitleSource = AutoTitle.CoerceSource(Json.Str(o["title_source"])),
             Kind = Json.Str(o["kind"]) ?? DefaultKind,
             CreatedAt = Json.Str(o["created_at"]) ?? "",
             SessionId = Json.Str(o["session_id"]),
@@ -131,6 +138,7 @@ public sealed class AgentRecord
             ContextKind = CoerceContextKind(Json.Str(o["context_kind"])),
             DiagramType = Json.Str(o["diagram_type"]),
             DiagramRequest = Json.Str(o["diagram_request"]),
+            WorkflowRequest = Json.Str(o["workflow_request"]),
             ResolvedCli = Json.Str(o["resolved_cli"]) ?? "",
         };
     }

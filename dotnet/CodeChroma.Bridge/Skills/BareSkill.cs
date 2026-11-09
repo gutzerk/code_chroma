@@ -77,6 +77,24 @@ public static partial class BareSkill
         return text.ToString();
     }
 
+    /// <summary>The skill a "New workflow → With an agent" window gets inlined.</summary>
+    public const string WorkflowSkill = "codechroma-workflow";
+
+    /// <summary>The first message of a workflow-designing agent: the workflow skill with its placeholders filled, then the user's description; null when the skill is not installed.</summary>
+    public static string? ComposeWorkflow(string repoRoot, string request)
+    {
+        if (SkillSync.SkillSource(WorkflowSkill) is not { } source || !File.Exists(Path.Combine(source, "SKILL.md"))) return null;
+        var body = FillCommon(StripFrontmatter(File.ReadAllText(Path.Combine(source, "SKILL.md"))), source, repoRoot, Workspace.MainId);
+        return new StringBuilder()
+            .Append("Repository root: ").AppendLine(repoRoot).AppendLine()
+            .AppendLine(body).AppendLine()
+            .AppendLine("## How this session starts").AppendLine()
+            .AppendLine("The user described the workflow they want:").AppendLine()
+            .AppendLine(request.Trim()).AppendLine()
+            .AppendLine("This description is their first message: do not greet them or ask what they want. Start with step 1.")
+            .ToString();
+    }
+
     /// <summary>The Draw dialog's "plan" kind: a mode of the impact type, drawn by the impact body plus feature-plan-mode.md.</summary>
     public const string PlanType = "plan";
 
@@ -110,10 +128,15 @@ public static partial class BareSkill
 
     private static string Fill(string body, string type, string source, string repoRoot, string workspaceId)
     {
-        var bridge = BridgeUrl ?? "http://localhost:8000";
-        return body.Replace("{SKILL_DIR}", source).Replace("{BRIDGE}", bridge).Replace("{WORKSPACE}", workspaceId).Replace("{REPO_ROOT}", repoRoot)
-            .Replace("{OUTPUT_PATH}", Workspace.DiagramPath(repoRoot, type)).Replace("{CHECK_COMMAND}", CheckCommand(source, $"--kind {type} --url {bridge} --repo {workspaceId}"));
+        return FillCommon(body, source, repoRoot, workspaceId)
+            .Replace("{OUTPUT_PATH}", Workspace.DiagramPath(repoRoot, type)).Replace("{CHECK_COMMAND}", CheckCommand(source, $"--kind {type} --url {Bridge} --repo {workspaceId}"));
     }
+
+    private static string Bridge => BridgeUrl ?? "http://localhost:8000";
+
+    /// <summary>The placeholders every skill body shares, whatever diagram type (if any) it draws.</summary>
+    private static string FillCommon(string body, string source, string repoRoot, string workspaceId) =>
+        body.Replace("{SKILL_DIR}", source).Replace("{BRIDGE}", Bridge).Replace("{WORKSPACE}", workspaceId).Replace("{REPO_ROOT}", repoRoot);
 
     private static string StripFrontmatter(string markdown)
     {

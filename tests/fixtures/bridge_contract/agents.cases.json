@@ -1724,6 +1724,155 @@
           }
         }
       ]
+    },
+    {
+      "id": "renaming_an_agent_by_hand_locks_its_title",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Named",
+              "kind": "shell",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.title",
+                "equals": "Named"
+              },
+              {
+                "path": "$.title_source",
+                "equals": "default"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/agents/named",
+            "json": {
+              "title": "  My   agent "
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.title",
+                "equals": "My agent"
+              },
+              {
+                "path": "$.title_source",
+                "equals": "user"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.agents[0].title",
+                "equals": "My agent"
+              },
+              {
+                "path": "$.agents[0].title_source",
+                "equals": "user"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/agents/named",
+            "json": {
+              "title": ""
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.title",
+                "equals": "named"
+              },
+              {
+                "path": "$.title_source",
+                "equals": "default"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/agents/named",
+            "json": {
+              "title": 5
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "title must be a string"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/agents/named",
+            "json": {
+              "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            }
+          },
+          "expect": {
+            "status": 400,
+            "json": {
+              "detail": "title must be at most 120 characters"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/agents/nope",
+            "json": {
+              "title": "x"
+            }
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown agent: nope"
+            }
+          }
+        }
+      ]
     }
   ]
 }

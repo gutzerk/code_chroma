@@ -20,11 +20,7 @@ export async function launchAgent(
   diagram?: DiagramTaskHint,
 ): Promise<void> {
   await runLaunch(client, async () => {
-    const preflight = await client.gitPreflight();
-    if (preflight.state !== "ready") {
-      agentStore.setGitPreflight(preflight);
-      return null;
-    }
+    if (!(await gitReady(client))) return null;
     // A PR attach lives in the PR's worktree, not in the shown tab; an agent attach stays with that agent's tab.
     const workspace = attachTo?.startsWith("pr-")
       ? undefined
@@ -33,6 +29,25 @@ export async function launchAgent(
       ? client.create(diagram?.title ?? "", "agent", attachTo, task, "task", diagram, workspace)
       : client.create("", "agent", attachTo, context?.description ?? null, undefined, undefined, workspace);
   });
+}
+
+/** The task context a workflow agent is created with; the bridge replaces it with the composed skill prompt and the user's description at start. */
+const WORKFLOW_TASK = "Design and save a CodeChroma workflow using the codechroma-workflow skill.";
+
+/** "New workflow → With an agent": an agent in the active worktree tab that designs and saves a workflow from `request`; true once the agent exists. */
+export function launchWorkflowAgent(client: AgentClient, request: string): Promise<boolean> {
+  return runLaunch(client, async () => {
+    if (!(await gitReady(client))) return null;
+    return client.create("New workflow", "agent", undefined, WORKFLOW_TASK, "task", undefined, worktreeStore.getActiveId() || undefined, request);
+  });
+}
+
+/** False (and the git setup prompt raised) when the repository is not ready for an agent worktree. */
+async function gitReady(client: AgentClient): Promise<boolean> {
+  const preflight = await client.gitPreflight();
+  if (preflight.state === "ready") return true;
+  agentStore.setGitPreflight(preflight);
+  return false;
 }
 
 /** "Open agent" on a finished workflow step: a claude agent in the run's worktree forking that step's session, opened in the Agents tab. */
@@ -75,15 +90,15 @@ async function createAndStart(client: AgentClient, create: () => Promise<AgentRe
   }
 }
 
-/** The shared launch bookkeeping: capacity guard, create (null: stop quietly), start, open its window; a failure after create opens it with the error. */
-async function runLaunch(client: AgentClient, create: () => Promise<AgentRecord | null>): Promise<void> {
-  if (agentStore.getIsAtCapacity() || agentStore.getIsLaunching()) return;
+/** The shared launch bookkeeping: capacity guard, create (null: stop quietly), start, open its window; a failure after create opens it with the error. True once an agent was created. */
+async function runLaunch(client: AgentClient, create: () => Promise<AgentRecord | null>): Promise<boolean> {
+  if (agentStore.getIsAtCapacity() || agentStore.getIsLaunching()) return false;
   agentStore.setLaunchError(null);
   agentStore.setIsLaunching(true);
   let createdId: string | null = null;
   try {
     const created = await create();
-    if (!created) return;
+    if (!created) return false;
     createdId = created.id;
     agentStore.setStartError(created.id, null);
     agentStore.upsert(created);
@@ -91,6 +106,7 @@ async function runLaunch(client: AgentClient, create: () => Promise<AgentRecord 
     // Every remaining caller supplies an explicit attachTo, so the new agent shares a workspace
     // the canvas already shows the right data for — just open its window, no workspace switch.
     openAgentWindow(client, created.id);
+    return true;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (createdId) {
@@ -99,6 +115,7 @@ async function runLaunch(client: AgentClient, create: () => Promise<AgentRecord 
     } else {
       agentStore.setLaunchError(message);
     }
+    return createdId !== null;
   } finally {
     agentStore.setIsLaunching(false);
   }

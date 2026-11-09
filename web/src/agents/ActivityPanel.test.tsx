@@ -89,7 +89,7 @@ describe("ActivityPanel", () => {
     expect(screen.getByRole("tab", { name: /Agents/ })).toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("tab", { name: /Workflows/ }));
 
-    expect(screen.getByRole("button", { name: "Run workflow" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "New workflow" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Run agent" })).toBeNull();
   });
   it("preserves terminal elements across tabs and collapse without floating windows", async () => {

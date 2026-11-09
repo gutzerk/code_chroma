@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Agents;
+using CodeChroma.Bridge.Live;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using CodeChroma.Bridge.Skills;
@@ -54,7 +55,7 @@ public static class WorkflowRoutes
         app.MapGet("/repos/{repoId}/workflows", (string repoId, WorkspaceRegistry registry, WorkflowRunners runners) =>
             JsonResult(runners.For(registry.Get(repoId)).Store.ListWorkflows()));
 
-        app.MapPost("/repos/{repoId}/workflows", async (string repoId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, CliResolver resolver) =>
+        app.MapPost("/repos/{repoId}/workflows", async (string repoId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, CliResolver resolver, ConnectionManager connections) =>
         {
             var ws = registry.Get(repoId);
             if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
@@ -62,10 +63,11 @@ public static class WorkflowRoutes
             if (def is null) return Reply.Error(400, error!);
             var store = runners.For(registry.Get(repoId)).Store;
             if (!store.TryCreateWorkflow(def)) return Reply.Error(409, "Workflow already exists");
+            WorkflowsChanged(connections);
             return JsonResult(def);
         });
 
-        app.MapPut("/repos/{repoId}/workflows/{workflowId}", async (string repoId, string workflowId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, CliResolver resolver) =>
+        app.MapPut("/repos/{repoId}/workflows/{workflowId}", async (string repoId, string workflowId, HttpRequest request, WorkspaceRegistry registry, WorkflowRunners runners, SkillAgents agents, CliResolver resolver, ConnectionManager connections) =>
         {
             var ws = registry.Get(repoId);
             if (ws.ReadOnly) return Reply.Error(409, "a pull-request workspace is read-only");
@@ -75,13 +77,15 @@ public static class WorkflowRoutes
             var store = runners.For(ws).Store;
             if (store.GetWorkflow(workflowId) is null) return Reply.Error(404, $"unknown workflow: {workflowId}");
             store.SaveWorkflow(def);
+            WorkflowsChanged(connections);
             return JsonResult(def);
         });
 
-        app.MapDelete("/repos/{repoId}/workflows/{workflowId}", (string repoId, string workflowId, WorkspaceRegistry registry, WorkflowRunners runners) =>
+        app.MapDelete("/repos/{repoId}/workflows/{workflowId}", (string repoId, string workflowId, WorkspaceRegistry registry, WorkflowRunners runners, ConnectionManager connections) =>
             Mutate(registry.Get(repoId), runners, runner =>
             {
                 runner.DeleteWorkflow(workflowId);
+                WorkflowsChanged(connections);
                 return new { deleted = workflowId };
             }));
 
@@ -240,6 +244,9 @@ public static class WorkflowRoutes
             return adapter;
         };
     }
+
+    /// <summary>Definitions are machine-wide, so every canvas (any workspace) re-fetches its list; an agent's save shows at once.</summary>
+    private static void WorkflowsChanged(ConnectionManager connections) => connections.BroadcastDetached(new JsonObject { ["type"] = "workflows" });
 
     private static string? Str(JsonObject body, string key) => Json.NonEmptyStr(body[key]);
 

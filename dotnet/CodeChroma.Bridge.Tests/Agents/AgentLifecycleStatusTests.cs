@@ -57,18 +57,6 @@ public sealed class AgentLifecycleStatusTests : IDisposable
         return body["agents"]![0]!;
     }
 
-    private static async Task<string> ReceiveUntil(WebSocket socket, Func<string, bool> done)
-    {
-        var buffer = new byte[16384];
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-        while (true)
-        {
-            var result = await socket.ReceiveAsync(buffer, timeout.Token);
-            var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            if (done(text)) return text;
-        }
-    }
-
     [Fact]
     public async Task A_non_zero_exit_is_broadcast_at_once_as_an_error_until_dismissed()
     {
@@ -78,7 +66,7 @@ public sealed class AgentLifecycleStatusTests : IDisposable
         var socket = await _host.Server.CreateWebSocketClient().ConnectAsync(new Uri("ws://localhost/repos/main/events"), CancellationToken.None);
 
         await _host.Client.PostAsync("/agents/crasher/start", Body("{}"));
-        var pushed = JsonNode.Parse(await ReceiveUntil(socket, text => text.Contains("\"status\":\"error\"")))!;
+        var pushed = JsonNode.Parse(await Sockets.ReceiveUntil(socket, text => text.Contains("\"status\":\"error\"")))!;
         var listed = await Agent();
         var dismissed = JsonNode.Parse(await (await _host.Client.PostAsync("/agents/crasher/dismiss-error", null)).Content.ReadAsStringAsync())!;
 

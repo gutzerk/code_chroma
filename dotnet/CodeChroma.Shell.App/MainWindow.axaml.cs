@@ -236,6 +236,7 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         if (shutDown) return;
         e.Cancel = true;
         await controller.ShutdownAsync();
+        foreach (var tab in tabs.Tabs) MacWebViewChannel.Detach(((TabView)tab.View).Web);
         shutDown = true;
         Close();
     }
@@ -315,6 +316,7 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
     public void CloseView(object view)
     {
         if (view is not TabView tabView) return;
+        MacWebViewChannel.Detach(tabView.Web);
         Content.Children.Remove(tabView);
         tabView.Web.Url = null;
     }

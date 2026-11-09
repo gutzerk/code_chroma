@@ -183,7 +183,7 @@ export function QuestionCard({
           </button>
         )}
         {onChat && (
-          <button type="button" className="question-quiet" onClick={onChat}>
+          <button type="button" className="question-quiet" onClick={() => { onChat(); onReturnFocus?.(); }}>
             {S.chat}
           </button>
         )}

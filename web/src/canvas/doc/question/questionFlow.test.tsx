@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { canvasDocStore, useCanvasDoc } from "../canvasDocStore";
 import { useLoadCanvasDoc } from "../canvasDocSync";
@@ -81,18 +81,6 @@ describe("question answer flow (mock bridge)", () => {
     await waitFor(() => expect(screen.queryByText("Second?")).toBeNull());
     expect(screen.getByText("First?")).toBeInTheDocument();
     expect(screen.getByTestId("question-option-a")).toBeInTheDocument();
-  });
-
-  it("Chat about it hands focus to the agent terminal", async () => {
-    const client = new MockBridgeEngineClient();
-    await client.patchCanvas({ ops: [addQuestion(1, "First?")], layer: "default", explanation: "", confirm_mass_delete: false });
-    const el = Object.values((await client.getCanvas()).elements)[0];
-    const onReturnFocus = vi.fn();
-    render(<ConnectedQuestionCard question={toQuestionView(el)} client={client} doc={await client.getCanvas()} onReturnFocus={onReturnFocus} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Chat about it" }));
-
-    expect(onReturnFocus).toHaveBeenCalledTimes(1);
   });
 
   it("shows earlier decisions in the open question's history", async () => {

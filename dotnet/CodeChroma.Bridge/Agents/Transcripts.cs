@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Stores;
@@ -7,12 +8,14 @@ namespace CodeChroma.Bridge.Agents;
 /// <summary>A session's token counts from its last main-thread assistant entry; context = input + cache read + cache creation.</summary>
 public sealed record TranscriptUsage(long ContextTokens, long InputTokens, long OutputTokens, long CacheReadTokens, string? Model);
 
-/// <summary>What one pass over a transcript yields: the last main-thread usage and the billed tokens per model.</summary>
-public sealed record TranscriptSession(TranscriptUsage? Last, IReadOnlyDictionary<string, TokenCounts> Totals);
+/// <summary>What one pass over a transcript yields: the last main-thread usage and the session's billed tokens.</summary>
+public sealed record TranscriptSession(TranscriptUsage? Last, TokenCounts Total);
 
 /// <summary>Billed token counts: uncached input, output, cache reads and cache writes.</summary>
 public sealed record TokenCounts(long Input, long Output, long CacheRead, long CacheWrite)
 {
+    public static readonly TokenCounts Zero = new(0, 0, 0, 0);
+
     public static TokenCounts operator +(TokenCounts a, TokenCounts b) =>
         new(a.Input + b.Input, a.Output + b.Output, a.CacheRead + b.CacheRead, a.CacheWrite + b.CacheWrite);
 }
@@ -27,15 +30,17 @@ public static class Transcripts
     public const int MaxScannedTranscripts = 500;
     public const int HeadLines = 12;
     public const string SyntheticModel = "<synthetic>";
+    private static readonly ConcurrentDictionary<string, ((long Length, DateTime Stamp) Stamp, IReadOnlyDictionary<string, TokenCounts> Replies)> SubagentCache = new();
 
-    /// <summary>$CLAUDE_CONFIG_DIR/projects, else ~/.claude/projects: the override the CLI honours.</summary>
-    public static string ProjectsDir()
+    /// <summary>$CLAUDE_CONFIG_DIR, else ~/.claude: the override the CLI honours.</summary>
+    public static string ConfigDir()
     {
         var configured = Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR")?.Trim();
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var baseDir = string.IsNullOrEmpty(configured) ? Path.Combine(home, ".claude") : (configured.StartsWith('~') ? home + configured[1..] : configured);
-        return Path.Combine(baseDir, "projects");
+        return string.IsNullOrEmpty(configured) ? Path.Combine(home, ".claude") : (configured.StartsWith('~') ? home + configured[1..] : configured);
     }
+
+    public static string ProjectsDir() => Path.Combine(ConfigDir(), "projects");
 
     /// <summary>The newest transcript's session id for this worktree, skipping ids a sibling already claimed.</summary>
     public static string? FindSessionId(string worktree, string? projectsRoot = null, IReadOnlySet<string>? exclude = null)
@@ -90,33 +95,49 @@ public static class Transcripts
 
     /// <summary>The last main-thread assistant entry's token usage in a session's transcript, or null when it has none.</summary>
     public static TranscriptUsage? ReadUsage(string sessionId, string worktree, string? projectsRoot = null) =>
-        ReadSession(sessionId, worktree, projectsRoot)?.Last;
+        ReadSession(sessionId, worktree, projectsRoot, includeSubagents: false)?.Last;
 
-    /// <summary>One streamed pass over a session's transcript: the last main-thread usage and every billed reply's tokens summed per model (a reply streamed as several entries counts its last, final usage); null when there is no transcript.</summary>
-    public static TranscriptSession? ReadSession(string sessionId, string worktree, string? projectsRoot = null)
+    /// <summary>One streamed pass over a session's transcript (plus, unless excluded, its subagents' transcripts): the last main-thread usage and every billed reply's tokens summed once (a reply streamed as several entries counts its last, final usage); null when there is no transcript.</summary>
+    public static TranscriptSession? ReadSession(string sessionId, string worktree, string? projectsRoot = null, bool includeSubagents = true)
     {
+        if (Locate(sessionId, worktree, projectsRoot) is not { } path) return null;
         TranscriptUsage? last = null;
-        var byMessage = new Dictionary<string, (string Model, TokenCounts Counts)>();
-        var read = ForEachEntry(sessionId, worktree, projectsRoot, line => line.Contains("\"usage\"", StringComparison.Ordinal), (entry, lineNumber) =>
+        var replies = new Dictionary<string, TokenCounts>();
+        var read = CollectReplies(path, replies, (entry, model, counts) =>
         {
-            if (Json.Str(entry["type"]) != "assistant" || entry["message"] is not JsonObject message || message["usage"] is not JsonObject usage) return;
-            var model = Json.Str(message["model"]);
-            var counts = new TokenCounts(Count(usage["input_tokens"]), Count(usage["output_tokens"]), Count(usage["cache_read_input_tokens"]), Count(usage["cache_creation_input_tokens"]));
             if (model != SyntheticModel && !Json.Bool(entry["isSidechain"]))
                 last = new TranscriptUsage(counts.Input + counts.CacheRead + counts.CacheWrite, counts.Input, counts.Output, counts.CacheRead, model);
-            if (counts.Input + counts.Output + counts.CacheRead + counts.CacheWrite == 0) return;
-            byMessage[Json.Str(message["id"]) ?? $"#{lineNumber}"] = (model ?? "", counts);
         });
         if (!read) return null;
-        var totals = new Dictionary<string, TokenCounts>();
-        foreach (var (model, counts) in byMessage.Values)
-            totals[model] = totals.TryGetValue(model, out var sum) ? sum + counts : counts;
-        return new TranscriptSession(last, totals);
+        if (includeSubagents)
+            foreach (var file in SubagentTranscripts(path))
+                foreach (var (id, counts) in SubagentReplies(file)) replies[id] = counts;
+        return new TranscriptSession(last, replies.Values.Aggregate(TokenCounts.Zero, (a, b) => a + b));
     }
 
-    /// <summary>Streams a session's transcript, parsing only lines `keep` accepts and handing each JSON object with its 1-based line number to `visit`; false when there is no readable transcript.</summary>
-    public static bool ForEachEntry(string sessionId, string worktree, string? projectsRoot, Func<string, bool> keep, Action<JsonObject, int> visit) =>
-        Locate(sessionId, worktree, projectsRoot) is { } path && ForEachEntry(path, keep, visit);
+    /// <summary>Adds each billed assistant reply's tokens to `replies` keyed by message id, handing every usage entry to `onEntry` first; false when the file cannot be read.</summary>
+    private static bool CollectReplies(string file, Dictionary<string, TokenCounts> replies, Action<JsonObject, string?, TokenCounts>? onEntry = null) =>
+        ForEachEntry(file, line => line.Contains("\"usage\"", StringComparison.Ordinal), (entry, lineNumber) =>
+        {
+            if (Json.Str(entry["type"]) != "assistant" || entry["message"] is not JsonObject message || message["usage"] is not JsonObject usage) return;
+            var counts = new TokenCounts(Count(usage["input_tokens"]), Count(usage["output_tokens"]), Count(usage["cache_read_input_tokens"]), Count(usage["cache_creation_input_tokens"]));
+            onEntry?.Invoke(entry, Json.Str(message["model"]), counts);
+            if (counts == TokenCounts.Zero) return;
+            replies[Json.Str(message["id"]) ?? $"{file}#{lineNumber}"] = counts;
+        });
+
+    /// <summary>A subagent transcript's replies, re-read only when its size or write time changed (a finished subagent's file never does).</summary>
+    private static IReadOnlyDictionary<string, TokenCounts> SubagentReplies(string file)
+    {
+        (long Length, DateTime Stamp) stamp;
+        try { var info = new FileInfo(file); stamp = (info.Length, info.LastWriteTimeUtc); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return new Dictionary<string, TokenCounts>(); }
+        if (SubagentCache.TryGetValue(file, out var hit) && hit.Stamp == stamp) return hit.Replies;
+        var replies = new Dictionary<string, TokenCounts>();
+        CollectReplies(file, replies);
+        SubagentCache[file] = (stamp, replies);
+        return replies;
+    }
 
     /// <summary>The session's transcript file, or null when there is none.</summary>
     public static string? Locate(string sessionId, string worktree, string? projectsRoot = null) =>
@@ -154,6 +175,14 @@ public static class Transcripts
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
         var target = Path.GetFullPath(worktree);
         return candidates.Count > 1 ? candidates.FirstOrDefault(p => SessionIdForCwd(p, target) is not null) ?? candidates[0] : candidates.FirstOrDefault();
+    }
+
+    /// <summary>The Task subagents' transcripts Claude Code writes beside a session as `&lt;session&gt;/subagents/*.jsonl`.</summary>
+    private static IEnumerable<string> SubagentTranscripts(string sessionPath)
+    {
+        var dir = Path.Combine(Path.ChangeExtension(sessionPath, null), "subagents");
+        try { return Directory.Exists(dir) ? Directory.EnumerateFiles(dir, "*.jsonl").Order(StringComparer.Ordinal).ToList() : []; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return []; }
     }
 
     private static long Count(JsonNode? node) => node is JsonValue v && v.TryGetValue<long>(out var n) ? n : 0;

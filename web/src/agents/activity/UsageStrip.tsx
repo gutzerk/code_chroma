@@ -27,7 +27,7 @@ export function useAgentUsage(client: AgentClient, agentId: string, status: Agen
   return enabled ? usage : null;
 }
 
-/** Context meter, tokens in/out, cache hit and cost (when priced) for the agent header (a row of its own in the normal panel). */
+/** Context meter, tokens in/out and cache hit for the agent header (a row of its own in the normal panel). */
 export function UsageStrip({ usage }: { usage: AgentUsage }) {
   const used = usage.contextWindow > 0 ? percent(usage.contextTokens / usage.contextWindow) : 0;
   return (
@@ -61,12 +61,6 @@ export function UsageStrip({ usage }: { usage: AgentUsage }) {
         <span className="agent-usage-label">Cache hit</span>
         <span>{percent(usage.cacheHitRatio)}%</span>
       </div>
-      {usage.costUsd !== null && (
-        <div className="agent-usage-stat">
-          <span className="agent-usage-label">Cost</span>
-          <span>${usage.costUsd.toFixed(2)}</span>
-        </div>
-      )}
     </div>
   );
 }

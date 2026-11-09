@@ -805,21 +805,20 @@ Being in a non-`normal` mode (also on mount) closes an open code popup and inspe
 ## Session usage (019 Stage 7)
 
 `GET /agents/{id}/usage` (`Routes/AgentRoutes.cs`, C# bridge only) returns `{contextTokens, contextWindow,
-inputTokens, outputTokens, cacheReadTokens, cacheHitRatio, costUsd, model}` for a claude agent's recorded
+inputTokens, outputTokens, cacheReadTokens, cacheHitRatio, model}` for a claude agent's recorded
 session (`SessionId`, captured on demand when still empty), or `null` for a non-claude agent, no session
 yet, or a transcript with no billed reply. `Agents/AgentUsage.cs` builds it from one streamed pass, `Transcripts.ReadSession`: context comes from
 the last main-thread reply (`<synthetic>` entries and sidechains are skipped) and its window from
-`ModelSpecs.ContextWindow`; tokens, cache hit and cost sum every assistant reply once per `message.id`
-(sidechains included, since they are billed) per model; a reply streamed as several transcript entries counts its last entry, whose `output_tokens` is final.
+`ModelSpecs.ContextWindow`; tokens and cache hit sum every assistant reply once per `message.id`
+(sidechains and the Task subagents' own transcripts under `<session>/subagents/*.jsonl` included, since they are billed; a finished subagent file is re-read only when its size or write time changes); a reply streamed as several transcript entries counts its last entry, whose `output_tokens` is final.
 `inputTokens` counts uncached input plus cache reads and writes, and `cacheHitRatio` is cache reads over
-that. `Agents/ModelSpecs.cs` holds the context windows (1M for an id ending in `[1m]` or a context already past 200k, since transcripts drop the suffix; else 200k) and USD per MTok (input, output, cache read, 5-minute cache write) per
-model id or its dated snapshot; `costUsd` is null when any model with tokens has no price.
+that, so it re-counts the whole prompt on every API call (it is billed input, not the context size). The context window comes from `Agents/ClaudeModelCatalog.cs`, which reads `runtime.max_input_tokens` per model id (dated snapshot suffix stripped) from the catalog Claude Code caches in `<config dir>/cache/model-catalog/*.json` (newest `fetchedAt` wins; re-parsed only when a file changes). That cache is undocumented, so `Agents/ModelSpecs.cs` falls back to 200k for older models (Haiku/Sonnet/Opus 4.5 and earlier, every `claude-3*`) and 1M for every other id, so a new model reads 1M without an edit; a context already past its window reads 1M. `Transcripts.ReadUsage` (workflow steps) skips the subagent files, since it only needs the last main-thread reply. There is no cost: the strip shows tokens only.
 
 The web reads it through the optional `AgentClient.usage` (`HttpAgentClient` only; the mock has none, so
 the strip stays hidden there). `activity/UsageStrip.tsx`'s `useAgentUsage` fetches only for the selected
 agent while full screen is open, again on each status change and, while the agent is working (`useAgentPoll` checks `status === "working"`; every other status re-reads only on its change) and the page is visible, every `USAGE_POLL_MS` (5 s), and
-`UsageStrip` renders "Context 62k / 200k · 31%" with a `role="meter"` bar, "Tokens 184k in · 12k out",
-"Cache hit 78%" and "Cost $0.84" (omitted when `costUsd` is null). Tests:
+`UsageStrip` renders "Context 62k / 200k · 31%" with a `role="meter"` bar, "Tokens 184k in · 12k out"
+and "Cache hit 78%". Tests:
 `dotnet/CodeChroma.Bridge.Tests/Agents/AgentUsageTests.cs`, `web/src/agents/activity/UsageStrip.test.tsx`.
 
 ## Prompt navigation

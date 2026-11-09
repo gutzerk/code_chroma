@@ -5,10 +5,7 @@ import { isEpicsLayer, layoutEpics } from "./epicsLayout";
 import { layoutBoxSize, measureBoxSize } from "./measureBoxSize";
 import { placeIncrementally } from "./incrementalLayout";
 import { layersWithProfile, profileForElement } from "./diagramProfiles";
-
-const DEFAULT_SIZE = { width: 300, height: 72 };
-// Vertical gap below the document's existing content before a fresh batch's own layered block starts.
-const NEW_ELEMENTS_MARGIN = 80;
+import { layoutTuning } from "../connectors/layoutTuning";
 
 /**
  * Positions brand-new elements (added by one recipe run or one chat-skill batch) with a single
@@ -49,12 +46,14 @@ export async function layoutNewElements(
     Object.assign(ownLayout.sizes, result.sizes);
   }
 
+  // Default box size and the gap below existing content (newDiagramGap) come from the playground-tunable knobs.
+  const tuning = layoutTuning();
   // Authored size (grown to a role box's content), else the text-measured estimate, else the flat default.
   const sizeOf = (element: CanvasElement) => {
     const measured = layoutBoxSize(element);
     return {
-      width: measured?.w ?? DEFAULT_SIZE.width,
-      height: measured?.h ?? DEFAULT_SIZE.height,
+      width: measured?.w ?? tuning.defaultWidth,
+      height: measured?.h ?? tuning.defaultHeight,
     };
   };
   // Measured sizes for the new boxes with no authored size, persisted so the renderer matches ELK.
@@ -94,7 +93,7 @@ export async function layoutNewElements(
     existingElements.length > 0
       ? Math.max(
           ...existingElements.map((element) => element.position.y + sizeOf(element).height / 2),
-        ) + NEW_ELEMENTS_MARGIN
+        ) + tuning.newDiagramGap
       : 0;
 
   // The epics diagram has no order/lane/edges, so the shared layered layout would pile every box at

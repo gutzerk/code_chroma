@@ -1,0 +1,62 @@
+.layout-playground {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--bg-raised);
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.layout-playground-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.layout-playground-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.layout-playground label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layout-playground input[type="number"],
+.layout-playground select,
+.layout-playground textarea {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 3px 6px;
+  border: 1px solid var(--bg-raised-2);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text-strong);
+  font: inherit;
+}
+
+.layout-playground textarea {
+  font-family: ui-monospace, monospace;
+  resize: vertical;
+}
+
+.layout-playground .layout-playground-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.layout-playground-run {
+  flex: none;
+}
+
+.layout-playground-status {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-1);
+}

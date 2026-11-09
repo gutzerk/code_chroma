@@ -1,8 +1,8 @@
-import { AUTO_NODE_SEP, AUTO_RANK_SEP } from "../collision/constants";
 import { resolveDrop, type Obstacle } from "../collision/resolveDrop";
 import { computeElkLayout, type LayoutEdge } from "../connectors/elkLayout";
 import type { LayoutBoxSpec } from "../connectors/diagramLayout";
 import type { CanvasPosition } from "../../state/types";
+import { layoutTuning } from "../connectors/layoutTuning";
 
 export interface PinnedBox extends LayoutBoxSpec {
   /** Where the box sits now (centre) -- never changed, wherever the user dragged it. */
@@ -68,6 +68,7 @@ export async function placeIncrementally(input: IncrementalInput): Promise<Recor
     const pb = elkOf.get(b.id) as CanvasPosition;
     return pa.y - pb.y || pa.x - pb.x || (a.id < b.id ? -1 : 1);
   });
+  const { incrementalNodeSep, incrementalRankSep } = layoutTuning();
   for (const box of ordered) {
     const elk = elkOf.get(box.id) as CanvasPosition;
     const anchors = (neighboursOf.get(box.id) ?? []).map((id) => offsetOf.get(id) as CanvasPosition);
@@ -80,7 +81,7 @@ export async function placeIncrementally(input: IncrementalInput): Promise<Recor
       width: box.width,
       height: box.height,
     };
-    const result = resolveDrop(moving, placedObstacles, { nodeSep: AUTO_NODE_SEP, rankSep: AUTO_RANK_SEP });
+    const result = resolveDrop(moving, placedObstacles, { nodeSep: incrementalNodeSep, rankSep: incrementalRankSep });
     positions[box.id] = { x: result.x + box.width / 2, y: result.y + box.height / 2 };
     placedObstacles.push({ id: box.id, ...moving, x: result.x, y: result.y });
   }

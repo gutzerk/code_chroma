@@ -13,6 +13,8 @@ import { openFilesStore, useActiveFileId, useOpenFiles } from "../openFilesStore
 import { TreeNode } from "../strategies/tree/TreeNode";
 import { colorForLayer } from "./diagramColors";
 import { diagramSelectionStore, useSelectedDiagrams } from "./diagramSelectionStore";
+import { LayoutPlaygroundSection } from "./LayoutPlaygroundSection";
+import { useLayoutPlaygroundEnabled, useLayoutPlaygroundShortcut } from "../connectors/layoutTuning";
 import { useDiagramRows } from "./useDiagramRows";
 import "../PanelHandle.css";
 import "./LeftPanel.css";
@@ -113,6 +115,8 @@ function DiagramsTab({ arrange, rootName }: { arrange?: ReactNode; rootName?: st
   const rows = useDiagramRows();
   const layers = useMemo(() => rows.map((row) => row.layer), [rows]);
   const selected = useSelectedDiagrams();
+  const playground = useLayoutPlaygroundEnabled();
+  useLayoutPlaygroundShortcut();
   const [deletingLayer, setDeletingLayer] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -211,6 +215,7 @@ function DiagramsTab({ arrange, rootName }: { arrange?: ReactNode; rootName?: st
         </ul>
       )}
       {arrange}
+      {playground && <LayoutPlaygroundSection />}
       {deletingLayer && (
         <DeleteDiagramDialog
           label={rows.find((row) => row.layer === deletingLayer)?.name ?? deletingLayer}

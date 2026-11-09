@@ -51,6 +51,11 @@ export function takeCachedPosition(layer: string, recipeKey: string): CanvasPosi
   return position;
 }
 
+/** Drops `layer`'s snapshot, so its next recipe run lays out from scratch (the layout playground). */
+export function forgetLayerPositions(layer: string): void {
+  cache.delete(layer);
+}
+
 /** Test-only: clears every captured layer. */
 export function reset(): void {
   cache.clear();

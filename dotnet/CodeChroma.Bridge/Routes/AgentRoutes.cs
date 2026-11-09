@@ -70,6 +70,7 @@ public static class AgentRoutes
                 catch (UnknownAgentException error) { return Reply.Error(404, error.Message); }
                 catch (WorktreeException error) { return Reply.Error(400, error.Message); }
                 registry.Register(forked.Id, forked.Worktree);
+                await Task.Run(() => ForgetLeftoverQuestions(registry, forked.Id));
                 var forkedPayload = forked.ToPayload();
                 await connections.Broadcast(new JsonObject { ["type"] = "agent-added", ["agent"] = forkedPayload.DeepClone() });
                 return Reply.Json(forkedPayload);
@@ -84,6 +85,7 @@ public static class AgentRoutes
             catch (UnknownAgentException) { return Reply.Error(404, attachTo is null ? $"unknown workspace: {workspace}" : $"unknown attach_to: {attachTo}"); }
             catch (WorktreeException error) { return Reply.Error(400, error.Message); }
             registry.Register(record.Id, record.Worktree, sharesWorkspaceWith: record.SharesWorkspaceWith);
+            await Task.Run(() => ForgetLeftoverQuestions(registry, record.Id));
             var payload = record.ToPayload();
             await connections.Broadcast(new JsonObject { ["type"] = "agent-added", ["agent"] = payload.DeepClone() });
             return Reply.Json(payload);
@@ -452,6 +454,19 @@ public static class AgentRoutes
             contextKind = ck;
         }
         return null;
+    }
+
+    /// <summary>A new agent may reuse a closed agent's id: drops that agent's leftover questions so the new window never shows them; never fails the create.</summary>
+    private static void ForgetLeftoverQuestions(WorkspaceRegistry registry, string agentId)
+    {
+        try
+        {
+            if (AgentQuestionView.HasAny(registry, agentId)) QuestionStore.ForgetAgent(registry.Get(agentId), agentId);
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine($"questions: could not clear the leftover questions of agent {agentId}: {error.Message}");
+        }
     }
 
     private static Workspace? TryWorkspace(WorkspaceRegistry registry, string id)

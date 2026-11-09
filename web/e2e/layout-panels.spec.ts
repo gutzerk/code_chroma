@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { gotoApp } from "./helpers";
+import { gotoApp, seedCanvasDoc } from "./helpers";
 
 test("the collapsed left bar reopens the panel on the right tab (expand, folder, top-bar toggle)", async ({
   page,
@@ -25,20 +25,14 @@ test("the collapsed left bar reopens the panel on the right tab (expand, folder,
 
 test("a collapsed-bar color box hides its diagram (dashed) and restores it", async ({ page }) => {
   await gotoApp(page, { files: false });
-  // The mock bridge starts with no diagram; seed one through the app's own canvas-doc store module.
-  await page.evaluate(async () => {
-    const modulePath = "/src/canvas/doc/canvasDocStore.ts";
-    const { canvasDocStore } = await import(/* @vite-ignore */ modulePath);
-    const doc = canvasDocStore.getDoc();
-    canvasDocStore.setDoc({
-      ...doc,
-      elements: {
-        c1a: {
-          id: "c1a", render: "c1", layer: "system-context", label: "System", description: "", node_id: null,
-          position: { x: 0, y: 0 }, size: null, group_id: null, meta: {}, created_by: "ai",
-        },
+  // The mock bridge starts with no diagram; seed one.
+  await seedCanvasDoc(page, {
+    elements: {
+      c1a: {
+        id: "c1a", render: "c1", layer: "system-context", label: "System", description: "", node_id: null,
+        position: { x: 0, y: 0 }, size: null, group_id: null, meta: {}, created_by: "ai",
       },
-    });
+    },
   });
   await page.getByRole("button", { name: "Collapse diagrams panel" }).click();
 

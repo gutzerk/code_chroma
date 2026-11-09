@@ -156,7 +156,7 @@ def list_questions(ws: Workspace) -> list[Element]:
 
 def agent_questions(ws: Workspace, agent_id: str) -> list[Element]:
     """Every `question` element one agent asked, in canvas insertion order."""
-    return _agent_questions(CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root), agent_id)
+    return agent_questions_in(CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root), agent_id)
 
 
 def settle(ws: Workspace, element: Element, state: str, result: QuestionResult) -> Element:
@@ -193,7 +193,8 @@ def _cleanup_ops(doc: CanvasDoc, questions: list[Element]) -> list[dict]:
     return [{"op": "delete_element", "id": i} for i in sorted(doomed)]
 
 
-def _agent_questions(doc: CanvasDoc, agent_id: str) -> list[Element]:
+def agent_questions_in(doc: CanvasDoc, agent_id: str) -> list[Element]:
+    """Every `question` element one agent asked in an already-loaded doc."""
     return [
         e for e in doc.elements.values()
         if e.render == "question" and e.meta.get("agent_id") == agent_id
@@ -202,7 +203,7 @@ def _agent_questions(doc: CanvasDoc, agent_id: str) -> list[Element]:
 
 def _ready_batch(doc: CanvasDoc, agent_id: str) -> list[Element]:
     """The agent's undelivered answers, or none while any of its questions is still open."""
-    mine = _agent_questions(doc, agent_id)
+    mine = agent_questions_in(doc, agent_id)
     if any(e.meta.get("state") == "open" for e in mine):
         return []
     return [e for e in mine if e.meta.get(AWAITING_DELIVERY)]
@@ -241,6 +242,16 @@ def clear_batch(ws: Workspace, batch: list[Element]) -> None:
         for e in settled:
             if session := e.meta.get("session_id"):
                 _count_delivered(ws, session)
+
+
+def forget_agent(ws: Workspace, agent_id: str) -> None:
+    """Deletes every question `agent_id` left and its diagrams, so a reused id starts clean."""
+    with canvas_lock(ws.id):
+        doc = CanvasDoc.load(ws.canvas_core_path, ws.diagrams_root)
+        left = agent_questions_in(doc, agent_id)
+        release_batch(ws, agent_id)
+        if left:
+            _commit_locked(ws, doc, _cleanup_ops(doc, left))
 
 
 _SETTLED_KEYS = ("state", "answer", "option_id")

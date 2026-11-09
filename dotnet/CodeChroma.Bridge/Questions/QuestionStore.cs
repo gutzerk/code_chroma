@@ -128,7 +128,7 @@ public static class QuestionStore
     /// <summary>Every `question` element one agent asked, in canvas insertion order.</summary>
     public static List<CanvasElement> AgentQuestions(Workspace ws, string agentId) => AgentQuestions(Load(ws), agentId);
 
-    private static List<CanvasElement> AgentQuestions(CanvasDoc doc, string agentId) =>
+    internal static List<CanvasElement> AgentQuestions(CanvasDoc doc, string agentId) =>
         doc.Elements.Values.Where(e => e.Render == "question" && Json.Str(e.Meta["agent_id"]) == agentId).ToList();
 
     /// <summary>Writes the answered/skipped state onto the element's meta and marks it for the agent's next wake-up.</summary>
@@ -163,6 +163,18 @@ public static class QuestionStore
             CommitLocked(ws, doc, CleanupOps(doc, settled));
             foreach (var session in settled.Select(e => Json.Str(e.Meta["session_id"])).OfType<string>().Where(id => id.Length > 0))
                 CountDelivered(ws, session);
+        }
+    }
+
+    /// <summary>Deletes every question `agentId` left on the canvas and their option diagrams, so a new agent that reuses the id starts clean.</summary>
+    public static void ForgetAgent(Workspace ws, string agentId)
+    {
+        lock (CanvasWrite.LockFor(ws.Id))
+        {
+            var doc = Load(ws);
+            var left = AgentQuestions(doc, agentId);
+            ReleaseBatch(ws, agentId);
+            if (left.Count > 0) CommitLocked(ws, doc, CleanupOps(doc, left));
         }
     }
 

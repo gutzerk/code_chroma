@@ -73,6 +73,22 @@ def test_a_neighbours_settled_question_in_the_same_session_is_not_in_the_history
     assert [e["label"] for e in body["elements"].values()] == ["Now?"]
 
 
+def test_a_new_agent_that_reuses_a_closed_agents_id_starts_without_its_questions(bridge):
+    with TestClient(bridge.app) as client:
+        _, closed = _agent_on_tab(client)
+        asked = _ask(bridge, closed, question="Old open?", session_id="s1")
+        nodes = [diagrams.DiagramNode(id="api", label="API")]
+        store.draw_diagram(bridge.registry.get(closed), "A", nodes, [], asked, "a")
+        client.delete(f"/agents/{closed}")
+
+        _, reused = _agent_on_tab(client)
+        body = client.get(f"/agents/{reused}/questions").json()
+
+    assert reused == closed
+    assert body["open_questions"] == 0
+    assert body["elements"] == {}
+
+
 def test_an_unknown_agent_is_a_404_on_read_and_every_write(bridge):
     with TestClient(bridge.app) as client:
         statuses = [

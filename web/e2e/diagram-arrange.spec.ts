@@ -1,32 +1,20 @@
 import { test, expect } from "@playwright/test";
-import type { CanvasBatch, CanvasDoc } from "../src/state/types";
-import { gotoApp } from "./helpers";
+import type { CanvasDoc } from "../src/state/types";
+import { gotoApp, seedCanvasDoc } from "./helpers";
 
 for (const layer of ["system-context", "patterns", "custom/layout"]) {
   test(`Arrange preserves user-moved blocks in ${layer}`, async ({ page }) => {
     await gotoApp(page, { files: false });
-    await page.evaluate(async (layer) => {
-      const storePath = "/src/canvas/doc/canvasDocStore.ts";
-      const bridgePath = "/src/engine-client/mockBridge.ts";
-      const { canvasDocStore } = await import(/* @vite-ignore */ storePath);
-      const { MockBridgeEngineClient } = await import(/* @vite-ignore */ bridgePath);
-      const other = layer === "system-context" ? "patterns" : "system-context";
-      const elements = Object.fromEntries([
-        ["a", layer, 450, 300], ["b", layer, 700, 450],
-        ["c", other, 1050, 350], ["d", other, 1200, 550],
-      ].map(([id, layer, x, y]) => [id, {
-        id, render: layer === "patterns" ? "pattern" : layer === "system-context" ? "c1" : "custom", layer, label: id, description: "", node_id: null,
-        position: { x, y }, size: { w: 100, h: 70 }, group_id: null, meta: {}, created_by: "ai",
-      }]));
-      const doc = { ...canvasDocStore.getDoc(), doc_id: "arrange-test", elements, edges: {} };
-      const proto = MockBridgeEngineClient.prototype;
-      const get = proto.getCanvas;
-      const patch = proto.patchCanvas;
-      const seed = (client: { canvasDoc: CanvasDoc; arrangeTestSeeded?: boolean }) => { if (!client.arrangeTestSeeded) { client.canvasDoc = structuredClone(doc); client.arrangeTestSeeded = true; } };
-      proto.getCanvas = function () { seed(this); return get.call(this); };
-      proto.patchCanvas = function (batch: CanvasBatch) { seed(this); return patch.call(this, batch); };
-      canvasDocStore.setDoc(doc);
-    }, layer);
+    const other = layer === "system-context" ? "patterns" : "system-context";
+    const render = (on: string) => (on === "patterns" ? "pattern" : on === "system-context" ? "c1" : "custom");
+    const elements = Object.fromEntries(([
+      ["a", layer, 450, 300], ["b", layer, 700, 450],
+      ["c", other, 1050, 350], ["d", other, 1200, 550],
+    ] as const).map(([id, on, x, y]) => [id, {
+      id, render: render(on), layer: on, label: id, description: "", node_id: null,
+      position: { x, y }, size: { w: 100, h: 70 }, group_id: null, meta: {}, created_by: "ai",
+    }]));
+    await seedCanvasDoc(page, { doc_id: "arrange-test", elements });
     await page.getByRole("button", { name: "Collapse agents and workflows" }).click();
     await page.getByRole("button", { name: "Fit all open blocks", exact: true }).click();
     const box = page.locator('[data-select-id="a"]');

@@ -9,6 +9,7 @@ from typing import Any
 
 from codechroma.bridge.workspaces import WorkspaceRegistry
 from codechroma.canvas.document import CanvasDoc, Element
+from codechroma.questions import store
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,20 @@ def read(registry: WorkspaceRegistry, agent_id: str) -> dict[str, Any]:
 def open_count(registry: WorkspaceRegistry, agent_id: str) -> int:
     """How many questions the agent has open in the workspace it asks into."""
     return len(_open_questions(_load(registry, agent_id)[1], agent_id))
+
+
+def has_any(registry: WorkspaceRegistry, agent_id: str) -> bool:
+    """Whether any question carries this id, read from disk so no workspace is brought up."""
+    return bool(store.agent_questions_in(_load(registry, agent_id)[1], agent_id))
+
+
+def forget_leftovers(registry: WorkspaceRegistry, agent_id: str) -> None:
+    """A new agent may reuse a closed agent's id: drops its leftover questions; never raises."""
+    try:
+        if has_any(registry, agent_id):
+            store.forget_agent(registry.get(agent_id), agent_id)
+    except Exception:
+        logger.exception("questions: could not clear the leftover questions of agent %s", agent_id)
 
 
 async def announce(services: Any, agent_id: str | None) -> None:

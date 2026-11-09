@@ -2345,6 +2345,150 @@
           }
         }
       ]
+    },
+    {
+      "id": "a_new_agent_that_reuses_a_closed_agents_id_starts_without_its_questions",
+      "steps": [
+        {
+          "http": {
+            "method": "POST",
+            "path": "/branches/ensure"
+          },
+          "capture": {
+            "ws": "$.active"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Asker",
+              "kind": "shell",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.id",
+                "equals": "asker"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/{{ws}}/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "old",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Old open?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": "s1",
+                    "step": 1,
+                    "total": 1,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": true,
+                    "agent_id": "asker",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "DELETE",
+            "path": "/agents/asker"
+          },
+          "expect": {
+            "status": 200
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/agents",
+            "json": {
+              "title": "Asker",
+              "kind": "shell",
+              "workspace": "{{ws}}"
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.id",
+                "equals": "asker"
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/agents/asker/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.open_questions",
+                "equals": 0
+              },
+              {
+                "path": "$.elements",
+                "count": 0
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

@@ -71,6 +71,23 @@ public sealed class AgentQuestionRoutesTests
     }
 
     [Fact]
+    public async Task A_new_agent_that_reuses_a_closed_agents_id_starts_without_its_questions()
+    {
+        using var host = new BridgeHost();
+        var (_, closed) = await AgentOnTab(host);
+        var asked = Ask(host, closed, Request(question: "Old open?", sessionId: "s1"));
+        QuestionStore.DrawDiagram(WorkspaceOf(host, closed), "Option A", [new DiagramNode("api", "API")], [], asked, "a");
+        await host.Client.DeleteAsync($"/agents/{closed}");
+
+        var (_, reused) = await AgentOnTab(host);
+        var body = await Body(await host.Client.GetAsync($"/agents/{reused}/questions"));
+
+        Assert.Equal(closed, reused);
+        Assert.Equal(0, (int)body["open_questions"]!);
+        Assert.Empty(body["elements"]!.AsObject());
+    }
+
+    [Fact]
     public async Task An_unknown_agent_is_a_404_on_read_and_every_write()
     {
         using var host = new BridgeHost();

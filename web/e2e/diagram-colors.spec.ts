@@ -1,20 +1,14 @@
 import { test, expect } from "@playwright/test";
-import { gotoApp } from "./helpers";
+import { gotoApp, seedCanvasDoc } from "./helpers";
 
 test("diagram swatches match frame borders in both panel layouts", async ({ page }) => {
   await gotoApp(page, { files: false });
-  await page.evaluate(async () => {
-    const path = "/src/canvas/doc/canvasDocStore.ts";
-    const { canvasDocStore } = await import(/* @vite-ignore */ path);
-    const doc = canvasDocStore.getDoc();
-    canvasDocStore.setDoc({
-      ...doc,
-      elements: Object.fromEntries(["system-context", "sequence", "custom/colors"].map((layer, i) => [layer, {
-        id: layer, render: "custom", layer, label: layer, description: "", node_id: null,
-        position: { x: 500 + i * 500, y: 350 }, size: { w: 200, h: 100 },
-        group_id: null, meta: {}, created_by: "ai",
-      }])),
-    });
+  await seedCanvasDoc(page, {
+    elements: Object.fromEntries(["system-context", "sequence", "custom/colors"].map((layer, i) => [layer, {
+      id: layer, render: "custom", layer, label: layer, description: "", node_id: null,
+      position: { x: 500 + i * 500, y: 350 }, size: { w: 200, h: 100 },
+      group_id: null, meta: {}, created_by: "ai",
+    }])),
   });
   const rows = page.locator(".left-panel-row");
   await expect(rows).toHaveCount(3);

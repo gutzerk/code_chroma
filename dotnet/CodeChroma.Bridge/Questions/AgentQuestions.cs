@@ -40,6 +40,9 @@ public static class AgentQuestionView
     /// <summary>How many questions the agent has open in the workspace it asks into.</summary>
     public static int OpenCount(WorkspaceRegistry registry, string agentId) => OpenQuestions(Load(registry, agentId).Doc, agentId).Count;
 
+    /// <summary>Whether any question carries this agent id, read from disk so a caller can skip bringing the workspace up when there is none.</summary>
+    public static bool HasAny(WorkspaceRegistry registry, string agentId) => QuestionStore.AgentQuestions(Load(registry, agentId).Doc, agentId).Count > 0;
+
     private static bool IsOpen(CanvasElement element) => (Json.Str(element.Meta["state"]) ?? "open") == "open";
 
     private static List<CanvasElement> OpenQuestions(CanvasDoc doc, string agentId) =>

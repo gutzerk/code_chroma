@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from "react";
-import type { AgentRecord } from "../../state/types";
-import { STATUS_LABELS } from "../statusRollup";
+import { QUESTION_STRINGS as S } from "../../canvas/doc/question/questionStrings";
+import type { AgentRecord, AgentStatus } from "../../state/types";
+import { useOpenQuestionCount } from "../agentStore";
+import { effectiveStatus, STATUS_LABELS } from "../statusRollup";
 
 /** "<cli> · <branch> · <status>", the agent subtitle every agent list shows. */
 export function agentMeta(agent: AgentRecord): string {
@@ -45,4 +47,12 @@ export function useElapsed(since: string | null | undefined): string | null {
   if (shown && tickTimer === undefined) tickNow = Date.now();
   const now = useSyncExternalStore(shown ? subscribeTick : noTick, getTick);
   return shown ? formatElapsed(now - start) : null;
+}
+
+/** An agent's shown status (an open ask_user question raises it to `blocked`) and its spoken label. */
+export function useAgentStatus(status: AgentStatus, agentId: string): { shown: AgentStatus; label: string } {
+  const count = useOpenQuestionCount(agentId);
+  const shown = effectiveStatus({ status }, count);
+  const label = count > 0 ? `${STATUS_LABELS[shown]} · ${S.questionCount(count)}` : STATUS_LABELS[shown];
+  return { shown, label };
 }

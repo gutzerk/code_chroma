@@ -4,7 +4,7 @@
 
 The right side is a floating `agents/ActivityPanel`, present even with no agents. Its header is a
 segmented "Agents N | Workflows N" control (N on Workflows counts unfinished runs) plus the mode buttons. In normal mode the Agents tab is one 40px
-`agents/activity/AgentSwitcherRow` (agent dropdown with status dot, title, an "i/N" count chip and
+`agents/activity/AgentSwitcherRow` (agent dropdown with a status-tinted background instead of a status dot, title, an "i/N" count chip and
 "cli · branch · status"; Run agent, Full screen and Collapse live in the header, Stretch / grip / Collapse on the left-edge handle) above the terminal; in full mode the row is not rendered (the `AgentList` column replaces it). The panel floats over the canvas like the left panel (`position: absolute` in `.canvas-main-row`, z-index 41), so the canvas shows behind it. Stretch, the header Full screen button and dragging the edge past its limit are one state, `agentsMode: "full"` (`layoutStore.toggleAgentsFull`; `useStretchWidth`, `layoutMetrics.agentsWideWidth`): the panel spans from the open diagrams panel's edge, or to the chrome inset when that panel is closed, and all three controls reflect it. In full screen the dropdown is replaced by `AgentList`, a left column of every agent, switching agents keeps full screen (`openAgentWindow` only reopens a *collapsed* strip), and entering full or switching inside it focuses the shown agent's terminal (`focusRequest`). The
 Workflows tab renders `workflows/WorkflowsTab` (see [`workflows.md`](workflows.md)). Collapsed, the
 panel is a 52px `agents/activity/CollapsedStrip` (SVG icons from `activity/icons.tsx`, count badges with

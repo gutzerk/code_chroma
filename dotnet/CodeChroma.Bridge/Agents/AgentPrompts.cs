@@ -39,6 +39,11 @@ public static partial class AgentPrompts
         return prompts;
     }
 
+    /// <summary>The text of a transcript entry the user typed on the main thread (not a sidechain, meta or compact-summary entry), else null.</summary>
+    public static string? UserPrompt(JsonObject entry) =>
+        Json.Str(entry["type"]) == "user" && !Json.Bool(entry["isSidechain"]) && !Json.Bool(entry["isMeta"]) && !Json.Bool(entry["isCompactSummary"])
+        && entry["message"] is JsonObject message ? PromptText(message["content"]) : null;
+
     private static List<AgentPrompt>? Parse(string path)
     {
         var prompts = new List<AgentPrompt>();
@@ -47,7 +52,7 @@ public static partial class AgentPrompts
         {
             if (Json.Bool(entry["isSidechain"]) || entry["message"] is not JsonObject message) return;
             var type = Json.Str(entry["type"]);
-            if (type == "user" && !Json.Bool(entry["isMeta"]) && !Json.Bool(entry["isCompactSummary"]) && PromptText(message["content"]) is { } text)
+            if (type == "user" && UserPrompt(entry) is { } text)
                 prompts.Add(new AgentPrompt(Json.Str(entry["uuid"]) ?? $"p{prompts.Count + 1}", text, Json.Str(entry["timestamp"]), 0, 0));
             else if (type == "assistant" && prompts.Count > 0 && message["content"] is JsonArray blocks)
                 prompts[^1] = Count(prompts[^1], blocks, seenTools);

@@ -1,4 +1,4 @@
-import { useIsAtAgentCapacity, useIsLaunchingAgent, useMaxAgents } from "../../agents/agentStore";
+import { agentCapacityReason, useIsAtAgentCapacity, useIsLaunchingAgent, useMaxAgents } from "../../agents/agentStore";
 import { RailIcon } from "../../icons/RailIcon";
 import { RailButton } from "../RailButton";
 import { tutorialSimStore } from "../../tutorial/tutorialSim";
@@ -42,7 +42,7 @@ export function DrawDiagramButton() {
         disabled={isAtAgentCapacity || isLaunchingAgent}
         tooltip={
           isAtAgentCapacity
-            ? `${maxAgents} agents is the limit — close one to start another`
+            ? agentCapacityReason(maxAgents)
             : isLaunchingAgent
               ? "Launching…"
               : undefined

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { clamp } from "../util/clamp";
-import type { AgentRecord, AgentStatus, AgentStatusFields, AgentWindowGeometry, GitPreflight } from "../state/types";
+import type { AgentRecord, AgentStatus, AgentStatusFields, AgentTitleSource, AgentWindowGeometry, GitPreflight } from "../state/types";
 import { Store } from "../state/createStore";
 import { normalizeAgentStatus } from "./statusRollup";
 import { worktreeStore } from "./worktreeStore";
@@ -134,6 +134,14 @@ class AgentStore extends Store {
   setOpenQuestions = (id: string, count: number): void => {
     if (this.getAgent(id)?.open_questions === count) return;
     this.agents = this.agents.map((agent) => (agent.id === id ? { ...agent, open_questions: count } : agent));
+    this.emit();
+  };
+
+  /** Lands an `agent-title` event or a rename reply: the new title and who set it. */
+  setTitle = (id: string, title: string, titleSource: AgentTitleSource): void => {
+    const current = this.getAgent(id);
+    if (!current || (current.title === title && current.title_source === titleSource)) return;
+    this.agents = this.agents.map((agent) => (agent.id === id ? { ...agent, title, title_source: titleSource } : agent));
     this.emit();
   };
 
@@ -352,6 +360,9 @@ export function useIsAtAgentCapacity(): boolean {
 export function useIsLaunchingAgent(): boolean {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getIsLaunching);
 }
+
+/** Why no agent can start while `maxAgents` are open. */
+export const agentCapacityReason = (maxAgents: number): string => `${maxAgents} agents is the limit — close one to start another`;
 
 export function useMaxAgents(): number {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getMaxAgents);

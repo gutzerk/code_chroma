@@ -20,11 +20,7 @@ export async function launchAgent(
   diagram?: DiagramTaskHint,
 ): Promise<void> {
   await runLaunch(client, async () => {
-    const preflight = await client.gitPreflight();
-    if (preflight.state !== "ready") {
-      agentStore.setGitPreflight(preflight);
-      return null;
-    }
+    if (!(await gitReady(client))) return null;
     // A PR attach lives in the PR's worktree, not in the shown tab; an agent attach stays with that agent's tab.
     const workspace = attachTo?.startsWith("pr-")
       ? undefined
@@ -33,6 +29,25 @@ export async function launchAgent(
       ? client.create(diagram?.title ?? "", "agent", attachTo, task, "task", diagram, workspace)
       : client.create("", "agent", attachTo, context?.description ?? null, undefined, undefined, workspace);
   });
+}
+
+/** The first message a workflow-designing agent gets when the bridge does not replace it with the composed skill prompt. */
+const WORKFLOW_TASK = "Design and save a CodeChroma workflow using the codechroma-workflow skill.";
+
+/** "New workflow → With an agent": an agent in the active worktree tab that designs and saves a workflow from `request`. */
+export async function launchWorkflowAgent(client: AgentClient, request: string): Promise<void> {
+  await runLaunch(client, async () => {
+    if (!(await gitReady(client))) return null;
+    return client.create("New workflow", "agent", undefined, WORKFLOW_TASK, "task", undefined, worktreeStore.getActiveId() || undefined, request);
+  });
+}
+
+/** False (and the git setup prompt raised) when the repository is not ready for an agent worktree. */
+async function gitReady(client: AgentClient): Promise<boolean> {
+  const preflight = await client.gitPreflight();
+  if (preflight.state === "ready") return true;
+  agentStore.setGitPreflight(preflight);
+  return false;
 }
 
 /** "Open agent" on a finished workflow step: a claude agent in the run's worktree forking that step's session, opened in the Agents tab. */

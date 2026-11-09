@@ -258,6 +258,10 @@ export abstract class DelegatingEngineClient implements EngineClient {
   subscribeRuns(onEvent: (event: RunEvent | undefined) => void): () => void {
     return this.inner.subscribeRuns(onEvent);
   }
+
+  subscribeWorkflows(onChange: () => void): () => void {
+    return this.inner.subscribeWorkflows(onChange);
+  }
   getEpicsItem(itemId: string, expand?: string): Promise<EpicWorkItem> {
     return this.inner.getEpicsItem(itemId, expand);
   }

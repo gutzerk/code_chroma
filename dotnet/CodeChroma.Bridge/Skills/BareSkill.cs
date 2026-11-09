@@ -77,6 +77,25 @@ public static partial class BareSkill
         return text.ToString();
     }
 
+    /// <summary>The skill a "New workflow → With an agent" window gets inlined.</summary>
+    public const string WorkflowSkill = "codechroma-workflow";
+
+    /// <summary>The first message of a workflow-designing agent: the workflow skill with its placeholders filled, then the user's description; null when the skill is not installed.</summary>
+    public static string? ComposeWorkflow(string repoRoot, string request)
+    {
+        if (SkillSync.SkillSource(WorkflowSkill) is not { } source || !File.Exists(Path.Combine(source, "SKILL.md"))) return null;
+        var body = StripFrontmatter(File.ReadAllText(Path.Combine(source, "SKILL.md")))
+            .Replace("{BRIDGE}", BridgeUrl ?? "http://localhost:8000").Replace("{WORKSPACE}", Workspace.MainId).Replace("{REPO_ROOT}", repoRoot);
+        return new StringBuilder()
+            .Append("Repository root: ").AppendLine(repoRoot).AppendLine()
+            .AppendLine(body).AppendLine()
+            .AppendLine("## How this session starts").AppendLine()
+            .AppendLine("The user described the workflow they want:").AppendLine()
+            .AppendLine(request.Trim()).AppendLine()
+            .AppendLine("This description is their first message: do not greet them or ask what they want. Start with step 1.")
+            .ToString();
+    }
+
     /// <summary>The Draw dialog's "plan" kind: a mode of the impact type, drawn by the impact body plus feature-plan-mode.md.</summary>
     public const string PlanType = "plan";
 

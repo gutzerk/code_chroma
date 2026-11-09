@@ -19,6 +19,7 @@ from codechroma.bridge.agents.live_status import (
 )
 from codechroma.bridge.agents.manager import (
     CONTEXT_KINDS,
+    MAX_USER_TITLE_CHARS,
     AgentRecord,
     UnknownAgentError,
     _clean_context,
@@ -306,6 +307,25 @@ async def delete_agent(
     await services.forget_workspace_runs(agent_id)
     await services.connections.broadcast({"type": "agent-removed", "id": agent_id})
     return {"status": "deleted", "id": record.id}
+
+
+@router.patch("/agents/{agent_id}")
+async def patch_agent(agent_id: str, request: Request, services: Services) -> dict:
+    """Renames the agent by hand, locking its title; an empty title hands it back to auto-title."""
+    title = (await json_body(request)).get("title")
+    if not isinstance(title, str):
+        raise HTTPException(status_code=400, detail="title must be a string")
+    if len(title.strip()) > MAX_USER_TITLE_CHARS:
+        raise HTTPException(
+            status_code=400, detail=f"title must be at most {MAX_USER_TITLE_CHARS} characters"
+        )
+    _agent_or_404(services, agent_id)
+    record = services.agent_manager.rename(agent_id, title)
+    await services.connections.broadcast({
+        "type": "agent-title", "id": record.id, "title": record.title,
+        "title_source": record.title_source,
+    })
+    return agent_payload(services, record)
 
 
 @router.patch("/agents/{agent_id}/window")

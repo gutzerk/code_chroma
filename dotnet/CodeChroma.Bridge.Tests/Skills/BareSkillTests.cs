@@ -112,4 +112,16 @@ public class BareSkillTests
 
         Assert.DoesNotContain("\"phrase\"", prompt);
     }
+
+    [Fact]
+    public void A_workflow_start_inlines_the_workflow_skill_and_the_users_description()
+    {
+        var prompt = BareSkill.ComposeWorkflow(Root, "plan, implement, then let me review")!;
+
+        Assert.Contains("/repos/main/workflows", prompt);
+        Assert.Contains("plan, implement, then let me review", prompt);
+        Assert.Contains("do not greet them", prompt);
+        Assert.DoesNotContain("{BRIDGE}", prompt);
+        Assert.DoesNotContain("name: codechroma-workflow", prompt);
+    }
 }

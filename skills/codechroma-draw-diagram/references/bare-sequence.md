@@ -10,7 +10,7 @@ needs its own unique `id` and an `order`.
 ## Steps
 
 1. **Context, one parallel batch:**
-   - `curl -s {BRIDGE}/repos/{WORKSPACE}/sequence/context` — a recorded run, when one exists: `participants` (`id`, `name`, `node_id`) and `messages` (`order`, `from`, `to`, `args`). Use it as the skeleton and copy participant `node_id`s verbatim. `traces: []` means no recording: derive the flow from the next two sources.
+   - `curl -s {BRIDGE}/repos/{WORKSPACE}/sequence/context` — under `generation_data`: `traces` and, when a recorded run exists, `participants` (`id`, `name`, `node_id`) and `messages` (`order`, `from`, `to`, `args`). Use it as the skeleton and copy participant `node_id`s verbatim. `traces: []` means no recording: derive the flow from the next two sources.
    - `curl -s '{BRIDGE}/repos/{WORKSPACE}/structure?depth=2'` — real paths (copy `path`/`node_id` verbatim).
    - `curl -s '{BRIDGE}/repos/{WORKSPACE}/wiki-general-context'` — narrative for the flow.
 2. **Reduce to ONE readable flow:** merge hot-loop repetitions into single messages, drop symbols that only churn, keep the calls that tell the story. Add what the recording's blind spots hid (module-level calls, attribute-method calls) only with real code evidence.

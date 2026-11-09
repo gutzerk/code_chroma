@@ -29,10 +29,10 @@ you're drawing.
 curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/sequence/context
 ```
 
-Returns the recorded-execution scaffold from `GET /repos/{id}/traces` when a trace exists:
-`{"traces": [...]}` (list of recorded run summaries), and when selecting the most recent one,
-`{"trace": {...}, "participants": [{id, name, node_id}, ...], "messages": [{order, from_idx, to_idx,
-from, to, args}, ...]}`. Each `message` is a distinct direct caller→callee hop the real run observed,
+Returns the `{coverage, staleness, generation_data}` envelope; under `generation_data` is the
+recorded-execution scaffold from `GET /repos/{id}/traces`: `"traces": [...]` (list of recorded run
+summaries), plus, for the most recent one, `"trace": {...}`, `"participants": [{id, name,
+node_id}, ...]` and `"messages": [{order, from_idx, to_idx, from, to, args}, ...]`. Each `message` is a distinct direct caller→callee hop the real run observed,
 collapsed to distinct symbol pairs so the scaffold stays readable rather than one giant loop. This is
 your **template** — the machine-recorded truth of which systems call which.
 

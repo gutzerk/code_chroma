@@ -28,7 +28,8 @@ cover a path; see `drawing-rules.md` for the full substitution/fallback rule.
 curl -s ${CODECHROMA_BRIDGE_URL:-http://localhost:8000}/repos/${CODECHROMA_WORKSPACE_ID:-default}/patterns/context
 ```
 
-Returns `{"classes": [...], "heuristic_candidates": [...]}`. Each class entry carries `id` (a
+Returns the `{coverage, staleness, generation_data}` envelope; the material is under
+`generation_data`: `{"classes": [...], "heuristic_candidates": [...]}`. Each class entry carries `id` (a
 symbol id you address participants by), `name`, `qualified_name`, `path`, `node_id` (null if the
 class isn't in the graph — never reference it as a participant if so), `bases`, `decorators`,
 `is_abstract`, `class_attrs`, `methods` (each with the extracted signals the heuristic rules use:

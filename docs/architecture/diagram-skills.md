@@ -840,7 +840,9 @@ convention (`drawing-rules.md`, "Point `node_id` at the deepest symbol") is symb
 fail/aggregate boxes.
 
 `check_diagram.py --kind impact` also gained `_check_impact_status`: a non-blocking advisory
-(`NOSTATUS`/`BADSTATUS`) when a node is missing `meta.status` or carries a value outside the four —
+(`NOSTATUS`/`BADSTATUS`) when a node is missing `meta.status` or carries a value outside the four, and
+(`NOWHY`/`COUNT-ONLY`, `_check_impact_descriptions`) when a changed box has no `description` or only a
+count/status word ("3 functions changed") instead of what changed and why —
 nothing previously validated this field, which is exactly why the gap (a skill draft that never wrote
 `"deleted"`, and CSS that predated `"new"`/`"context"` having any rule at all) went unnoticed.
 
@@ -897,13 +899,18 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   per-kind `subscribeDiagram` pings, so a kind flips to ready without any user action needed. ⚠
   Custom sends one coarse `{"type": "custom"}` ping (never `custom/<id>`), so that branch also
   refetches the type list; `DiagramEventKind` gained the bare `"custom"` literal.
-- `useDiagramReadinessWatcher`'s `refetchStatus` auto-adds **every** kind that becomes ready and isn't yet on
+- `useDiagramReadinessWatcher`'s `refetchStatus` auto-adds **every** kind that is ready and isn't on
   the canvas, with no pending-request gate (`canvas/doc/pendingDrawRequests.ts` was removed). The
   add is unconditional so a diagram drawn by *any* path appears — the "Draw…" button, a
-  terminal/agent-window run on the same workspace, another agent. It stays safe because pings are
-  scoped per-workspace (`isForAnotherWorkspace`) and `refetchStatus` only fires on a not-ready→ready
-  transition for a kind `!placed.has(kind)`, so an unrelated artifact change never redraws the canvas;
-  the `before === null` guard also means a first-ever visit adds nothing.
+  terminal/agent-window run on the same workspace, another agent. 🔴 It is **level-triggered**, not a
+  not-ready→ready edge: the edge rule stranded a PR's Impact diagram for good once one status fetch
+  recorded it as ready without placing it, and there is no manual "add" anywhere in the UI. It stays
+  safe because pings are scoped per-workspace (`isForAnotherWorkspace`), it waits for
+  `canvasDocStore.isLoaded()` (an unloaded doc would make every placed layer look missing) and skips
+  kinds whose run is still in flight. The left panel's delete removes the artifact too, so a deleted
+  diagram cannot come back; a canvas-only removal (`removeLayerAndRefresh`, e.g. the tutorial)
+  records the layer in `canvas/doc/dismissedDiagrams.ts` with its fingerprint, and the watcher leaves it
+  off until the fingerprint changes or `runRecipeAndLayout` draws it on purpose.
 - The brand-new-draw path is one thing; editing a diagram already on the canvas (e.g. adding a
   `style` to an existing C1 block) is another — a content edit doesn't flip `ready`, so it used to sit
   invisible until the user removed and re-added the layer by hand. `get_diagrams_status` now also
@@ -924,9 +931,11 @@ Separate from authoring, and the reason a user could ask for a diagram and see n
   agent made before the reload stayed invisible until the diagram was removed and re-added by hand
   (the fix this whole section describes never actually covered a reload). Fixed by
   `canvas/doc/diagramStatusCache.ts`, a thin `sessionStorage` cache of the last-seen `DiagramsStatus`:
-  `lastStatusRef` now seeds from it instead of `null`, and every fetch writes its result back. A truly
-  first-ever visit (nothing cached yet either) still has no baseline and is still skipped, same as
-  before — there is nothing to compare it against.
+  `lastStatusRef` now seeds from it instead of `null`, and every fetch writes its result back. The cache
+  is keyed per workspace (`main` keeps the bare `codechroma.diagramsStatusCache` key, others append
+  `.<id>`), and the watcher reseeds its baseline on a workspace switch, so one tab's status is never
+  another tab's baseline. A first-ever visit has no baseline for the stale check, but the
+  level-triggered add above still places any ready, unplaced diagram.
 - 🟢 **A first draw never flashes the recipe's transient `(0,0)` pile.** A recipe run creates its boxes at
   `(0,0)` and that commit's canvas ping can land on screen before `runRecipeAndLayout`'s layout pass
   repositions them — the "pile when redrawing" a fresh diagram. `runRecipeAndLayout` defers its layer

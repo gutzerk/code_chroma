@@ -52,6 +52,8 @@ REASONS = (
     "depth_capped",
     "unresolved_path",
     "status_coerced",
+    "unknown_rejected_id",
+    "rejected_over_confirmed",
 )
 
 

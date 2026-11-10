@@ -157,6 +157,74 @@ public class PatternDetectorTests
         Assert.Equal("Repository — UserRepository", repo.Name);
         Assert.Equal(3, repo.Participants.Count);
     }
+
+    private const string StrategyWithAFake = """
+        from abc import ABC, abstractmethod
+
+        class Pricer(ABC):
+            @abstractmethod
+            def price(self, item): ...
+
+        class Flat(Pricer):
+            def price(self, item): return 1
+
+        class Tiered(Pricer):
+            def price(self, item): return 2
+
+        class FakePricer(Pricer):
+            def price(self, item): return 0
+        """;
+
+    [Theory]
+    [InlineData("test_shop.py")]
+    [InlineData("shop_test.py")]
+    [InlineData("tests/shop.py")]
+    [InlineData("pkg/fakes/shop.py")]
+    [InlineData("pkg/fake.py")]
+    [InlineData("pkg/mock_shop.py")]
+    public void NoCandidateComesFromTestCode(string path)
+    {
+        var candidates = Detect(path, StrategyWithAFake);
+
+        Assert.Empty(candidates);
+    }
+
+    [Fact]
+    public void ATestDoubleClassIsNeverAParticipant()
+    {
+        var strategy = Detect("shop.py", StrategyWithAFake).Single(i => i.Type == PatternType.Strategy);
+
+        Assert.Equal(["Pricer", "Flat", "Tiered"], strategy.Participants.Select(p => p.Name));
+    }
+
+    public static IEnumerable<object[]> SharedTestPaths()
+    {
+        var table = JsonNode.Parse(File.ReadAllText(Path.Combine(Fixtures.FixturesDir, "pattern_golden", "test_paths.json")))!;
+        foreach (var path in table["test_code"]!.AsArray()) yield return [path!.GetValue<string>(), true];
+        foreach (var path in table["not_test_code"]!.AsArray()) yield return [path!.GetValue<string>(), false];
+    }
+
+    [Theory, MemberData(nameof(SharedTestPaths))]
+    public void IsTestPath_MatchesTheSharedTable(string path, bool expected)
+    {
+        var result = PatternDetector.IsTestPath(path);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void ATestPrefixedRepoJoinsItsNamingFamily()
+    {
+        const string source = """
+            class OrderRepo: ...
+
+            class TestOrderRepo: ...
+            """;
+
+        var candidates = Detect("repos.py", source).Where(i => i.Type == PatternType.Repository).ToList();
+
+        Assert.Equal(["OrderRepo", "TestOrderRepo"], Assert.Single(candidates).Participants.Select(p => p.Name).Order());
+    }
 }
 
 public class PatternParityTests

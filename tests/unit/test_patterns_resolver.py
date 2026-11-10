@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+import pytest
+
 from codechroma.bridge.patterns_resolver import (
     PatternDiagramAdapter,
     resolve_patterns_diagram,
@@ -225,6 +227,35 @@ def test_a_rejected_instance_and_its_participants_are_dropped():
     diagram = resolve_patterns_diagram(ENGINE, _graph_with_candidate(), persisted)
 
     assert diagram["nodes"] == []
+
+
+def test_a_candidate_in_the_rejected_list_is_dropped_without_a_node_of_its_own():
+    persisted = {"nodes": [], "rejected": ["strategy::Foo"]}
+
+    diagram = resolve_patterns_diagram(ENGINE, _graph_with_candidate(), persisted)
+
+    assert diagram["nodes"] == []
+
+
+@pytest.mark.parametrize(
+    ("persisted", "reason"),
+    [
+        ({"nodes": [], "rejected": ["strategy::Nope"]}, "unknown_rejected_id"),
+        (
+            {
+                "nodes": [
+                    {"id": "strategy::Foo", "kind": "pattern-instance", "meta": {"confirmed": True}}
+                ],
+                "rejected": ["strategy::Foo"],
+            },
+            "rejected_over_confirmed",
+        ),
+    ],
+)
+def test_a_bad_rejected_entry_is_reported_in_diagnostics(persisted, reason):
+    diagram = resolve_patterns_diagram(ENGINE, _graph_with_candidate(), persisted)
+
+    assert [d["reason"] for d in diagram["diagnostics"]["dropped"]] == [reason]
 
 
 def test_a_rejected_instances_relations_are_dropped_with_its_participants():

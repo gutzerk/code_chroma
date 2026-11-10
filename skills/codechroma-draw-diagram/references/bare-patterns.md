@@ -10,7 +10,8 @@ produced candidates; they are your seed list, not your ceiling.
 ## Steps
 
 1. **Context:** `curl -s {BRIDGE}/repos/{WORKSPACE}/patterns/context` → `{coverage, staleness, generation_data: {classes, heuristic_candidates}}`. Each class has `id`, `name`, `path`, `node_id`, `bases`, `methods`, `calls`, `called_by`. Optionally one batch with `curl -s '{BRIDGE}/repos/{WORKSPACE}/structure?depth=2'` for directories and entry points, and `curl -s '{BRIDGE}/repos/{WORKSPACE}/wiki-general-context'` for narrative.
-2. **Judge each `heuristic_candidates[]` entry** against the class's real shape: confirm a real instance (`meta.confirmed: true`), or reject a superficial one (`meta.confirmed: false`) only after checking whether it is a different pattern or missing its counterpart. 🔴 Never leave a candidate id out of the file — every one needs an explicit node with `confirmed` true or false, or it comes back unreviewed.
+2. **Judge each `heuristic_candidates[]` entry** against the class's real shape: confirm a real instance (`meta.confirmed: true`), or reject a superficial one (`meta.confirmed: false`) only after checking whether it is a different pattern or missing its counterpart. 🔴 Never leave a candidate id out of the file — every one needs a node with `confirmed` true or false, or its id in the top-level `"rejected": [...]` list (rejects it without a node), or it comes back unreviewed.
+   For a topic request ("how request limits work"), sort the candidates one by one: off-topic → its id in `rejected[]` (it never renders and does not count against the budget; the detector already skips test files and `Fake*`/`Mock*`/`Stub*` classes); on-topic → judge as above and give the instance, its participants and that sub-flow's connective nodes one shared `group` (3-5 groups, each drawn as a frame), and wire the caller to the participant it really calls, not only to the instance box (participants do not draw inside it, so otherwise they show as an `ISLAND`). `SPARSE` is expected here: tell the user and rerun with `--shape-advisory`.
 3. **Add real instances the heuristics missed** (strategy, facade, adapter, registry, singleton, observer, repository), only with `calls`/`bases`/`methods` evidence.
 4. **Add connective nodes** so every instance is reachable from the rest of the picture: entry points, routers, databases, SDKs, config modules (`kind: "infra"` real code in this repo; `kind: "external"` a system outside it). An empty `called_by` is not proof nothing calls a class — module-level and attribute calls are not resolved; check the likely entrypoint file if it matters. Merge near-identical plain siblings into one node (describe what it collapses); never merge a pattern participant.
 5. **Write** the JSON to `{OUTPUT_PATH}` (create the folder if missing); overwrite whatever is there.
@@ -23,6 +24,7 @@ produced candidates; they are your seed list, not your ceiling.
   "type": "patterns",
   "generated_at": "<ISO time>",
   "title": "Strategy and Registry in the analyzer pipeline",
+  "rejected": ["strategy::internal/driver.go::class::AttemptFinder"],
   "nodes": [
     {"id": "strategy::discount", "name": "Strategy — discount dispatch", "kind": "pattern-instance",
      "description": "The real problem this instance solves here.", "meta": {"type": "strategy", "confirmed": true, "confidence": 0.85}},
@@ -61,4 +63,4 @@ produced candidates; they are your seed list, not your ceiling.
 | `DUPLICATE` / `DANGLING` / `SELF` | rename / fix the id or drop the arrow / drop it |
 | `ORPHAN` / `ISLAND` | wire it in — for an adapter or repository the missing piece is usually its real caller |
 | `SPARSE` | the diagram covers a sliver of the classes: go back to steps 3–4 |
-| `UNREVIEWED <id>` | a candidate id has no node: add one with `confirmed` true or false |
+| `UNREVIEWED <id>` | a candidate id has no node: add one with `confirmed` true or false, or list it in `rejected[]` |

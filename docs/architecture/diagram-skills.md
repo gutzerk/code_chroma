@@ -395,7 +395,8 @@ kinds so one web type and one component cover everything:
 ```
 
 `REASONS` is a closed vocabulary (`invalid_shape`, `unknown_kind`, `dangling_endpoint`,
-`self_relation`, `duplicate_sibling_id`, `depth_capped`, `unresolved_path`, `status_coerced`) so the
+`self_relation`, `duplicate_sibling_id`, `depth_capped`, `unresolved_path`, `status_coerced`,
+`unknown_rejected_id`, `rejected_over_confirmed`) so the
 web maps slugs to labels instead of parsing prose. `shown`/`truncated` exist because the list is
 capped by `settings.diagram_diagnostics.max_reported` (20) and `dropped_count` reports the true
 total — a cap that hid its own truncation would read as complete coverage.

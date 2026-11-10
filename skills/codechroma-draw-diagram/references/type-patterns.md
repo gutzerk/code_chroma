@@ -91,6 +91,7 @@ in one top-level `relations[]`:
   "type": "patterns",
   "generated_at": "2026-01-01T00:00:00Z",
   "title": "Strategy and Registry in the analyzer pipeline",
+  "rejected": ["strategy::internal/driver.go::class::AttemptFinder"],
   "nodes": [
     {
       "id": "strategy::discount_strategy", "name": "Strategy — discount dispatch",
@@ -115,6 +116,8 @@ in one top-level `relations[]`:
 - **`title`** (top-level, required): a short name (≤ 60 chars, in the language of the user's request) for what *this* diagram shows, never the type name ("Design patterns"), distinct from the titles already on the canvas — see `drawing-rules.md` "Naming the diagram (`title`)"; the self-check advises `NOTITLE`/`GENERICTITLE` otherwise.
 
 Rules:
+- **`rejected`** (top-level, optional): candidate ids rejected without a node — see Procedure
+  step 2 "Batch rejection".
 - **A pattern instance** — `kind: "pattern-instance"`, `meta: {type, confirmed, confidence}`.
   `type` is one of `strategy`/`facade`/`adapter`/`registry`/`singleton`/`observer`/`repository`; a
   participant's `meta.role` reuses the existing `PatternRole` vocabulary, and a relation's `kind`
@@ -187,11 +190,35 @@ Rules:
    🔴 **Never omit a `heuristic_candidates[]` id entirely.** The detector re-emits every one of its
    own candidates as unconfirmed on *every* call, regardless of what the file says — the only way to
    silence one for good is an explicit node addressing its id with `meta.confirmed: true` or
-   `meta.confirmed: false`. Simply not writing it anywhere (e.g. because its sole participant turned
+   `meta.confirmed: false`, or its id in the top-level `rejected[]` list. Simply not writing it anywhere (e.g. because its sole participant turned
    out to be a test double or dead code) looks identical to never having reviewed it: the diagram
    re-shows it as unconfirmed on the very next load, however many times the user clicks Confirm.
    "Drop it" applies to a *participant inside an instance you're still authoring* — never to the whole
-   candidate; the candidate itself always gets one of the two explicit outcomes.
+   candidate; the candidate itself always gets one of the explicit outcomes.
+   **Batch rejection:** a top-level `"rejected": ["<candidate id>", ...]` rejects those candidates
+   without a node each — same effect as `meta.confirmed: false` (the instance and its participants
+   never render). Use it for clear misses; write a node with `confirmed: false` and a `description`
+   only when the reason is worth keeping (e.g. "a different pattern, authored as …").
+   Copy ids exactly: an id that matches no candidate prints `DROPPED node <id> unknown_rejected_id`
+   and the candidate stays unreviewed. Never list an id you also confirm — the list wins and prints
+   `rejected_over_confirmed`.
+   **Sorting candidates for a topic request** ("how request limits work", "the auth part"): the
+   detector returns candidates from the whole repo, and sorting them is your job, one by one.
+   - Off-topic candidate → its id in `rejected[]`. It never renders and is not counted against the
+     node budget (the self-check reads the resolved diagram, where it is already gone).
+   - The detector already skips test code (test files, `test`/`fakes`/`mocks` folders, `Fake*`/
+     `Mock*`/`Stub*` classes); a double it still lets through (other naming) → `rejected[]` too.
+   - On-topic candidate → judge it as above. Before rejecting one, look for a related mechanism it
+     belongs to (e.g. a breaker or admitter next to a limiter) — decide per class, never with one
+     shared description for a whole batch.
+   - Group what you keep: give the instance, its participants and the connective nodes of one
+     sub-flow the same `group` (e.g. `"Installation limit"`, `"Per-key limit"`); the canvas draws each
+     group as a frame. 3-5 groups for one topic; split into several diagrams beyond that.
+   - Wire each kept instance's caller to the **participant** it really calls (`KeyLimitLoop` →
+     `KeyLimitGetter`), not only to the instance box: the canvas does not draw participants inside
+     their box, so participants linked only to each other show up as an `ISLAND`.
+   - `SPARSE` is expected on a topic request (the diagram covers one topic, not the repo): tell the
+     user and rerun with `--shape-advisory`.
 3. Look for real instances the heuristics missed — the same seven types, same participant/relation
    vocabulary, but not limited to the detector's exact structural triggers. Only add one you can back
    with real `calls`/`bases`/`methods` evidence from `patterns/context`. Same rule applies: a short
@@ -223,6 +250,6 @@ Rules:
    | Code | Means | Fix |
    |---|---|---|
    | `SPARSE <n> node(s) for <m> classes` | the diagram covers only a sliver of the classes `patterns/context` offered | this is the "just a few blocks" failure — go back to step 3/4, don't stop at the first confirmed match |
-   | `UNREVIEWED <id>` | a `heuristic_candidates[]` id has no node anywhere in the file, so it still resolves as unconfirmed | address it explicitly: a node with `meta.confirmed: true`, or one with `meta.confirmed: false` — never leave it unaddressed, or it comes back next run no matter how many times the user clicks Confirm |
+   | `UNREVIEWED <id>` | a `heuristic_candidates[]` id has no node anywhere in the file, so it still resolves as unconfirmed | address it explicitly: a node with `meta.confirmed: true`, one with `meta.confirmed: false`, or its id in `rejected[]` — never leave it unaddressed, or it comes back next run no matter how many times the user clicks Confirm |
 
    Exit tiers and the `--shape-advisory` rule: see `drawing-rules.md`.

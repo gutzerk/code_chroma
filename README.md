@@ -7,6 +7,10 @@
 </p>
 
 <p align="center">
+  <a href="#why"><b>Why</b></a>  ·  <a href="#the-loop"><b>The loop</b></a>  ·  <a href="#see-it-in-action"><b>Screenshots</b></a>  ·  <a href="#install"><b>Install</b></a>  ·  <a href="QUICKSTART.md"><b>Quick start</b></a>  ·  <a href="docs/architecture/"><b>Architecture docs</b></a>  ·  <a href="CONTRIBUTING.md"><b>Contributing</b></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/gutzerk/code_chroma/releases/latest"><img src="https://img.shields.io/github/v/release/gutzerk/code_chroma?label=Download%20for%20Mac&logo=apple&color=0a84ff&style=for-the-badge" alt="Download CodeChroma for Mac"></a>
   <a href="https://github.com/gutzerk/code_chroma/releases/latest"><img src="https://img.shields.io/github/v/release/gutzerk/code_chroma?label=Download%20for%20Windows&color=4f9de0&style=for-the-badge" alt="Download CodeChroma for Windows"></a>
   <a href="https://github.com/gutzerk/code_chroma/releases/latest"><img src="https://img.shields.io/github/v/release/gutzerk/code_chroma?label=Download%20for%20Linux&logo=linux&logoColor=white&color=e8a33d&style=for-the-badge" alt="Download CodeChroma for Linux"></a>

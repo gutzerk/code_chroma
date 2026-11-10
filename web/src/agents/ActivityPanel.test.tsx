@@ -196,7 +196,6 @@ describe("ActivityPanel", () => {
     setup();
     fireEvent.click(screen.getByRole("button", { name: "Select agent" }));
     const menu = screen.getByRole("list", { name: "Agents" });
-    expect(menu.querySelectorAll("[data-diagram]")).toHaveLength(1);
     expect(menu.querySelectorAll(".activity-agent-badge")).toHaveLength(1);
   });
 });

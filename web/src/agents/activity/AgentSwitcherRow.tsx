@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes } from "react";
 import type { AgentRecord } from "../../state/types";
 import { useAgentClient } from "../AgentClientContext";
 import { selectAgent } from "../agentFocus";
@@ -7,11 +7,7 @@ import { agentMeta, useAgentStatus } from "./agentStatusText";
 import { ChevronDownIcon } from "./icons";
 
 /** An agent row: its background is tinted by the shown status (`data-status`); the status is also spoken text, never colour alone. */
-function AgentRowButton({
-  agent,
-  children,
-  ...props
-}: { agent: AgentRecord; children?: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {
+function AgentRowButton({ agent, ...props }: { agent: AgentRecord } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const { shown, label } = useAgentStatus(agent.status, agent.id);
   return (
     <button type="button" {...props} data-status={shown}>
@@ -20,7 +16,7 @@ function AgentRowButton({
         <span className="activity-switcher-title">{agent.title}</span>
         <AgentStatusLine agent={agent} />
       </span>
-      {children}
+      {agent.context_kind === "task" && <span className="activity-agent-badge">Diagram</span>}
     </button>
   );
 }
@@ -38,7 +34,6 @@ export function AgentList({ agents, activeId }: { agents: AgentRecord[]; activeI
             className="activity-agent-list-item"
             aria-current={agent.id === activeId || undefined}
             data-testid={`agent-tab-${agent.id}`}
-            data-diagram={agent.context_kind === "task" || undefined}
             title={agentMeta(agent)}
             onClick={() => selectAgent(client, agent)}
           />
@@ -125,12 +120,9 @@ export function AgentSwitcherRow({
                 agent={agent}
                 className="activity-switcher-option-button"
                 aria-current={agent.id === activeId || undefined}
-                data-diagram={agent.context_kind === "task" || undefined}
                 data-testid={`agent-option-${agent.id}`}
                 onClick={() => select(agent)}
-              >
-                {agent.context_kind === "task" && <span className="activity-agent-badge">Diagram</span>}
-              </AgentRowButton>
+              />
               {agent.id !== activeId && <AgentStatusActions agent={agent} />}
             </li>
           ))}

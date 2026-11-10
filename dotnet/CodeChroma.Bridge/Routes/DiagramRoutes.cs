@@ -68,6 +68,14 @@ public static class DiagramRoutes
     /// <summary>The kinds with a generate/status/output/cancel quartet (c1, and the Impact change review).</summary>
     public static readonly IReadOnlyList<string> GenerateKinds = ["system-context", "impact-changes"];
 
+    /// <summary>The system-context artifact resolved against the repo's digest; empty when nothing is stored.</summary>
+    public static JsonObject ResolveSystemContext(Workspace ws, JsonObject data)
+    {
+        if (data.Count == 0) return new JsonObject();
+        data["type"] = "system-context";
+        return SystemContext.Resolve(ws.Engine, SystemContextDigest(ws), data);
+    }
+
     /// <summary>One built-in kind's resolved payload, with the impact "changes" overlay attached.</summary>
     public static JsonObject ResolveKind(Workspace ws, string kind, IOldSymbolParser parser)
     {
@@ -75,9 +83,7 @@ public static class DiagramRoutes
         switch (kind)
         {
             case "system-context":
-                if (data.Count == 0) return new JsonObject();
-                data["type"] = "system-context";
-                return SystemContext.Resolve(ws.Engine, SystemContextDigest(ws), data);
+                return ResolveSystemContext(ws, data);
             case "epics":
                 var epics = DiagramResolver.Resolve(ws.Engine, data);
                 epics["has_diagram"] = data.Count > 0;

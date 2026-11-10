@@ -63,6 +63,14 @@ describe("AgentSwitcherRow", () => {
     expect(other).toHaveAttribute("data-status", "done");
   });
 
+  it("marks a diagram agent's full-screen row with a badge instead of a ring", () => {
+    renderWithClient(<AgentList agents={[{ ...agent("a1", "idle"), context_kind: "task" }]} activeId={undefined} />);
+
+    const row = screen.getByTestId("agent-tab-a1");
+
+    expect(row.querySelector(".activity-agent-badge")).toHaveTextContent("Diagram");
+  });
+
   it("tints the dropdown trigger and each menu option by status", () => {
     const agents = [agent("a1", "blocked"), agent("a2", "stopped")];
     renderWithClient(<AgentSwitcherRow agents={agents} activeId="a1" />);

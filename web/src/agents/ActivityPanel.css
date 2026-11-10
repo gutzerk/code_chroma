@@ -354,7 +354,19 @@
 .activity-switcher-option + .activity-switcher-option {
   margin-top: 2px;
 }
-/* Agent rows: the background carries the status (question cards stay plain --bg-raised); the row text still names it. */
+.activity-agent-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius-xl);
+  color: var(--text-soft);
+  cursor: pointer;
+  text-align: left;
+}
+/* Agent rows: the background carries the status (question cards stay plain --bg-raised); the row text still names it. Keep it after the row layout rules so it wins. */
 .activity-switcher-trigger,
 .activity-switcher-option-button,
 .activity-agent-list-item {
@@ -467,9 +479,6 @@
   bottom: -2px;
   outline: 2px solid var(--bg-panel);
 }
-.activity-switcher-menu button[data-diagram] {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
-}
 .activity-switcher-count {
   flex-shrink: 0;
   padding: 1px 6px;
@@ -522,26 +531,10 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.activity-agent-list-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 10px 12px;
-  border: 0;
-  border-radius: var(--radius-xl);
-  background: var(--bg-raised);
-  color: var(--text-soft);
-  cursor: pointer;
-  text-align: left;
-}
-.activity-agent-list-item[data-diagram] {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
-}
-/* Selection is the ring, so the status tint underneath stays visible. */
+/* Selection is the only ring (diagram agents use a badge), so the status tint underneath stays visible. */
 .activity-agent-list-item[aria-current="true"],
 .activity-switcher-menu .activity-switcher-option-button[aria-current="true"] {
-  box-shadow: inset 0 0 0 1.5px var(--select-ring);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 .activity-panel.is-full .agent-terminal-dock-header {
   flex-wrap: nowrap;

@@ -14,7 +14,7 @@ public interface IDiagramResolver
     JsonObject? Resolve(Workspace ws, string kind);
 }
 
-/// <summary>The stored artifact as the payload; custom and feature-plan diagrams are resolved like their `GET` routes, so a route carries its `resolved` data (c1/patterns/impact/epics stay raw until their resolvers are ported).</summary>
+/// <summary>The stored artifact as the payload; custom, feature-plan, patterns and system-context diagrams are resolved like their `GET` routes (impact/epics stay raw until their resolvers are ported).</summary>
 public sealed class RawDiagramResolver(DiagramLibrary? library = null) : IDiagramResolver
 {
     private const string CustomPrefix = "custom/";
@@ -23,6 +23,9 @@ public sealed class RawDiagramResolver(DiagramLibrary? library = null) : IDiagra
 
     public JsonObject? Resolve(Workspace ws, string kind)
     {
+        // Resolving drops rejected candidates (`meta.confirmed: false`), which must never reach the canvas.
+        if (kind == "patterns") return PatternsResolver.Resolve(ws.Engine, DiagramArtifacts.Load(ws, kind));
+        if (kind == "system-context") return DiagramRoutes.ResolveSystemContext(ws, DiagramArtifacts.Load(ws, kind));
         var known = Workspace.DiagramKinds.Contains(kind)
             || SynthesizedPrefixes.Any(prefix => kind.StartsWith(prefix, StringComparison.Ordinal) && RunStore.IsSafeId(kind[prefix.Length..]));
         if (known && kind.StartsWith(CustomPrefix, StringComparison.Ordinal) && library?.LoadType(kind[CustomPrefix.Length..]) is not null)

@@ -7,6 +7,10 @@
 </p>
 
 <p align="center">
+  <a href="#why"><b>Why</b></a>  ·  <a href="#install"><b>Install</b></a>  ·  <a href="#quick-start"><b>Quick start</b></a>  ·  <a href="#the-loop"><b>The loop</b></a>  ·  <a href="#see-it-in-action"><b>Screenshots</b></a>  ·  <a href="#docs"><b>Docs</b></a>  ·  <a href="CONTRIBUTING.md"><b>Contributing</b></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/gutzerk/code_chroma/releases/latest"><img src="https://img.shields.io/github/v/release/gutzerk/code_chroma?label=Download%20for%20Mac&logo=apple&color=0a84ff&style=for-the-badge" alt="Download CodeChroma for Mac"></a>
   <a href="https://github.com/gutzerk/code_chroma/releases/latest"><img src="https://img.shields.io/github/v/release/gutzerk/code_chroma?label=Download%20for%20Windows&color=4f9de0&style=for-the-badge" alt="Download CodeChroma for Windows"></a>
   <a href="https://github.com/gutzerk/code_chroma/releases/latest"><img src="https://img.shields.io/github/v/release/gutzerk/code_chroma?label=Download%20for%20Linux&logo=linux&logoColor=white&color=e8a33d&style=for-the-badge" alt="Download CodeChroma for Linux"></a>
@@ -20,19 +24,37 @@
   <a href="https://github.com/gutzerk/code_chroma/stargazers"><img src="https://img.shields.io/github/stars/gutzerk/code_chroma?labelColor=333333&color=666666&logo=github" alt="GitHub stars" /></a>
 </p>
 
-Or install with one command (macOS / Linux):
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh
-```
-
-Windows and other options: [install](#install).
-
 ## Why
 
 With AI agents, a team writes more code than it can read. A month in, no one can say how the product works.
 
 Code visualizers don't fix this: they draw the code, and then you go back to reading files. CodeChroma changes the process instead. You look at the processes your system runs, decide on diagrams, and let agents write and change the code. Code is still one click away — you just rarely need it.
+
+## Install
+
+macOS (Apple Silicon or Intel) and Linux (x64):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh
+```
+
+Windows (x64), in PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1 | iex"
+```
+
+Or download the installer from the [latest release](https://github.com/gutzerk/code_chroma/releases/latest). No administrator access and no API key needed. Agents run on [Claude Code](https://claude.com/claude-code), so install it and sign in first. Updates, uninstall, first launch and running from source: [install details](#install-details).
+
+## Quick start
+
+1. **Open a repo.** Start CodeChroma and pick a local folder, or choose **Clone repository…** and paste a Git URL.
+2. **Look at the map.** CodeChroma builds it from the code in seconds. Zoom from System down to a single function.
+3. **Ask how something works.** Open an agent window and type `walk me through how checkout works`. You get a walkthrough drawn over the real code.
+4. **Plan and build.** Ask `draw a plan for token auth`, answer the agent's questions on the canvas, then let it build the plan.
+5. **Review.** Ask `show me what this PR affects` and check the change box by box.
+
+See [`QUICKSTART.md`](./QUICKSTART.md) for the full walkthrough.
 
 ## The loop
 
@@ -47,17 +69,23 @@ All of it sits on one map, built from the real code structure (System → … �
 
 ## See it in action
 
-![A sequence diagram, a design-patterns diagram and a walkthrough on one canvas](docs/media/demo-canvas.jpg)
-
-*Several diagrams on one canvas — a sequence, design patterns and a walkthrough, each drawn from the real code.*
-
-![Four Claude Code agents in the agents panel, with context, token and cost meters](docs/media/demo-agents.jpg)
-
-*Run several Claude Code agents side by side and see each one's context, tokens and cost.*
+### Review a change as a process, not a diff
 
 ![The Change impact view of a pull request: 24 changed files grouped into 13 boxes](docs/media/demo-impact.jpg)
 
-*Review a pull request on the map: every changed box shows its added and removed lines and what it touches.*
+A pull request with 24 changed files, shown as 13 boxes. The numbered boxes follow the order the code runs, so you read the change as a story: what starts, what it calls, where the data goes. Each box is marked new, modified or context, shows its added and removed lines, and says in one line what it does. Labelled arrows show how the parts talk to each other. On the right, the agent that drew the view explains what it checked.
+
+### Keep every diagram on one map
+
+![A sequence diagram, a design-patterns diagram and two walkthroughs on one canvas](docs/media/demo-canvas.jpg)
+
+Four diagrams of the same code side by side: a sequence of how blocks are laid out, the design patterns behind it, and two step-by-step walkthroughs. Each one is drawn from the real code and linked to it. Use the Diagrams panel on the left to show, hide, delete or arrange them, or press **Draw** to ask for a new one.
+
+### Run several agents at once
+
+![Four Claude Code agents in the agents panel, with context, token and cost meters](docs/media/demo-agents.jpg)
+
+Four Claude Code agents, each on its own task and in its own git worktree, so they never get in each other's way. For each agent you see how full its context is, the tokens it used, the cache hit rate and the cost so far. Your past prompts are listed on the left, so you can jump back to any answer. When an agent is done, open a pull request with **Create PR**.
 
 ## More you can ask
 
@@ -69,12 +97,6 @@ Type a request in an agent window or the canvas terminal. The answer is a diagra
 | `confirm the detected patterns` | The design patterns CodeChroma found, checked by the agent |
 | `highlight the auth check on this diagram` | The path of one process traced on a diagram you already have |
 
-## Get started
-
-1. **Open a repo** — a local folder or a GitHub URL. No API key needed.
-2. **Look around** — the map is built for you; zoom from System down to a single function.
-3. **Ask or launch an agent** — start with step 1 of [the loop](#the-loop).
-
 ## Features
 
 - **zoomable canvas** — the code hierarchy (System → … → Code) lives in a left Project tree, and every diagram (C1, patterns, epics, …) sits as a layer on the same canvas.
@@ -85,16 +107,9 @@ Type a request in an agent window or the canvas terminal. The answer is a diagra
 - **desktop app** — a native (C# / Avalonia) double-click app and installer, no Python or Node needed.
 - **works with or without a key** — analysis, canvas, and live sync run on a deterministic offline summarizer; set a key to unlock AI features.
 
-## Install
+## Install details
 
-Desktop app — one command:
-
-| Platform | Command |
-|---|---|
-| macOS (Apple Silicon or Intel) / Linux (x64) | `curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh \| sh` |
-| Windows (x64) | `powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1 \| iex"` (or run `distribution/install.cmd`) |
-
-All platforms install per-user (macOS and Linux into `~/Applications`) and do not request administrator
+On Windows you can also run `distribution/install.cmd`. All platforms install per-user (macOS and Linux into `~/Applications`) and do not request administrator
 access. The installers check the SHA-256 from the release's `latest.json`, and also run
 `gh attestation verify` when the GitHub CLI is installed and logged in (otherwise they warn that only
 the checksum was checked).

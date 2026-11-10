@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.17.2](https://github.com/gutzerk/code_chroma/compare/v1.17.1...v1.17.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* agent list status tint and selection; resolve patterns/system-context in recipe runs ([d2481b9](https://github.com/gutzerk/code_chroma/commit/d2481b97ada15ff0f93aa03fab39c668b5432064))
+* **bridge:** resolve patterns and system-context in recipe runs ([b90518c](https://github.com/gutzerk/code_chroma/commit/b90518c35996935394c76b9431fe11e102f662c2))
+* **web:** show agent status tint and a clear selection in the agent list ([02157c9](https://github.com/gutzerk/code_chroma/commit/02157c95ba3af1ce8be8c590ff7fe88ff6ef3fbf))
+
 ## [1.17.1](https://github.com/gutzerk/code_chroma/compare/v1.17.0...v1.17.1) (2026-11-09)
 
 

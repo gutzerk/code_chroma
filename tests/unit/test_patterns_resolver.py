@@ -227,6 +227,14 @@ def test_a_rejected_instance_and_its_participants_are_dropped():
     assert diagram["nodes"] == []
 
 
+def test_a_candidate_in_the_rejected_list_is_dropped_without_a_node_of_its_own():
+    persisted = {"nodes": [], "rejected": ["strategy::Foo"]}
+
+    diagram = resolve_patterns_diagram(ENGINE, _graph_with_candidate(), persisted)
+
+    assert diagram["nodes"] == []
+
+
 def test_a_rejected_instances_relations_are_dropped_with_its_participants():
     """Rejecting an instance drops its attr-participant boxes AND the relations that pointed at
     them -- otherwise the resolver reports 'points at a box that isn't there' endpooints."""

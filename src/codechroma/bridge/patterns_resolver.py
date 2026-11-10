@@ -150,11 +150,12 @@ def _merge_patterns(current: list[dict], persisted: list[dict]) -> tuple[list[di
     return merged, matched
 
 
-def _drop_rejected(nodes: list[dict]) -> list[dict]:
-    """A skill-rejected instance (`confirmed: false`) and its own participants are noise."""
+def _drop_rejected(nodes: list[dict], listed: set[str]) -> list[dict]:
+    """A skill-rejected instance (`confirmed: false` or in `rejected[]`) and its participants."""
     rejected = {
         node["id"] for node in nodes
-        if node.get("kind") == INSTANCE_KIND and node.get("meta", {}).get("confirmed") is False
+        if node.get("kind") == INSTANCE_KIND
+        and (node.get("meta", {}).get("confirmed") is False or node["id"] in listed)
     }
     return [
         node for node in nodes
@@ -192,7 +193,9 @@ def resolve_patterns_diagram(engine: GraphEngine, graph: Graph, patterns_json: d
     ]
     kind_notes = Diagnostics()
     leftovers = [item for item in leftovers if _keep_free_node(item, kind_notes)]
-    all_nodes = _drop_rejected(merged + leftovers)
+    listed = authored.get("rejected")
+    listed = {i for i in listed if isinstance(i, str)} if isinstance(listed, list) else set()
+    all_nodes = _drop_rejected(merged + leftovers, listed)
 
     # A rejected instance's participants are dropped from nodes[] above, so any relation from a
     # candidate (or authored entry) that references a dropped box is noise too -- dropping only the

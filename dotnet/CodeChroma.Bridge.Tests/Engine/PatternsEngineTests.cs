@@ -71,6 +71,20 @@ public class PatternsEngineTests
     }
 
     [Fact]
+    public void Resolve_DropsACandidateInTheRejectedListWithoutANodeOfItsOwn()
+    {
+        var engine = EngineFor("patterns_repo");
+        var strategy = engine.PatternCandidates().First(c => c.Id.StartsWith("strategy::py/"));
+        var authored = new JsonObject { ["nodes"] = new JsonArray(), ["rejected"] = new JsonArray(strategy.Id) };
+
+        var resolved = PatternsResolver.Resolve(engine, authored);
+
+        var ids = resolved["nodes"]!.AsArray().Select(n => n!["id"]!.GetValue<string>()).ToList();
+        Assert.DoesNotContain(strategy.Id, ids);
+        Assert.DoesNotContain(strategy.Participants[1].Id, ids);
+    }
+
+    [Fact]
     public void PatternsContext_ListsEveryClassShapeAndTheSeedCandidates()
     {
         var engine = EngineFor("patterns_repo");

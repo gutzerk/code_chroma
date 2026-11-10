@@ -59,6 +59,11 @@ function renderDialog(overrides: Partial<AgentClient> = {}, saved: EngineClient[
   return create;
 }
 
+/** Types the "What should it show?" request the dialog needs before it draws. */
+function typeRequest(text: string) {
+  fireEvent.change(screen.getByTestId("draw-dialog-prompt"), { target: { value: text } });
+}
+
 afterEach(() => {
   cleanup();
   agentStore.reset();
@@ -95,6 +100,35 @@ describe("DrawDialog", () => {
     });
     await waitFor(() => expect(drawDialogStore.getState().open).toBe(false));
     expect(drawDialogStore.getState().prompt).toBe("");
+  });
+
+  it("disables Draw with agent until the request says what to draw", async () => {
+    renderDialog();
+    act(() => drawDialogStore.open());
+    await screen.findByTestId("draw-card-any");
+    const submit = screen.getByTestId("draw-dialog-submit");
+    const disabledWhenEmpty = submit.hasAttribute("disabled");
+    typeRequest("   ");
+    const disabledWhenBlank = submit.hasAttribute("disabled");
+
+    typeRequest("the auth flow");
+
+    expect(disabledWhenEmpty).toBe(true);
+    expect(disabledWhenBlank).toBe(true);
+    expect(submit).not.toBeDisabled();
+  });
+
+  it("does not launch an agent on Enter with an empty request", async () => {
+    const create = renderDialog();
+    act(() => drawDialogStore.open());
+    await screen.findByTestId("draw-card-any");
+
+    fireEvent.keyDown(screen.getByTestId("draw-dialog-prompt"), { key: "Enter" });
+    fireEvent.keyDown(screen.getByTestId("draw-card-any"), { key: "Enter" });
+
+    expect(create).not.toHaveBeenCalled();
+    expect(drawDialogStore.getState().open).toBe(true);
+    expect(screen.getByTestId("draw-dialog-prompt")).toHaveFocus();
   });
 
   it("starts the scripted tutorial agent without creating a real agent", async () => {
@@ -164,6 +198,7 @@ describe("DrawDialog", () => {
     renderDialog({ create: async () => { throw new Error("boom"); } });
     act(() => drawDialogStore.open());
     await screen.findByTestId("draw-card-sequence");
+    typeRequest("the checkout flow");
 
     fireEvent.click(screen.getByTestId("draw-dialog-submit"));
 
@@ -175,7 +210,7 @@ describe("DrawDialog", () => {
     renderDialog();
     act(() => drawDialogStore.open());
     await screen.findByTestId("draw-card-sequence");
-    fireEvent.change(screen.getByTestId("draw-dialog-prompt"), { target: { value: "half a thought" } });
+    typeRequest("half a thought");
 
     fireEvent.keyDown(document, { key: "Escape" });
 
@@ -211,12 +246,13 @@ describe("DrawDialog", () => {
     ]);
     act(() => drawDialogStore.open());
     fireEvent.click(await screen.findByTestId("draw-card-custom:data-flow"));
+    typeRequest("orders only");
 
     fireEvent.click(screen.getByTestId("draw-dialog-submit"));
 
     await waitFor(() => expect(create).toHaveBeenCalled());
     const hint = (create.mock.calls as unknown as unknown[][])[0][5] as { type: string; request: string };
     expect(hint.type).toBe("custom");
-    expect(hint.request).toContain('"data-flow"');
+    expect(hint.request).toBe('Use the saved diagram type "data-flow". orders only');
   });
 });

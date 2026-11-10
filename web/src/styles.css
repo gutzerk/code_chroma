@@ -39,6 +39,8 @@
   --icon: #c4c8d4;
   --accent-bg: #2b3550; /* Generate button background */
   --success: #4ade80; /* agent status indicator */
+  --accent-lime: #a3e635; /* primary canvas actions: Draw, Fit All */
+  --accent-lime-hover: #bef264;
   --select-ring: #3b4a73; /* selected card ring */
   --dot-grid: #262b38; /* canvas grid dots */
   --text-faint: #5b6170; /* hidden / disabled glyphs, hairline arrows */
@@ -1444,12 +1446,13 @@ body {
 .wiki-general-notice {
   position: absolute;
   left: 20px;
-  bottom: 20px;
+  /* Above the Fit All row (bottom 20px + 48px): with the left panel open the rule below shifts the
+     notice ~266px right, so beside Fit All it either covered the button or had no room to read. */
+  bottom: 80px;
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  /* Never wider than the left half minus the centered Fit All button, on any viewport width. */
-  max-width: min(32rem, calc(50% - 100px));
+  max-width: min(32rem, calc(100% - 40px));
   padding: 8px 8px 8px 18px;
   border-radius: var(--radius-card);
   background: var(--bg-raised);
@@ -2496,8 +2499,9 @@ body {
   padding: 0 28px;
   border: none;
   border-radius: var(--radius-full);
-  background: var(--bg-raised);
-  color: var(--text-1);
+  background: var(--accent-lime);
+  color: var(--text-invert);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
   cursor: pointer;
   font-size: 1rem;
   font-weight: 600;
@@ -2505,7 +2509,7 @@ body {
 }
 
 .fit-all-button:hover {
-  background: var(--bg-raised-2);
+  background: var(--accent-lime-hover);
 }
 
 /* Same screen-fixed chrome contract as .fit-all-button (sits over the viewport, outside

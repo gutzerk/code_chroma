@@ -87,9 +87,20 @@
   width: auto;
   height: 28px;
   padding: 4px 10px;
+  border: 0;
   border-radius: var(--radius-lg);
-  background: var(--bg-raised-2);
+  background: var(--accent-lime);
+  color: var(--text-invert);
+  cursor: pointer;
   font-size: 11px;
+  font-weight: 600;
+}
+.left-panel .draw-diagram-button:hover:not(:disabled) {
+  background: var(--accent-lime-hover);
+}
+.left-panel .draw-diagram-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .left-panel .draw-diagram-button svg {
   display: block;
@@ -100,12 +111,6 @@
   .activity-panel {
     width: 340px;
   }
-}
-
-.left-panel .draw-diagram-button {
-  border: 0;
-  color: var(--text-1);
-  cursor: pointer;
 }
 
 

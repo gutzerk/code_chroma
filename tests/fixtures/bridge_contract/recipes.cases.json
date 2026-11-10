@@ -776,6 +776,18 @@
         ]}}
       ],
       "matrix": {"kind": ["system-context", "patterns", "impact", "sequence", "walkthrough"]}
+    },
+    {
+      "id": "a_rejected_pattern_and_its_participants_never_reach_the_canvas",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/patterns/patterns.json", "text": "{\"nodes\": [{\"id\": \"keep\", \"name\": \"Keep\", \"kind\": \"external\", \"meta\": {\"marker_kept\": true}}, {\"id\": \"rej\", \"name\": \"Rejected\", \"kind\": \"pattern-instance\", \"meta\": {\"type\": \"strategy\", \"confirmed\": false, \"marker_rejected\": true}}, {\"id\": \"rej_child\", \"name\": \"Rejected child\", \"parent\": \"rej\", \"meta\": {\"marker_rejected_child\": true}}], \"relations\": [{\"from\": \"keep\", \"to\": \"rej_child\", \"label\": \"uses\"}]}"},
+        {"http": {"method": "POST", "path": "/repos/main/recipes/patterns/run"}, "expect": {"status": 200, "checks": [{"path": "$.ok", "equals": true}]}},
+        {"http": {"method": "GET", "path": "/repos/main/canvas"}, "expect": {"status": 200, "checks": [
+          {"path": "$.elements..marker_kept", "absent": false},
+          {"path": "$.elements..marker_rejected", "absent": true},
+          {"path": "$.elements..marker_rejected_child", "absent": true}
+        ]}}
+      ]
     }
   ]
 }

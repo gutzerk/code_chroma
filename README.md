@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="#why"><b>Why</b></a>  ·  <a href="#the-loop"><b>The loop</b></a>  ·  <a href="#see-it-in-action"><b>Screenshots</b></a>  ·  <a href="#install"><b>Install</b></a>  ·  <a href="QUICKSTART.md"><b>Quick start</b></a>  ·  <a href="docs/architecture/"><b>Architecture docs</b></a>  ·  <a href="CONTRIBUTING.md"><b>Contributing</b></a>
+  <a href="#why"><b>Why</b></a>  ·  <a href="#install"><b>Install</b></a>  ·  <a href="#quick-start"><b>Quick start</b></a>  ·  <a href="#the-loop"><b>The loop</b></a>  ·  <a href="#see-it-in-action"><b>Screenshots</b></a>  ·  <a href="#docs"><b>Docs</b></a>  ·  <a href="CONTRIBUTING.md"><b>Contributing</b></a>
 </p>
 
 <p align="center">
@@ -24,19 +24,37 @@
   <a href="https://github.com/gutzerk/code_chroma/stargazers"><img src="https://img.shields.io/github/stars/gutzerk/code_chroma?labelColor=333333&color=666666&logo=github" alt="GitHub stars" /></a>
 </p>
 
-Or install with one command (macOS / Linux):
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh
-```
-
-Windows and other options: [install](#install).
-
 ## Why
 
 With AI agents, a team writes more code than it can read. A month in, no one can say how the product works.
 
 Code visualizers don't fix this: they draw the code, and then you go back to reading files. CodeChroma changes the process instead. You look at the processes your system runs, decide on diagrams, and let agents write and change the code. Code is still one click away — you just rarely need it.
+
+## Install
+
+macOS (Apple Silicon or Intel) and Linux (x64):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh | sh
+```
+
+Windows (x64), in PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1 | iex"
+```
+
+Or download the installer from the [latest release](https://github.com/gutzerk/code_chroma/releases/latest). No administrator access and no API key needed. Agents run on [Claude Code](https://claude.com/claude-code), so install it and sign in first. Updates, uninstall, first launch and running from source: [install details](#install-details).
+
+## Quick start
+
+1. **Open a repo.** Start CodeChroma and pick a local folder, or choose **Clone repository…** and paste a Git URL.
+2. **Look at the map.** CodeChroma builds it from the code in seconds. Zoom from System down to a single function.
+3. **Ask how something works.** Open an agent window and type `walk me through how checkout works`. You get a walkthrough drawn over the real code.
+4. **Plan and build.** Ask `draw a plan for token auth`, answer the agent's questions on the canvas, then let it build the plan.
+5. **Review.** Ask `show me what this PR affects` and check the change box by box.
+
+See [`QUICKSTART.md`](./QUICKSTART.md) for the full walkthrough.
 
 ## The loop
 
@@ -79,12 +97,6 @@ Type a request in an agent window or the canvas terminal. The answer is a diagra
 | `confirm the detected patterns` | The design patterns CodeChroma found, checked by the agent |
 | `highlight the auth check on this diagram` | The path of one process traced on a diagram you already have |
 
-## Get started
-
-1. **Open a repo** — a local folder or a GitHub URL. No API key needed.
-2. **Look around** — the map is built for you; zoom from System down to a single function.
-3. **Ask or launch an agent** — start with step 1 of [the loop](#the-loop).
-
 ## Features
 
 - **zoomable canvas** — the code hierarchy (System → … → Code) lives in a left Project tree, and every diagram (C1, patterns, epics, …) sits as a layer on the same canvas.
@@ -95,16 +107,9 @@ Type a request in an agent window or the canvas terminal. The answer is a diagra
 - **desktop app** — a native (C# / Avalonia) double-click app and installer, no Python or Node needed.
 - **works with or without a key** — analysis, canvas, and live sync run on a deterministic offline summarizer; set a key to unlock AI features.
 
-## Install
+## Install details
 
-Desktop app — one command:
-
-| Platform | Command |
-|---|---|
-| macOS (Apple Silicon or Intel) / Linux (x64) | `curl -fsSL https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.sh \| sh` |
-| Windows (x64) | `powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/gutzerk/code_chroma/main/distribution/install.ps1 \| iex"` (or run `distribution/install.cmd`) |
-
-All platforms install per-user (macOS and Linux into `~/Applications`) and do not request administrator
+On Windows you can also run `distribution/install.cmd`. All platforms install per-user (macOS and Linux into `~/Applications`) and do not request administrator
 access. The installers check the SHA-256 from the release's `latest.json`, and also run
 `gh attestation verify` when the GitHub CLI is installed and logged in (otherwise they warn that only
 the checksum was checked).

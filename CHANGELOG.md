@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.17.3](https://github.com/gutzerk/code_chroma/compare/v1.17.2...v1.17.3) (2026-11-10)
+
+
+### Bug Fixes
+
+* **patterns:** skip test code in the detector; reject candidates in bulk ([e3f8d2b](https://github.com/gutzerk/code_chroma/commit/e3f8d2b4833cf0405b276361b3a959e1b99c41d5))
+* **patterns:** tighten test-path rules and report bad rejected ids ([1fad7ca](https://github.com/gutzerk/code_chroma/commit/1fad7ca14917af6b730392c66d7de2b542a3ccb9))
+
 ## [1.17.2](https://github.com/gutzerk/code_chroma/compare/v1.17.1...v1.17.2) (2026-11-10)
 
 

@@ -1,12 +1,19 @@
 """Unit coverage for detect_candidates: one case per heuristic pattern rule, in-memory Graph."""
 
+import json
+from pathlib import Path
+
 import pytest
 
 from codechroma.analyzers.go_analyzer import GoAnalyzer
 from codechroma.analyzers.go_analyzer import extract_class_shapes as extract_go_class_shapes
 from codechroma.analyzers.python_analyzer import PythonAnalyzer, extract_class_shapes
 from codechroma.graph.models import Graph, PatternType, SymbolKind
-from codechroma.patterns.detector import detect_candidates
+from codechroma.patterns.detector import _is_test_path, detect_candidates
+
+_TEST_PATHS = json.loads(
+    (Path(__file__).parents[1] / "fixtures" / "pattern_golden" / "test_paths.json").read_text()
+)
 
 
 def _graph(file_path: str, source: bytes) -> Graph:
@@ -577,3 +584,30 @@ def test_a_test_double_class_is_never_a_participant():
     assert {p.name for p in candidates[0].participants} == {
         "DiscountStrategy", "PercentDiscount", "FlatDiscount",
     }
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [(p, True) for p in _TEST_PATHS["test_code"]]
+    + [(p, False) for p in _TEST_PATHS["not_test_code"]],
+)
+def test_is_test_path_matches_the_shared_table(path, expected):
+    result = _is_test_path(path)
+
+    assert result is expected
+
+
+def test_a_test_prefixed_repo_joins_its_naming_family():
+    src = b"""
+class OrderRepo: ...
+
+
+class TestOrderRepo: ...
+"""
+    graph = _graph("repos.py", src)
+
+    candidates = [c for c in detect_candidates(graph) if c.type == PatternType.REPOSITORY]
+
+    assert [sorted(p.name for p in c.participants) for c in candidates] == [
+        ["OrderRepo", "TestOrderRepo"]
+    ]

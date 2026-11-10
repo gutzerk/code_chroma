@@ -27,10 +27,19 @@ _REPOSITORY_SUFFIXES = ("repository", "repo")
 
 
 # Test code never seeds a candidate: test files by name, test/fake folders, fake/mock/stub doubles.
-_TEST_STEM_PREFIXES = ("test_", "Test", "fake_", "mock_", "stub_")
-_TEST_STEM_SUFFIXES = ("_test", ".test", "_spec", ".spec", "Test", "_fake", "_mock", "_stub")
-_TEST_STEMS = frozenset(("conftest", "fake", "fakes", "mock", "mocks", "stub", "stubs"))
-_TEST_DIRS = frozenset(("test", "tests", "__tests__", "testdata", "testutil", "fakes", "mocks"))
+# Shared with PatternDetector.cs; tests/fixtures/pattern_golden/test_paths.json pins both.
+_TEST_STEM_PREFIXES = ("test_", "fake_", "mock_", "stub_")
+_TEST_STEM_SUFFIXES = (
+    "_test", "_tests", ".test", "_spec", ".spec", "Test", "Tests", "_fake", "_mock", "_stub",
+)
+_TEST_STEMS = frozenset(
+    ("conftest", "test", "tests", "fake", "fakes", "mock", "mocks", "stub", "stubs")
+)
+_TEST_DIRS = frozenset(
+    ("test", "tests", "__tests__", "__mocks__", "testdata", "testutil", "fakes", "mocks")
+)
+_TEST_DIR_SUFFIXES = (".test", ".tests")
+# "Test" is not a double prefix: TestResult/TestRunner are real classes in test tooling.
 _DOUBLE_CLASS_PREFIXES = ("Fake", "Mock", "Stub")
 
 
@@ -51,14 +60,21 @@ class _Index:
 def _is_test_path(path: str) -> bool:
     """Whether `path` is test code by file name or by a test/fake folder on the way to it."""
     *folders, file_name = path.replace("\\", "/").split("/")
-    stem = file_name.rsplit(".", 1)[0]
-    if any(folder in _TEST_DIRS for folder in folders):
+    if any(_is_test_dir(folder.lower()) for folder in folders):
         return True
+    dot = file_name.rfind(".")
+    stem = file_name[:dot] if dot > 0 else file_name
     return (
-        stem in _TEST_STEMS
+        stem.lower() in _TEST_STEMS
         or stem.startswith(_TEST_STEM_PREFIXES)
+        or _has_name_prefix(stem, "Test")
         or stem.endswith(_TEST_STEM_SUFFIXES)
     )
+
+
+def _is_test_dir(folder: str) -> bool:
+    """A lowercased folder name: `tests`, `__mocks__`, or a .NET test project like `Shop.Tests`."""
+    return folder in _TEST_DIRS or folder.endswith(_TEST_DIR_SUFFIXES)
 
 
 def _has_name_prefix(name: str, prefix: str) -> bool:

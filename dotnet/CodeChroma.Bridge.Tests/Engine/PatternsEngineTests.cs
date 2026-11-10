@@ -85,6 +85,23 @@ public class PatternsEngineTests
     }
 
     [Fact]
+    public void Resolve_ReportsARejectedIdThatMatchesNothingOrOverridesAConfirmation()
+    {
+        var engine = EngineFor("patterns_repo");
+        var strategy = engine.PatternCandidates().First(c => c.Id.StartsWith("strategy::py/"));
+        var authored = new JsonObject
+        {
+            ["nodes"] = new JsonArray(new JsonObject { ["id"] = strategy.Id, ["kind"] = "pattern-instance", ["meta"] = new JsonObject { ["confirmed"] = true } }),
+            ["rejected"] = new JsonArray(strategy.Id, "strategy::nope"),
+        };
+
+        var resolved = PatternsResolver.Resolve(engine, authored);
+
+        var reasons = resolved["diagnostics"]!["dropped"]!.AsArray().Select(d => d!["reason"]!.GetValue<string>());
+        Assert.Equal(["rejected_over_confirmed", "unknown_rejected_id"], reasons);
+    }
+
+    [Fact]
     public void PatternsContext_ListsEveryClassShapeAndTheSeedCandidates()
     {
         var engine = EngineFor("patterns_repo");

@@ -199,6 +199,9 @@ Rules:
    without a node each — same effect as `meta.confirmed: false` (the instance and its participants
    never render). Use it for clear misses; write a node with `confirmed: false` and a `description`
    only when the reason is worth keeping (e.g. "a different pattern, authored as …").
+   Copy ids exactly: an id that matches no candidate prints `DROPPED node <id> unknown_rejected_id`
+   and the candidate stays unreviewed. Never list an id you also confirm — the list wins and prints
+   `rejected_over_confirmed`.
    **Sorting candidates for a topic request** ("how request limits work", "the auth part"): the
    detector returns candidates from the whole repo, and sorting them is your job, one by one.
    - Off-topic candidate → its id in `rejected[]`. It never renders and is not counted against the

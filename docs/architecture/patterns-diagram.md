@@ -60,11 +60,20 @@ Both are gone, replaced by the same skill-agent generation model as C1:
   instances and their participants exactly like `meta.confirmed: false`, with no node per id
   (`_drop_rejected` in `bridge/patterns_resolver.py`, `DropRejected` in
   `Diagrams/PatternsResolver.cs`; contract case `a_candidate_in_the_rejected_list_never_reaches_the_canvas`).
+  A listed id that matches no instance is reported as `unknown_rejected_id`, and one whose node says
+  `meta.confirmed: true` as `rejected_over_confirmed` (the list wins); both ride on `diagnostics`, so
+  `check_diagram.py` prints them as `DROPPED` (contract case
+  `a_bad_rejected_entry_is_reported_in_diagnostics`).
 - **Test code never seeds a candidate:** both detectors (`patterns/detector.py`,
-  `Core/Patterns/PatternDetector.cs`) skip symbols in test files by name (`test_*`, `*_test`,
-  `*.spec`, `fake.go`, `mock_*` …), under `test`/`tests`/`__tests__`/`testdata`/`testutil`/`fakes`/
-  `mocks` folders, and `Fake*`/`Mock*`/`Stub*` classes — they are neither candidates nor
-  participants, nor dispatcher/caller evidence.
+  `Core/Patterns/PatternDetector.cs`) skip symbols in test files by name (`test_*`, `TestShop`,
+  `*_test`, `*Test`, `*Tests`, `*.spec`, `test.py`, `tests.py`, `conftest`, `fake.go`, `mock_*` …),
+  under `test`/`tests`/`__tests__`/`__mocks__`/`testdata`/`testutil`/`fakes`/`mocks` folders (any
+  case) or a `*.Tests`/`*.Test` project folder, and `Fake*`/`Mock*`/`Stub*` classes — they are
+  neither candidates nor participants, nor dispatcher/caller evidence. A `Test` file prefix counts
+  only before an uppercase letter, so `Testimonial.py` stays. `Test*` classes are not doubles
+  (`TestRunner` is real in test tooling); a `TestOrderRepo` still joins the `OrderRepo` family.
+  ⚠ Both rule lists are copies: `tests/fixtures/pattern_golden/test_paths.json` pins them, and
+  both test suites read it — add a path there when you change a rule.
 - **Wiki-first (029-wiki-driven-diagrams, plus 049's wiki-general step ahead of it):**
   `type-patterns.md` follows `docs/architecture/diagram-skills.md`'s "Wiki-first fetch order" before
   `/patterns/context`'s per-class detail — Step 0 (`GET /repos/{id}/wiki-general-context`) for the

@@ -163,6 +163,23 @@ def _drop_rejected(nodes: list[dict], listed: set[str]) -> list[dict]:
     ]
 
 
+def _rejected_ids(authored: dict, nodes: list[dict], notes: Diagnostics) -> set[str]:
+    """`rejected[]`'s ids; one naming no instance, or one marked `confirmed: true`, is noted."""
+    raw = authored.get("rejected")
+    listed = dict.fromkeys(i for i in raw if isinstance(i, str)) if isinstance(raw, list) else {}
+    instances: dict[str, dict] = {}
+    for node in nodes:
+        if node.get("kind") == INSTANCE_KIND:
+            instances.setdefault(node["id"], node)
+    for rejected_id in listed:
+        node = instances.get(rejected_id)
+        if node is None:
+            notes.drop("node", rejected_id, "unknown_rejected_id")
+        elif node.get("meta", {}).get("confirmed") is True:
+            notes.drop("node", rejected_id, "rejected_over_confirmed")
+    return set(listed)
+
+
 def _is_free_node(item: dict) -> bool:
     """Not part of the instance/participant family at all -- the only kind of node this gates."""
     return item.get("parent") is None and item.get("kind") != INSTANCE_KIND
@@ -193,8 +210,7 @@ def resolve_patterns_diagram(engine: GraphEngine, graph: Graph, patterns_json: d
     ]
     kind_notes = Diagnostics()
     leftovers = [item for item in leftovers if _keep_free_node(item, kind_notes)]
-    listed = authored.get("rejected")
-    listed = {i for i in listed if isinstance(i, str)} if isinstance(listed, list) else set()
+    listed = _rejected_ids(authored, merged + leftovers, kind_notes)
     all_nodes = _drop_rejected(merged + leftovers, listed)
 
     # A rejected instance's participants are dropped from nodes[] above, so any relation from a

@@ -196,6 +196,35 @@ public class PatternDetectorTests
 
         Assert.Equal(["Pricer", "Flat", "Tiered"], strategy.Participants.Select(p => p.Name));
     }
+
+    public static IEnumerable<object[]> SharedTestPaths()
+    {
+        var table = JsonNode.Parse(File.ReadAllText(Path.Combine(Fixtures.FixturesDir, "pattern_golden", "test_paths.json")))!;
+        foreach (var path in table["test_code"]!.AsArray()) yield return [path!.GetValue<string>(), true];
+        foreach (var path in table["not_test_code"]!.AsArray()) yield return [path!.GetValue<string>(), false];
+    }
+
+    [Theory, MemberData(nameof(SharedTestPaths))]
+    public void IsTestPath_MatchesTheSharedTable(string path, bool expected)
+    {
+        var result = PatternDetector.IsTestPath(path);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void ATestPrefixedRepoJoinsItsNamingFamily()
+    {
+        const string source = """
+            class OrderRepo: ...
+
+            class TestOrderRepo: ...
+            """;
+
+        var candidates = Detect("repos.py", source).Where(i => i.Type == PatternType.Repository).ToList();
+
+        Assert.Equal(["OrderRepo", "TestOrderRepo"], Assert.Single(candidates).Participants.Select(p => p.Name).Order());
+    }
 }
 
 public class PatternParityTests

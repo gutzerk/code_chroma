@@ -1,0 +1,38 @@
+{
+  "test_code": [
+    "test_shop.py",
+    "shop_test.py",
+    "shop_test.go",
+    "tests/shop.py",
+    "Tests/Shop.cs",
+    "app/tests.py",
+    "app/test.py",
+    "conftest.py",
+    "pkg/fakes/shop.py",
+    "pkg/fake.py",
+    "pkg/mock_shop.py",
+    "src/__tests__/shop.ts",
+    "src/__mocks__/api.ts",
+    "src/shop.test.ts",
+    "src/shop.spec.ts",
+    "spec/models/user_spec.rb",
+    "src/test/java/ShopTest.java",
+    "src/TestShop.java",
+    "tests/FooTests.cs",
+    "dotnet/Shop.Tests/Engine/ShopTests.cs",
+    "dotnet/Shop.Test/Shop.cs",
+    "pkg\\fakes\\shop.py"
+  ],
+  "not_test_code": [
+    "shop.py",
+    "src/Testimonial.py",
+    "src/TestimonialService.cs",
+    "src/Contest.cs",
+    "src/attest.py",
+    "src/latest.py",
+    "src/testing_utils.py",
+    "src/Mockingbird.cs",
+    "tests_helpers/x.py",
+    "dotnet/Shop/Shop.cs"
+  ]
+}

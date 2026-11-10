@@ -19,10 +19,19 @@ const REASON_LABELS: Record<string, string> = {
   bad_edge_kind: "unknown arrow kind",
   edge_kind_spawn: "starts a process but is drawn as a call",
   edge_kind_data: "reads or writes data but is drawn as a call",
+  unknown_rejected_id: "rejects an id that matches no pattern",
+  rejected_over_confirmed: "confirmed but also listed as rejected",
 };
 
 /** Slugs that only advise: the part is drawn, just not as well as it could be. */
-const ADVISORY = new Set(["bad_message_kind", "failure_kind", "bad_edge_kind", "edge_kind_spawn", "edge_kind_data"]);
+const ADVISORY = new Set([
+  "bad_message_kind",
+  "failure_kind",
+  "bad_edge_kind",
+  "edge_kind_spawn",
+  "edge_kind_data",
+  "unknown_rejected_id",
+]);
 
 /** At most this many individual reasons before the note collapses to a bare count. */
 const REASONS_SHOWN = 3;

@@ -800,6 +800,16 @@
           {"path": "$.elements..marker_listed_child", "absent": true}
         ]}}
       ]
+    },
+    {
+      "id": "a_bad_rejected_entry_is_reported_in_diagnostics",
+      "steps": [
+        {"fs": "write", "path": ".codechroma/diagrams/patterns/patterns.json", "text": "{\"rejected\": [\"rej\", \"ghost\"], \"nodes\": [{\"id\": \"keep\", \"name\": \"Keep\", \"kind\": \"external\"}, {\"id\": \"rej\", \"name\": \"Listed\", \"kind\": \"pattern-instance\", \"meta\": {\"type\": \"strategy\", \"confirmed\": true}}]}"},
+        {"http": {"method": "GET", "path": "/repos/main/patterns"}, "expect": {"status": 200, "checks": [
+          {"path": "$.diagnostics.dropped[*].reason", "equals": ["rejected_over_confirmed", "unknown_rejected_id"]},
+          {"path": "$.diagnostics.dropped[*].id", "equals": ["rej", "ghost"]}
+        ]}}
+      ]
     }
   ]
 }

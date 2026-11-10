@@ -117,6 +117,22 @@ public static class PatternsResolver
         return nodes.Where(n => !rejected.Contains(Json.Str(n["id"])!) && !(Json.Str(n["parent"]) is { } p && rejected.Contains(p))).ToList();
     }
 
+    /// <summary>`rejected[]`'s ids; one naming no instance, or one marked `confirmed: true`, is noted.</summary>
+    private static HashSet<string> RejectedIds(JsonObject authored, List<JsonObject> nodes, Diagnostics notes)
+    {
+        var listed = (authored["rejected"] as JsonArray ?? []).Select(Json.Str).OfType<string>().Distinct().ToList();
+        var instances = new Dictionary<string, JsonObject>();
+        foreach (var node in nodes.Where(n => Json.Str(n["kind"]) == PatternSerialize.InstanceKind))
+            instances.TryAdd(Json.Str(node["id"])!, node);
+        foreach (var id in listed)
+        {
+            if (!instances.TryGetValue(id, out var node)) notes.Drop("node", id, "unknown_rejected_id");
+            else if (node["meta"] is JsonObject meta && meta["confirmed"] is JsonValue v && v.TryGetValue(out bool confirmed) && confirmed)
+                notes.Drop("node", id, "rejected_over_confirmed");
+        }
+        return [.. listed];
+    }
+
     private static bool KeepFreeNode(JsonObject item, Diagnostics notes)
     {
         var isFree = item["parent"] is null && Json.Str(item["kind"]) != PatternSerialize.InstanceKind;
@@ -134,8 +150,8 @@ public static class PatternsResolver
         var (merged, matched) = MergePatterns(currentNodes, persistedNodes);
         var kindNotes = new Diagnostics();
         var leftovers = persistedNodes.Where(n => !matched.Contains(Json.Str(n["id"])!)).Where(n => KeepFreeNode(n, kindNotes)).Select(n => (JsonObject)n.DeepClone()).ToList();
-        var listed = (authored["rejected"] as JsonArray ?? []).Select(Json.Str).OfType<string>().ToHashSet();
-        var allNodes = DropRejected([.. merged, .. leftovers], listed);
+        List<JsonObject> candidatesAndLeftovers = [.. merged, .. leftovers];
+        var allNodes = DropRejected(candidatesAndLeftovers, RejectedIds(authored, candidatesAndLeftovers, kindNotes));
 
         var surviving = allNodes.Select(n => Json.Str(n["id"])!).ToHashSet();
         var relations = candidateRelations.Concat((authored["relations"] as JsonArray ?? []).OfType<JsonObject>())

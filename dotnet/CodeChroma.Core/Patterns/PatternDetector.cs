@@ -6,10 +6,13 @@ public static class PatternDetector
     private static readonly string[] RepositorySuffixes = ["repository", "repo"];
 
     // Test code never seeds a candidate: test files by name, test/fake folders, fake/mock/stub doubles.
-    private static readonly string[] TestStemPrefixes = ["test_", "Test", "fake_", "mock_", "stub_"];
-    private static readonly string[] TestStemSuffixes = ["_test", ".test", "_spec", ".spec", "Test", "_fake", "_mock", "_stub"];
-    private static readonly HashSet<string> TestStems = ["conftest", "fake", "fakes", "mock", "mocks", "stub", "stubs"];
-    private static readonly HashSet<string> TestDirs = ["test", "tests", "__tests__", "testdata", "testutil", "fakes", "mocks"];
+    // Shared with patterns/detector.py; tests/fixtures/pattern_golden/test_paths.json pins both.
+    private static readonly string[] TestStemPrefixes = ["test_", "fake_", "mock_", "stub_"];
+    private static readonly string[] TestStemSuffixes = ["_test", "_tests", ".test", "_spec", ".spec", "Test", "Tests", "_fake", "_mock", "_stub"];
+    private static readonly HashSet<string> TestStems = ["conftest", "test", "tests", "fake", "fakes", "mock", "mocks", "stub", "stubs"];
+    private static readonly HashSet<string> TestDirs = ["test", "tests", "__tests__", "__mocks__", "testdata", "testutil", "fakes", "mocks"];
+    private static readonly string[] TestDirSuffixes = [".test", ".tests"];
+    // "Test" is not a double prefix: TestResult/TestRunner are real classes in test tooling.
     private static readonly string[] DoubleClassPrefixes = ["Fake", "Mock", "Stub"];
 
     private sealed class Index
@@ -39,17 +42,22 @@ public static class PatternDetector
     }
 
     /// <summary>Whether `path` is test code by file name or by a test/fake folder on the way to it.</summary>
-    internal static bool IsTestPath(string path)
+    public static bool IsTestPath(string path)
     {
         var parts = path.Replace('\\', '/').Split('/');
-        if (parts[..^1].Any(TestDirs.Contains)) return true;
+        if (parts[..^1].Any(folder => IsTestDir(folder.ToLowerInvariant()))) return true;
         var fileName = parts[^1];
         var dot = fileName.LastIndexOf('.');
         var stem = dot > 0 ? fileName[..dot] : fileName;
-        return TestStems.Contains(stem)
+        return TestStems.Contains(stem.ToLowerInvariant())
             || TestStemPrefixes.Any(p => stem.StartsWith(p, StringComparison.Ordinal))
+            || HasNamePrefix(stem, "Test")
             || TestStemSuffixes.Any(p => stem.EndsWith(p, StringComparison.Ordinal));
     }
+
+    /// <summary>A lowercased folder name: `tests`, `__mocks__`, or a .NET test project like `Shop.Tests`.</summary>
+    private static bool IsTestDir(string folder) =>
+        TestDirs.Contains(folder) || TestDirSuffixes.Any(s => folder.EndsWith(s, StringComparison.Ordinal));
 
     /// <summary>`prefix` followed by an uppercase letter: "MockStore" has "Mock", "Mockingbird" does not.</summary>
     private static bool HasNamePrefix(string name, string prefix) =>

@@ -1024,3 +1024,57 @@ describe("CanvasViewport dot grid", () => {
     expect(style.getPropertyValue("--canvas-grid-size")).toBe("28px");
   });
 });
+
+describe("CanvasViewport wheel and pinch input", () => {
+  const nextFrame = () => act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+
+  function renderViewport() {
+    render(
+      <CanvasViewport>
+        <div />
+      </CanvasViewport>,
+    );
+    const viewport = screen.getByTestId("app-canvas");
+    mockRect(viewport, { left: 0, top: 0, width: 1000, height: 800 });
+    return viewport;
+  }
+
+  it("folds a burst of mouse notches into one zoom applied on the next frame", async () => {
+    const viewport = renderViewport();
+    const notch = { deltaY: -100, deltaMode: 0, clientX: 0, clientY: 0, bubbles: true, cancelable: true };
+
+    fireEvent(viewport, new WheelEvent("wheel", notch));
+    fireEvent(viewport, new WheelEvent("wheel", notch));
+    const beforeFrame = readTransform().scale;
+    await nextFrame();
+
+    expect(beforeFrame).toBe(1);
+    expect(readTransform().scale).toBeCloseTo(Math.exp(2 * 0.18), 4);
+  });
+
+  it("zooms on a WebKit pinch gesture by the gesture's scale", async () => {
+    const viewport = renderViewport();
+    const gesture = (type: string, scale: number) =>
+      Object.assign(new Event(type, { bubbles: true, cancelable: true }), { scale, clientX: 0, clientY: 0 });
+
+    fireEvent(viewport, gesture("gesturestart", 1));
+    fireEvent(viewport, gesture("gesturechange", 1.5));
+    fireEvent(viewport, gesture("gesturechange", 2));
+    fireEvent(viewport, gesture("gestureend", 2));
+    await nextFrame();
+
+    expect(readTransform().scale).toBeCloseTo(2, 4);
+  });
+
+  it("cancels the native page zoom for both wheel and gesture input", () => {
+    const viewport = renderViewport();
+    const wheel = new WheelEvent("wheel", { deltaY: -3, ctrlKey: true, bubbles: true, cancelable: true });
+    const pinch = new Event("gesturechange", { bubbles: true, cancelable: true });
+
+    fireEvent(viewport, wheel);
+    fireEvent(viewport, pinch);
+
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(pinch.defaultPrevented).toBe(true);
+  });
+});

@@ -17,7 +17,7 @@ export function useDisclosureMenu(open: boolean, onClose: () => void) {
     return () => document.removeEventListener("mousedown", onOutside);
   }, [open, onClose]);
 
-  const onListKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
+  const onListKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Escape") return;
     onClose();
     triggerRef.current?.focus();

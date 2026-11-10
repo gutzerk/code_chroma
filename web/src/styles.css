@@ -513,6 +513,68 @@ body {
   transition-delay: 300ms;
 }
 
+/* Zoom settings popover: hangs to the right of its rail button, over the canvas. */
+.zoom-settings {
+  position: relative;
+}
+
+.zoom-settings-panel {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 0;
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 230px;
+  padding: 0.7rem 0.8rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  color: var(--text-1);
+  font-size: 0.78rem;
+}
+
+.zoom-settings-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.3rem 0.5rem;
+  align-items: center;
+}
+
+.zoom-settings-row output {
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.zoom-settings-row input,
+.zoom-settings-row select {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.zoom-settings-row select {
+  grid-column: 2;
+  width: auto;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised-2);
+  color: var(--text-1);
+  font-size: 0.75rem;
+}
+
+.app-rail .zoom-settings-reset {
+  width: 100%;
+  height: auto;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-size: 0.75rem;
+}
+
 /* Divider between the zoom group and the panel-toggle group, per the restyle spec: a short 24px
    hairline with its own breathing room above/below rather than the rail's base button gap. */
 .app-rail-separator {

@@ -40,6 +40,7 @@ import { useStartTutorial } from "../tutorial/useStartTutorial";
 import { useLatchedMount } from "./panelStore";
 import { RailIcon } from "../icons/RailIcon";
 import { RailButton } from "./RailButton";
+import { ZoomSettingsMenu } from "./ZoomSettingsMenu";
 import { ActivityPanel } from "../agents/ActivityPanel";
 import { AgentWindowLayer } from "../agents/AgentWindowLayer";
 import {
@@ -500,6 +501,7 @@ export function RootCanvas() {
           <RailButton label="Zoom in" onClick={() => viewportRef.current?.zoomIn()}>
             +
           </RailButton>
+          <ZoomSettingsMenu />
           <div className="app-rail-separator" />
           <RailButton
             className="terminal-toggle-button"

@@ -17,6 +17,8 @@ import { useSavedCanvasStyle, viewportTextureImage } from "../canvas-style/canva
 import { clamp } from "../util/clamp";
 import { readSavedCameraView, writeSavedCameraView } from "./canvasCameraStore";
 import { useTutorialActive } from "../tutorial/tutorialStore";
+import { createWheelClassifier, logWheelInput, pinchZoomFactor, wheelZoomFactor, type WheelLike } from "./wheelInput";
+import { useDisplayScale, zoomSettingsStore } from "./zoomSettingsStore";
 
 export interface CanvasViewportHandle {
   /** Returns false, without moving the camera, when `nodeId` isn't mounted yet — callers that need
@@ -100,6 +102,7 @@ function computeFitView(
   viewportRect: DOMRect,
   targetRect: DOMRect,
   insets: ViewportInsets = NO_INSETS,
+  maxScale: number,
 ): ViewState {
   const visibleWidth = viewportRect.width - insets.left - insets.right;
   const visibleHeight = viewportRect.height - insets.bottom;
@@ -109,7 +112,7 @@ function computeFitView(
   const logicalCenterY = (targetRect.top - viewportRect.top - v.y) / v.scale + logicalHeight / 2;
 
   const fitScale = Math.min(visibleWidth / logicalWidth, visibleHeight / logicalHeight);
-  const newScale = clamp(fitScale * FOCUS_FIT_PADDING, MIN_SCALE, FOCUS_MAX_SCALE);
+  const newScale = clamp(fitScale * FOCUS_FIT_PADDING, MIN_SCALE, maxScale);
 
   return {
     x: insets.left + visibleWidth / 2 - logicalCenterX * newScale,
@@ -261,10 +264,15 @@ function clickTargetBelowArrow(clientX: number, clientY: number): HTMLElement | 
 export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportProps>(
   function CanvasViewport({ children, insets = NO_INSETS, onViewChange }, ref) {
     const tutorialActive = useTutorialActive();
+    // Canvas base scale (Auto grows with the window, so a big display doesn't render tiny text);
+    // reset, the zoom ceiling and the focus ceiling all scale with it.
+    const displayScale = useDisplayScale();
+    const displayScaleRef = useRef(displayScale);
+    const focusMaxScale = () => FOCUS_MAX_SCALE * displayScaleRef.current;
     // Restore the persisted camera at mount (lazy initializer so localStorage is read once). Reset
     // to the fresh origin when nothing is saved -- readSavedCameraView returns null for an absent
     // or at-origin view.
-    const [view, setView] = useState<ViewState>(() => readSavedCameraView() ?? RESET_VIEW);
+    const [view, setView] = useState<ViewState>(() => readSavedCameraView() ?? { ...RESET_VIEW, scale: displayScale });
     const [isFocusing, setIsFocusing] = useState(false);
     const canvasStyle = useSavedCanvasStyle();
     const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -325,12 +333,22 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
 
     function zoomAround(cursorX: number, cursorY: number, factor: number) {
       setView((v) => {
-        const newScale = clamp(v.scale * factor, MIN_SCALE, MAX_SCALE);
+        const newScale = clamp(v.scale * factor, MIN_SCALE, MAX_SCALE * displayScaleRef.current);
         const newX = cursorX - ((cursorX - v.x) / v.scale) * newScale;
         const newY = cursorY - ((cursorY - v.y) / v.scale) * newScale;
         return { x: newX, y: newY, scale: newScale };
       });
     }
+
+    // A changed display scale (setting or window resize) rescales the camera around the center, so the change shows at once.
+    useEffect(() => {
+      const previous = displayScaleRef.current;
+      displayScaleRef.current = displayScale;
+      if (previous === displayScale) return;
+      const { x, y } = viewportCenter();
+      zoomAround(x, y, displayScale / previous);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [displayScale]);
 
     function viewportCenter(): { x: number; y: number } {
       const rect = viewportRef.current?.getBoundingClientRect();
@@ -403,7 +421,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         previousViewRef.current = view;
         lastFocusedNodeIdRef.current = nodeId;
 
-        setView((v) => computeFitView(v, rects.viewportRect, rects.targetRect, insetsRef.current));
+        setView((v) => computeFitView(v, rects.viewportRect, rects.targetRect, insetsRef.current, focusMaxScale()));
         playFocusAnimation();
       },
       fitToNode(nodeId: string) {
@@ -416,7 +434,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         lastFocusedNodeIdRef.current = null;
         previousViewRef.current = null;
 
-        setView((v) => computeFitView(v, rects.viewportRect, rects.targetRect, insetsRef.current));
+        setView((v) => computeFitView(v, rects.viewportRect, rects.targetRect, insetsRef.current, focusMaxScale()));
         playFocusAnimation();
       },
       fitToNodes(nodeIds: string[]): boolean {
@@ -444,7 +462,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         if (!unionRect) return false;
 
         const fitRect = unionRect;
-        setView((v) => computeFitView(v, viewportRect, fitRect, insetsRef.current));
+        setView((v) => computeFitView(v, viewportRect, fitRect, insetsRef.current, focusMaxScale()));
         playFocusAnimation();
 
         // Report "done" only when every requested node is present AND the framed rect has held
@@ -499,7 +517,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         );
         if (!unionRect) return;
 
-        setView((v) => computeFitView(v, viewportRect, unionRect, insetsRef.current));
+        setView((v) => computeFitView(v, viewportRect, unionRect, insetsRef.current, focusMaxScale()));
         playFocusAnimation();
       },
       fitToSelector(selector: string): boolean {
@@ -511,7 +529,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         const viewportRect = viewportEl.getBoundingClientRect();
         const { rect: unionRect } = unionRects(viewportEl.querySelectorAll<HTMLElement>(selector));
         if (!unionRect) return false;
-        setView((v) => computeFitView(v, viewportRect, unionRect, insetsRef.current));
+        setView((v) => computeFitView(v, viewportRect, unionRect, insetsRef.current, focusMaxScale()));
         playFocusAnimation();
         return true;
       },
@@ -527,7 +545,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
       },
       resetView() {
-        setView(RESET_VIEW);
+        setView({ ...RESET_VIEW, scale: displayScaleRef.current });
       },
       fitToBounds(rect) {
         const viewportEl = viewportRef.current;
@@ -539,7 +557,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
         const visibleWidth = stage.width - i.left - i.right;
         const visibleHeight = stage.height - i.bottom;
         const fitScale = Math.min(visibleWidth / rect.width, visibleHeight / rect.height);
-        const scale = clamp(fitScale * BOUNDS_FIT_PADDING, MIN_SCALE, FOCUS_MAX_SCALE);
+        const scale = clamp(fitScale * BOUNDS_FIT_PADDING, MIN_SCALE, focusMaxScale());
         setView({
           x: i.left + visibleWidth / 2 - (rect.x + rect.width / 2) * scale,
           y: visibleHeight / 2 - (rect.y + rect.height / 2) * scale,
@@ -549,43 +567,98 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
       },
     }));
 
+    // Wheel/pinch input is folded into one pending zoom + pan and applied once per frame, so a burst
+    // of 100+ events/s from a trackpad costs one React render per frame instead of one per event.
+    const pendingWheelRef = useRef<{ factor: number; clientX?: number; clientY?: number; panX: number } | null>(null);
+    const wheelRafRef = useRef<number | null>(null);
+    const classifyWheelRef = useRef(createWheelClassifier());
+    const gestureScaleRef = useRef<number | null>(null);
+
+    function flushWheel() {
+      wheelRafRef.current = null;
+      const pending = pendingWheelRef.current;
+      pendingWheelRef.current = null;
+      if (!pending) return;
+      if (pending.panX !== 0) setView((v) => ({ ...v, x: v.x - pending.panX }));
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (pending.factor === 1 || !rect) return;
+      // An anchor-less step (a gesture without coordinates) zooms around the viewport centre.
+      const x = pending.clientX === undefined ? rect.width / 2 : pending.clientX - rect.left;
+      const y = pending.clientY === undefined ? rect.height / 2 : pending.clientY - rect.top;
+      zoomAround(x, y, pending.factor);
+    }
+
+    function queueWheel(factor: number, clientX: number | undefined, clientY: number | undefined, panX: number) {
+      const pending = pendingWheelRef.current ?? { factor: 1, panX: 0 };
+      pending.factor *= factor;
+      pending.clientX = clientX;
+      pending.clientY = clientY;
+      pending.panX += panX;
+      pendingWheelRef.current = pending;
+      wheelRafRef.current ??= requestAnimationFrame(flushWheel);
+    }
+
+    useEffect(
+      () => () => {
+        if (wheelRafRef.current !== null) cancelAnimationFrame(wheelRafRef.current);
+      },
+      [],
+    );
+
     function handleWheel(e: WheelEvent) {
       e.preventDefault();
       cancelFocusAnimation();
-      // A mouse's horizontal scroll wheel (or a shift+scroll) reports deltaX — treat it as a
-      // sideways pan rather than a zoom, since deltaY already owns zoom-toward-cursor below.
-      // Sign matches native scroll containers: scrolling right (positive deltaX) slides content
-      // left, i.e. subtracts from view.x — the opposite of drag-to-pan's additive dx.
-      if (e.deltaX !== 0) {
-        setView((v) => ({ ...v, x: v.x - e.deltaX }));
+      // WebKit may also send a ctrl+wheel during a pinch it already reports as gesture events.
+      if (e.ctrlKey && gestureScaleRef.current !== null) return;
+      const device = classifyWheelRef.current(e);
+      // Normalized per device: a mouse notch is one fixed step whatever delta the OS reports
+      // (Windows ~100, macOS ~4, Firefox lines), a trackpad keeps its fine pixel deltas.
+      const factor = wheelZoomFactor(e, zoomSettingsStore.get(), device);
+      logWheelInput({ deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode, wheelDeltaY: (e as WheelLike).wheelDeltaY, ctrlKey: e.ctrlKey, device, factor });
+      // A horizontal wheel (or shift+scroll / sideways trackpad swipe) pans; scrolling right slides
+      // content left, i.e. subtracts from view.x — the opposite of drag-to-pan's additive dx.
+      queueWheel(factor, e.clientX, e.clientY, e.deltaX);
+    }
+
+    // Safari / macOS WKWebView report a trackpad pinch only as non-standard gesture events with a
+    // cumulative `scale`; each step zooms by its ratio to the previous step, toward the pinch point.
+    function handleGesture(e: Event) {
+      e.preventDefault();
+      const g = e as Event & { scale?: number; clientX?: number; clientY?: number };
+      if (e.type === "gesturestart") {
+        cancelFocusAnimation();
+        gestureScaleRef.current = 1;
+        return;
       }
-      if (e.deltaY !== 0) {
-        const rect = viewportRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        zoomAround(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-e.deltaY * 0.0128));
+      if (e.type === "gestureend") {
+        gestureScaleRef.current = null;
+        return;
       }
+      const previous = gestureScaleRef.current ?? 1;
+      const scale = typeof g.scale === "number" ? g.scale : previous;
+      gestureScaleRef.current = scale;
+      const factor = pinchZoomFactor(previous, scale, zoomSettingsStore.get().trackpad);
+      logWheelInput({ gesture: e.type, scale, factor });
+      queueWheel(factor, g.clientX, g.clientY, 0);
     }
 
     // Wired natively (not via JSX onWheel) because React delegates wheel events through a passive
     // root listener, silently no-op-ing preventDefault() — without this, Ctrl+scroll / trackpad
     // pinch would still trigger the browser's own native page zoom alongside this handler's zoom,
-    // dragging every "fixed" screen element (top chrome, Fit All) along with it. Safari
-    // doesn't represent trackpad pinch as wheel+ctrlKey at all — it fires its own non-standard
-    // gesture events instead, so those are suppressed here too (canvas zoom on Safari still works
-    // via ordinary two-finger scroll, which Safari does report as a wheel event).
+    // dragging every "fixed" screen element (top chrome, Fit All) along with it. WebKit's gesture
+    // events are taken over the same way (handleGesture) so its native page zoom never runs either.
     useEffect(() => {
       const el = viewportRef.current;
       if (!el) return;
-      const preventGestureDefault = (e: Event) => e.preventDefault();
       el.addEventListener("wheel", handleWheel, { passive: false });
-      el.addEventListener("gesturestart", preventGestureDefault, { passive: false });
-      el.addEventListener("gesturechange", preventGestureDefault, { passive: false });
-      el.addEventListener("gestureend", preventGestureDefault, { passive: false });
+      el.addEventListener("gesturestart", handleGesture, { passive: false });
+      el.addEventListener("gesturechange", handleGesture, { passive: false });
+      el.addEventListener("gestureend", handleGesture, { passive: false });
       return () => {
         el.removeEventListener("wheel", handleWheel);
-        el.removeEventListener("gesturestart", preventGestureDefault);
-        el.removeEventListener("gesturechange", preventGestureDefault);
-        el.removeEventListener("gestureend", preventGestureDefault);
+        el.removeEventListener("gesturestart", handleGesture);
+        el.removeEventListener("gesturechange", handleGesture);
+        el.removeEventListener("gestureend", handleGesture);
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -656,7 +729,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
     // is just the restore read back out, which save-on-change would write redundantly and is exactly
     // what readSavedCameraView treats as "nothing saved".
     useEffect(() => {
-      if (view.x === 0 && view.y === 0 && view.scale === 1) return;
+      if (view.x === 0 && view.y === 0 && view.scale === displayScaleRef.current) return;
       writeSavedCameraView(view);
     }, [view]);
 

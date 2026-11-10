@@ -26,6 +26,14 @@ from codechroma.graph.models import (
 _REPOSITORY_SUFFIXES = ("repository", "repo")
 
 
+# Test code never seeds a candidate: test files by name, test/fake folders, fake/mock/stub doubles.
+_TEST_STEM_PREFIXES = ("test_", "Test", "fake_", "mock_", "stub_")
+_TEST_STEM_SUFFIXES = ("_test", ".test", "_spec", ".spec", "Test", "_fake", "_mock", "_stub")
+_TEST_STEMS = frozenset(("conftest", "fake", "fakes", "mock", "mocks", "stub", "stubs"))
+_TEST_DIRS = frozenset(("test", "tests", "__tests__", "testdata", "testutil", "fakes", "mocks"))
+_DOUBLE_CLASS_PREFIXES = ("Fake", "Mock", "Stub")
+
+
 @dataclass(frozen=True, slots=True)
 class _Index:
     """Every derived view the detectors share, built once per detect_candidates() call."""
@@ -34,12 +42,57 @@ class _Index:
     # Sorted, not raw: detectors emit in id order, so the ordering is contract rather than cost.
     sorted_symbols: list[tuple[str, Symbol]]
     sorted_shapes: list[tuple[str, ClassShape]]
+    # The graph's own shape order minus test code -- _implementations_by_base iterates it as-is.
+    class_shapes: dict[str, ClassShape]
     class_id_by_name: dict[str, str]
     references_by_id: dict[str, set[str]]
 
 
+def _is_test_path(path: str) -> bool:
+    """Whether `path` is test code by file name or by a test/fake folder on the way to it."""
+    *folders, file_name = path.replace("\\", "/").split("/")
+    stem = file_name.rsplit(".", 1)[0]
+    if any(folder in _TEST_DIRS for folder in folders):
+        return True
+    return (
+        stem in _TEST_STEMS
+        or stem.startswith(_TEST_STEM_PREFIXES)
+        or stem.endswith(_TEST_STEM_SUFFIXES)
+    )
+
+
+def _has_name_prefix(name: str, prefix: str) -> bool:
+    """`prefix` followed by an uppercase letter: "MockStore" has "Mock", "Mockingbird" does not."""
+    return name.startswith(prefix) and len(name) > len(prefix) and name[len(prefix)].isupper()
+
+
+def _is_test_double_name(name: str) -> bool:
+    """"Fake", "MockStore", "StubClock" -- a double by name, wherever it lives."""
+    return name in _DOUBLE_CLASS_PREFIXES or any(
+        _has_name_prefix(name, prefix) for prefix in _DOUBLE_CLASS_PREFIXES
+    )
+
+
 def _build_index(graph: Graph) -> _Index:
-    sorted_symbols = sorted(graph.symbols.items())
+    test_paths: dict[str, bool] = {}
+
+    def is_test_code(symbol_id: str) -> bool:
+        symbol = graph.symbols.get(symbol_id)
+        path = symbol.file_path if symbol else symbol_id.split("::", 1)[0]
+        if path not in test_paths:
+            test_paths[path] = _is_test_path(path)
+        if test_paths[path]:
+            return True
+        is_class = symbol is not None and symbol.kind == SymbolKind.CLASS
+        return is_class and _is_test_double_name(symbol.name)
+
+    kept = {symbol_id for symbol_id in graph.symbols if not is_test_code(symbol_id)}
+    sorted_symbols = sorted((sid, sym) for sid, sym in graph.symbols.items() if sid in kept)
+    class_shapes = {
+        symbol_id: shape
+        for symbol_id, shape in graph.class_shapes.items()
+        if symbol_id in kept or (symbol_id not in graph.symbols and not is_test_code(symbol_id))
+    }
     class_id_by_name: dict[str, str] = {}
     for symbol_id, symbol in sorted_symbols:
         if symbol.kind == SymbolKind.CLASS and symbol.name not in class_id_by_name:
@@ -47,7 +100,8 @@ def _build_index(graph: Graph) -> _Index:
     return _Index(
         graph=graph,
         sorted_symbols=sorted_symbols,
-        sorted_shapes=sorted(graph.class_shapes.items()),
+        sorted_shapes=sorted(class_shapes.items()),
+        class_shapes=class_shapes,
         class_id_by_name=class_id_by_name,
         references_by_id={
             symbol_id: set(symbol.references) for symbol_id, symbol in sorted_symbols
@@ -76,7 +130,7 @@ def _structural_interface_matches(index: _Index) -> dict[str, list[str]]:
 
 def _implementations_by_base(index: _Index) -> dict[str, list[str]]:
     by_base: dict[str, list[str]] = {}
-    for symbol_id, shape in index.graph.class_shapes.items():
+    for symbol_id, shape in index.class_shapes.items():
         for base in shape.bases:
             by_base.setdefault(base, []).append(symbol_id)
     for base_name, impl_ids in _structural_interface_matches(index).items():
@@ -141,7 +195,7 @@ def _detect_strategy(index: _Index) -> list[PatternInstance]:
         if len(impl_ids) < 2:
             continue
         base_id = index.class_id_by_name.get(base_name)
-        base_shape = graph.class_shapes.get(base_id) if base_id else None
+        base_shape = index.class_shapes.get(base_id) if base_id else None
         if base_id is None or base_shape is None or not base_shape.is_abstract:
             continue
         method_names = set(base_shape.methods)
@@ -357,9 +411,6 @@ def _is_repository_like(name: str) -> bool:
     return any(lower.endswith(suffix) for suffix in (*_REPOSITORY_SUFFIXES, "interface"))
 
 
-_TEST_DOUBLE_NAME_PREFIXES = ("Test", "Fake", "Mock", "Stub")
-
-
 def _is_interface_named(name: str) -> bool:
     """"I" followed by an uppercase letter, so "Inventory..." isn't mistaken for an interface."""
     return len(name) > 1 and name[0] == "I" and name[1].isupper()
@@ -369,10 +420,8 @@ def _strip_naming_prefix(name: str) -> str:
     """Strips a leading interface/test-double naming marker so same-family classes correlate."""
     if _is_interface_named(name):
         return name[1:]
-    for prefix in _TEST_DOUBLE_NAME_PREFIXES:
-        if name.startswith(prefix) and len(name) > len(prefix) and name[len(prefix)].isupper():
-            return name[len(prefix) :]
-    return name
+    # Fake/Mock/Stub doubles never reach the index, so only a "Test" marker is left to strip.
+    return name[len("Test") :] if _has_name_prefix(name, "Test") else name
 
 
 def _detect_repository(index: _Index) -> list[PatternInstance]:

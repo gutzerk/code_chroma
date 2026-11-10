@@ -4,7 +4,13 @@ namespace CodeChroma.Core.Patterns;
 public static class PatternDetector
 {
     private static readonly string[] RepositorySuffixes = ["repository", "repo"];
-    private static readonly string[] TestDoublePrefixes = ["Test", "Fake", "Mock", "Stub"];
+
+    // Test code never seeds a candidate: test files by name, test/fake folders, fake/mock/stub doubles.
+    private static readonly string[] TestStemPrefixes = ["test_", "Test", "fake_", "mock_", "stub_"];
+    private static readonly string[] TestStemSuffixes = ["_test", ".test", "_spec", ".spec", "Test", "_fake", "_mock", "_stub"];
+    private static readonly HashSet<string> TestStems = ["conftest", "fake", "fakes", "mock", "mocks", "stub", "stubs"];
+    private static readonly HashSet<string> TestDirs = ["test", "tests", "__tests__", "testdata", "testutil", "fakes", "mocks"];
+    private static readonly string[] DoubleClassPrefixes = ["Fake", "Mock", "Stub"];
 
     private sealed class Index
     {
@@ -32,18 +38,51 @@ public static class PatternDetector
         ];
     }
 
+    /// <summary>Whether `path` is test code by file name or by a test/fake folder on the way to it.</summary>
+    internal static bool IsTestPath(string path)
+    {
+        var parts = path.Replace('\\', '/').Split('/');
+        if (parts[..^1].Any(TestDirs.Contains)) return true;
+        var fileName = parts[^1];
+        var dot = fileName.LastIndexOf('.');
+        var stem = dot > 0 ? fileName[..dot] : fileName;
+        return TestStems.Contains(stem)
+            || TestStemPrefixes.Any(p => stem.StartsWith(p, StringComparison.Ordinal))
+            || TestStemSuffixes.Any(p => stem.EndsWith(p, StringComparison.Ordinal));
+    }
+
+    /// <summary>`prefix` followed by an uppercase letter: "MockStore" has "Mock", "Mockingbird" does not.</summary>
+    private static bool HasNamePrefix(string name, string prefix) =>
+        name.StartsWith(prefix, StringComparison.Ordinal) && name.Length > prefix.Length && char.IsUpper(name[prefix.Length]);
+
+    private static bool IsTestDoubleName(string name) =>
+        DoubleClassPrefixes.Any(p => name == p || HasNamePrefix(name, p));
+
     private static Index BuildIndex(Graph graph, IReadOnlyDictionary<string, ClassShape> shapes)
     {
-        var sortedSymbols = graph.Symbols.OrderBy(p => p.Key, StringComparer.Ordinal).ToList();
+        var testPaths = new Dictionary<string, bool>();
+        bool IsTestCode(string id)
+        {
+            var symbol = graph.Symbols.GetValueOrDefault(id);
+            var path = symbol?.FilePath ?? id.Split("::")[0];
+            if (!testPaths.TryGetValue(path, out var isTest)) testPaths[path] = isTest = IsTestPath(path);
+            return isTest || (symbol is { Kind: SymbolKind.Class } && IsTestDoubleName(symbol.Name));
+        }
+        var keptIds = graph.Symbols.Keys.Where(id => !IsTestCode(id)).ToHashSet();
+        var sortedSymbols = graph.Symbols.Where(p => keptIds.Contains(p.Key)).OrderBy(p => p.Key, StringComparer.Ordinal).ToList();
+        // The graph's own shape order minus test code -- ImplementationsByBase iterates it as-is.
+        var kept = new Dictionary<string, ClassShape>();
+        foreach (var (id, shape) in shapes)
+            if (keptIds.Contains(id) || (!graph.Symbols.ContainsKey(id) && !IsTestCode(id))) kept[id] = shape;
         var classIdByName = new Dictionary<string, string>();
         foreach (var (id, symbol) in sortedSymbols)
             if (symbol.Kind == SymbolKind.Class) classIdByName.TryAdd(symbol.Name, id);
         return new Index
         {
             Graph = graph,
-            Shapes = shapes,
+            Shapes = kept,
             SortedSymbols = sortedSymbols,
-            SortedShapes = shapes.OrderBy(p => p.Key, StringComparer.Ordinal).ToList(),
+            SortedShapes = kept.OrderBy(p => p.Key, StringComparer.Ordinal).ToList(),
             ClassIdByName = classIdByName,
             ReferencesById = sortedSymbols.ToDictionary(p => p.Key, p => p.Value.References.ToHashSet()),
         };
@@ -266,10 +305,8 @@ public static class PatternDetector
     private static string StripNamingPrefix(string name)
     {
         if (IsInterfaceNamed(name)) return name[1..];
-        foreach (var prefix in TestDoublePrefixes)
-            if (name.StartsWith(prefix, StringComparison.Ordinal) && name.Length > prefix.Length && char.IsUpper(name[prefix.Length]))
-                return name[prefix.Length..];
-        return name;
+        // Fake/Mock/Stub doubles never reach the index, so only a "Test" marker is left to strip.
+        return HasNamePrefix(name, "Test") ? name["Test".Length..] : name;
     }
 
     private static IEnumerable<PatternInstance> DetectRepository(Index index)

@@ -157,6 +157,45 @@ public class PatternDetectorTests
         Assert.Equal("Repository — UserRepository", repo.Name);
         Assert.Equal(3, repo.Participants.Count);
     }
+
+    private const string StrategyWithAFake = """
+        from abc import ABC, abstractmethod
+
+        class Pricer(ABC):
+            @abstractmethod
+            def price(self, item): ...
+
+        class Flat(Pricer):
+            def price(self, item): return 1
+
+        class Tiered(Pricer):
+            def price(self, item): return 2
+
+        class FakePricer(Pricer):
+            def price(self, item): return 0
+        """;
+
+    [Theory]
+    [InlineData("test_shop.py")]
+    [InlineData("shop_test.py")]
+    [InlineData("tests/shop.py")]
+    [InlineData("pkg/fakes/shop.py")]
+    [InlineData("pkg/fake.py")]
+    [InlineData("pkg/mock_shop.py")]
+    public void NoCandidateComesFromTestCode(string path)
+    {
+        var candidates = Detect(path, StrategyWithAFake);
+
+        Assert.Empty(candidates);
+    }
+
+    [Fact]
+    public void ATestDoubleClassIsNeverAParticipant()
+    {
+        var strategy = Detect("shop.py", StrategyWithAFake).Single(i => i.Type == PatternType.Strategy);
+
+        Assert.Equal(["Pricer", "Flat", "Tiered"], strategy.Participants.Select(p => p.Name));
+    }
 }
 
 public class PatternParityTests

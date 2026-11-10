@@ -1,5 +1,5 @@
 {
-  "fingerprint": "5ad19e0f000e66f6134fcebbeaab4989014db3e8",
+  "fingerprint": "89389083b91da276c4533fc12dd3f5e724049487",
   "candidates": [
     {
       "id": "strategy::gopkg/pay.go::class::Charger",
@@ -409,18 +409,18 @@
           "description": null
         },
         {
-          "id": "py/repos.py::class::FakeOrderRepo",
+          "id": "py/repos.py::class::OrderRepo",
           "role": "implementation",
-          "name": "FakeOrderRepo",
-          "qualified_name": "FakeOrderRepo",
-          "node_id": "py/repos.py::class::FakeOrderRepo",
+          "name": "OrderRepo",
+          "qualified_name": "OrderRepo",
+          "node_id": "py/repos.py::class::OrderRepo",
           "path": "py/repos.py",
           "description": null
         }
       ],
       "relations": [
         {
-          "from": "py/repos.py::class::FakeOrderRepo",
+          "from": "py/repos.py::class::OrderRepo",
           "to": "py/repos.py::class::IOrderRepo",
           "kind": "implements",
           "label": null

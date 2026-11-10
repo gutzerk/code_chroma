@@ -1,5 +1,7 @@
 """Unit coverage for detect_candidates: one case per heuristic pattern rule, in-memory Graph."""
 
+import pytest
+
 from codechroma.analyzers.go_analyzer import GoAnalyzer
 from codechroma.analyzers.go_analyzer import extract_class_shapes as extract_go_class_shapes
 from codechroma.analyzers.python_analyzer import PythonAnalyzer, extract_class_shapes
@@ -526,3 +528,52 @@ func GetCache() *Cache {
 
     assert len(candidates) == 1
     assert candidates[0].participants[0].name == "Logger"
+
+
+_STRATEGY_SRC = b"""
+from abc import ABC, abstractmethod
+
+
+class DiscountStrategy(ABC):
+    @abstractmethod
+    def apply(self, price):
+        ...
+
+
+class PercentDiscount(DiscountStrategy):
+    def apply(self, price):
+        return price * 0.9
+
+
+class FlatDiscount(DiscountStrategy):
+    def apply(self, price):
+        return price - 5
+
+
+class FakeDiscount(DiscountStrategy):
+    def apply(self, price):
+        return price
+"""
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    ["test_discounts.py", "discounts_test.py", "tests/discounts.py", "pkg/fakes/discounts.py",
+     "pkg/fake.py", "pkg/mock_discounts.py"],
+)
+def test_no_candidate_comes_from_test_code(file_path):
+    graph = _graph(file_path, _STRATEGY_SRC)
+
+    candidates = detect_candidates(graph)
+
+    assert candidates == []
+
+
+def test_a_test_double_class_is_never_a_participant():
+    graph = _graph("discounts.py", _STRATEGY_SRC)
+
+    candidates = [c for c in detect_candidates(graph) if c.type == PatternType.STRATEGY]
+
+    assert {p.name for p in candidates[0].participants} == {
+        "DiscountStrategy", "PercentDiscount", "FlatDiscount",
+    }

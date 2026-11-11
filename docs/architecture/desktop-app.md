@@ -85,6 +85,10 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   warning is printed.
 - 🔴 Windows needs `app.manifest` with a `supportedOS` entry or the native WebView host throws at startup.
   Linux needs WebKitGTK (and `libfuse2` for the AppImage).
+- 🔴 Linux: `WebView.Avalonia.Linux` loads only `libgtk-3.so.0` + `libwebkit2gtk-4.0.so.37` (no 4.1, so Ubuntu 24.04+
+  is unsupported). Without them the first `new WebView()` blocks the UI thread forever (its GTK thread throws and the
+  `.Result` it waits on never completes), so no window appears. `App` probes them first (`WebViewRuntime.Missing`)
+  and shows a plain window naming the package to install instead of `MainWindow`. Linux has never run on real hardware.
 - 🔴 `Program.Main` calls `VelopackApp.Build().Run()` first so Velopack's install/uninstall hooks work. Real
   install/uninstall hooks are still unverified on a real install.
 - The environment for agent PTYs and skills comes from the bridge's `RuntimeEnvironment` (login-shell PATH, see

@@ -15,10 +15,10 @@ import { selectionStore } from "../state/selectionStore";
 import { gridStep, gridStepFor, MIN_SCALE } from "./canvasGrid";
 import { useSavedCanvasStyle, viewportTextureImage } from "../canvas-style/canvasStyleStore";
 import { clamp } from "../util/clamp";
-import { readSavedCameraView, writeSavedCameraView } from "./canvasCameraStore";
+import { clearSavedCameraView, isOriginView, readSavedCameraView, writeSavedCameraView } from "./canvasCameraStore";
 import { useTutorialActive } from "../tutorial/tutorialStore";
-import { createWheelClassifier, logWheelInput, pinchZoomFactor, wheelZoomFactor, type WheelLike } from "./wheelInput";
-import { useDisplayScale, zoomSettingsStore } from "./zoomSettingsStore";
+import { createWheelClassifier, deltaToPx, logWheelInput, pinchZoomFactor, wheelZoomFactor, type WheelLike } from "./wheelInput";
+import { useDisplayScale, useZoomSettings, zoomSettingsStore } from "./zoomSettingsStore";
 
 export interface CanvasViewportHandle {
   /** Returns false, without moving the camera, when `nodeId` isn't mounted yet — callers that need
@@ -81,6 +81,8 @@ const BUTTON_ZOOM_STEP = 1.12;
 // deeply-nested block can be a tiny fraction of the viewport), so it gets its own ceiling — capped
 // well short of MAX_SCALE so even a tiny nested block never zooms in uncomfortably close.
 const FOCUS_MAX_SCALE = 3.5;
+// A WebKit pinch that sent no gesture event for this long is over, even without its gestureend.
+const GESTURE_STALE_MS = 500;
 const FOCUS_FIT_PADDING = 0.7;
 const FOCUS_ANIMATION_MS = 550;
 const BOUNDS_FIT_PADDING = 0.9;
@@ -268,11 +270,13 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
     // reset, the zoom ceiling and the focus ceiling all scale with it.
     const displayScale = useDisplayScale();
     const displayScaleRef = useRef(displayScale);
+    const displayScaleSetting = useZoomSettings().displayScale;
+    const displayScaleSettingRef = useRef(displayScaleSetting);
     const focusMaxScale = () => FOCUS_MAX_SCALE * displayScaleRef.current;
     // Restore the persisted camera at mount (lazy initializer so localStorage is read once). Reset
     // to the fresh origin when nothing is saved -- readSavedCameraView returns null for an absent
     // or at-origin view.
-    const [view, setView] = useState<ViewState>(() => readSavedCameraView() ?? { ...RESET_VIEW, scale: displayScale });
+    const [view, setView] = useState<ViewState>(() => readSavedCameraView(displayScale) ?? { ...RESET_VIEW, scale: displayScale });
     const [isFocusing, setIsFocusing] = useState(false);
     const canvasStyle = useSavedCanvasStyle();
     const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -340,15 +344,21 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
       });
     }
 
-    // A changed display scale (setting or window resize) rescales the camera around the center, so the change shows at once.
+    // A changed setting rescales the camera around the centre; an Auto change from a window resize only moves an untouched reset view.
     useEffect(() => {
       const previous = displayScaleRef.current;
+      const explicit = displayScaleSettingRef.current !== displayScaleSetting;
       displayScaleRef.current = displayScale;
+      displayScaleSettingRef.current = displayScaleSetting;
       if (previous === displayScale) return;
-      const { x, y } = viewportCenter();
-      zoomAround(x, y, displayScale / previous);
+      if (explicit) {
+        const { x, y } = viewportCenter();
+        zoomAround(x, y, displayScale / previous);
+        return;
+      }
+      setView((v) => (isOriginView(v, previous) ? { ...RESET_VIEW, scale: displayScale } : v));
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [displayScale]);
+    }, [displayScale, displayScaleSetting]);
 
     function viewportCenter(): { x: number; y: number } {
       const rect = viewportRef.current?.getBoundingClientRect();
@@ -546,6 +556,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
       },
       resetView() {
         setView({ ...RESET_VIEW, scale: displayScaleRef.current });
+        clearSavedCameraView();
       },
       fitToBounds(rect) {
         const viewportEl = viewportRef.current;
@@ -573,6 +584,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
     const wheelRafRef = useRef<number | null>(null);
     const classifyWheelRef = useRef(createWheelClassifier());
     const gestureScaleRef = useRef<number | null>(null);
+    const gestureAtRef = useRef(0);
 
     function flushWheel() {
       wheelRafRef.current = null;
@@ -609,7 +621,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
       e.preventDefault();
       cancelFocusAnimation();
       // WebKit may also send a ctrl+wheel during a pinch it already reports as gesture events.
-      if (e.ctrlKey && gestureScaleRef.current !== null) return;
+      if (e.ctrlKey && gestureScaleRef.current !== null && performance.now() - gestureAtRef.current < GESTURE_STALE_MS) return;
       const device = classifyWheelRef.current(e);
       // Normalized per device: a mouse notch is one fixed step whatever delta the OS reports
       // (Windows ~100, macOS ~4, Firefox lines), a trackpad keeps its fine pixel deltas.
@@ -617,7 +629,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
       logWheelInput({ deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode, wheelDeltaY: (e as WheelLike).wheelDeltaY, ctrlKey: e.ctrlKey, device, factor });
       // A horizontal wheel (or shift+scroll / sideways trackpad swipe) pans; scrolling right slides
       // content left, i.e. subtracts from view.x — the opposite of drag-to-pan's additive dx.
-      queueWheel(factor, e.clientX, e.clientY, e.deltaX);
+      queueWheel(factor, e.clientX, e.clientY, deltaToPx(e.deltaX, e.deltaMode));
     }
 
     // Safari / macOS WKWebView report a trackpad pinch only as non-standard gesture events with a
@@ -625,6 +637,7 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
     function handleGesture(e: Event) {
       e.preventDefault();
       const g = e as Event & { scale?: number; clientX?: number; clientY?: number };
+      gestureAtRef.current = performance.now();
       if (e.type === "gesturestart") {
         cancelFocusAnimation();
         gestureScaleRef.current = 1;
@@ -654,7 +667,11 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
       el.addEventListener("gesturestart", handleGesture, { passive: false });
       el.addEventListener("gesturechange", handleGesture, { passive: false });
       el.addEventListener("gestureend", handleGesture, { passive: false });
+      // A pinch interrupted by a window switch may never send gestureend; drop it so ctrl+wheel zooms again.
+      const dropGesture = () => (gestureScaleRef.current = null);
+      window.addEventListener("blur", dropGesture);
       return () => {
+        window.removeEventListener("blur", dropGesture);
         el.removeEventListener("wheel", handleWheel);
         el.removeEventListener("gesturestart", handleGesture);
         el.removeEventListener("gesturechange", handleGesture);
@@ -724,13 +741,11 @@ export const CanvasViewport = forwardRef<CanvasViewportHandle, CanvasViewportPro
     }, []);
 
     // Persist the camera as the user pans/zooms, so a reload restores it (readSavedCameraView at
-    // mount). The reset origin isn't a meaningful place to save — restoring "no view" is the same as
-    // opening on it — so an at-origin view is skipped; the very first render also computes a view that
-    // is just the restore read back out, which save-on-change would write redundantly and is exactly
-    // what readSavedCameraView treats as "nothing saved".
+    // mount). The reset origin (at the current display scale) isn't a place to return to, so it clears
+    // the saved view instead -- otherwise a reset left the pre-reset camera in storage for the next reload.
     useEffect(() => {
-      if (view.x === 0 && view.y === 0 && view.scale === displayScaleRef.current) return;
-      writeSavedCameraView(view);
+      if (isOriginView(view, displayScaleRef.current)) clearSavedCameraView();
+      else writeSavedCameraView(view);
     }, [view]);
 
     const onViewChangeRef = useRef(onViewChange);

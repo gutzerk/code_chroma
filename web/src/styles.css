@@ -1291,6 +1291,11 @@ body {
   background: var(--accent);
 }
 
+.zoom-settings > button[aria-expanded="true"] {
+  background: var(--bg-raised-2);
+  color: var(--accent);
+}
+
 .terminal-toggle-button[aria-pressed="true"] {
   background: var(--bg-raised-2);
   color: var(--accent);

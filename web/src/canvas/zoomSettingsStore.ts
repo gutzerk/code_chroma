@@ -43,8 +43,13 @@ function sanitize(raw: unknown): ZoomSettings {
   return {
     mouse: sensitivity(value.mouse),
     trackpad: sensitivity(value.trackpad),
-    displayScale: typeof scale === "number" && Number.isFinite(scale) ? clamp(scale, 0.5, 3) : "auto",
+    displayScale: typeof scale === "number" && Number.isFinite(scale) ? nearestDisplayScale(scale) : "auto",
   };
+}
+
+/** Snaps a pinned scale to the closest menu option, so a stored value always matches a choice the menu shows. */
+export function nearestDisplayScale(scale: number): number {
+  return DISPLAY_SCALE_OPTIONS.reduce((best, option) => (Math.abs(option - scale) < Math.abs(best - scale) ? option : best));
 }
 
 function load(): ZoomSettings {

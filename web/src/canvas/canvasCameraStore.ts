@@ -13,10 +13,15 @@ function storageKey(): string {
   return `${STORAGE_PREFIX}.${agentStore.getActiveWorkspace()}`;
 }
 
+/** True for the reset origin at the given display scale -- the one view that is never worth persisting or restoring. */
+export function isOriginView(view: { x: number; y: number; scale: number }, displayScale = 1): boolean {
+  return view.x === 0 && view.y === 0 && view.scale === displayScale;
+}
+
 /** Parses the persisted camera view for the active workspace, or null when the key is absent/corrupt
  * or holds the reset origin. Never throws: localStorage can be unavailable (private mode), and scale
  * is divided by at render time so a non-numeric value would poison the transform. */
-export function readSavedCameraView(): { x: number; y: number; scale: number } | null {
+export function readSavedCameraView(displayScale = 1): { x: number; y: number; scale: number } | null {
   try {
     const raw = window.localStorage.getItem(storageKey());
     if (!raw) return null;
@@ -31,7 +36,7 @@ export function readSavedCameraView(): { x: number; y: number; scale: number } |
     const view = { x: parsed.x, y: parsed.y, scale: parsed.scale };
     // A reset origin isn't a meaningful place to return to -- callers skip the restore (and fall
     // back to the default fit) when this returns null.
-    return view.x === 0 && view.y === 0 && view.scale === 1 ? null : view;
+    return isOriginView(view, displayScale) ? null : view;
   } catch {
     return null;
   }

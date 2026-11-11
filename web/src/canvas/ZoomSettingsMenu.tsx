@@ -1,4 +1,4 @@
-import { useCallback, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import { RailButton } from "./RailButton";
 import { RailIcon } from "../icons/RailIcon";
 import { useDisclosureMenu } from "../util/useDisclosureMenu";
@@ -23,31 +23,39 @@ export function ZoomSettingsMenu() {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const { containerRef, triggerRef, onListKeyDown } = useDisclosureMenu(open, close);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
   const settings = useZoomSettings();
   const autoScale = useAutoDisplayScale();
+
+  // Opening moves focus to the first control, so a keyboard user lands inside the dialog.
+  useEffect(() => {
+    if (open) panelRef.current?.querySelector<HTMLElement>("input, select, button")?.focus();
+  }, [open]);
 
   const onScaleChange = (e: ChangeEvent<HTMLSelectElement>) =>
     zoomSettingsStore.set({ displayScale: e.target.value === "auto" ? "auto" : Number(e.target.value) });
 
   return (
-    <div className="zoom-settings" ref={containerRef}>
+    <div className="zoom-settings" ref={containerRef} onKeyDown={open ? onListKeyDown : undefined}>
       <RailButton
         ref={triggerRef}
         label="Zoom settings"
         testId="zoom-settings-button"
         ariaExpanded={open}
-        pressed={open}
+        ariaControls={open ? panelId : undefined}
         onClick={() => setOpen((value) => !value)}
       >
         <RailIcon name="zoom-settings" />
       </RailButton>
       {open && (
         <div
+          ref={panelRef}
+          id={panelId}
           className="zoom-settings-panel"
           data-testid="zoom-settings-panel"
           role="dialog"
           aria-label="Zoom settings"
-          onKeyDown={onListKeyDown}
         >
           {SENSITIVITY_ROWS.map(({ key, label }) => (
             <label key={key} className="zoom-settings-row">
@@ -60,6 +68,7 @@ export function ZoomSettingsMenu() {
                 max={SENSITIVITY_MAX}
                 step={0.05}
                 value={settings[key]}
+                aria-valuetext={percent(settings[key])}
                 onChange={(e) => zoomSettingsStore.set({ [key]: Number(e.target.value) })}
               />
             </label>

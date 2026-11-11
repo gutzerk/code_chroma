@@ -4,8 +4,8 @@ import { ZoomSettingsMenu } from "./ZoomSettingsMenu";
 import { zoomSettingsStore } from "./zoomSettingsStore";
 
 afterEach(() => {
-  window.localStorage.clear();
   zoomSettingsStore.reloadForTests();
+  window.localStorage.clear();
 });
 
 describe("ZoomSettingsMenu", () => {
@@ -37,5 +37,37 @@ describe("ZoomSettingsMenu", () => {
     fireEvent.keyDown(screen.getByTestId("zoom-settings-panel"), { key: "Escape" });
 
     expect(screen.queryByTestId("zoom-settings-panel")).toBeNull();
+  });
+
+  it("closes on Escape from the trigger and keeps focus there", () => {
+    render(<ZoomSettingsMenu />);
+    const trigger = screen.getByTestId("zoom-settings-button");
+    fireEvent.click(trigger);
+
+    fireEvent.keyDown(trigger, { key: "Escape" });
+
+    expect(screen.queryByTestId("zoom-settings-panel")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("moves focus into the dialog it controls when opened", () => {
+    render(<ZoomSettingsMenu />);
+    const trigger = screen.getByTestId("zoom-settings-button");
+
+    fireEvent.click(trigger);
+
+    const panel = screen.getByTestId("zoom-settings-panel");
+    expect(trigger).toHaveAttribute("aria-controls", panel.id);
+    expect(trigger).not.toHaveAttribute("aria-pressed");
+    expect(document.activeElement).toBe(screen.getByTestId("zoom-settings-mouse"));
+  });
+
+  it("announces slider values as percentages", () => {
+    zoomSettingsStore.set({ trackpad: 1.5 });
+    render(<ZoomSettingsMenu />);
+
+    fireEvent.click(screen.getByTestId("zoom-settings-button"));
+
+    expect(screen.getByTestId("zoom-settings-trackpad")).toHaveAttribute("aria-valuetext", "150%");
   });
 });

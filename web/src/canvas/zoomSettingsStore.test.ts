@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { autoDisplayScale, resolveDisplayScale, zoomSettingsStore } from "./zoomSettingsStore";
+import { autoDisplayScale, nearestDisplayScale, resolveDisplayScale, zoomSettingsStore } from "./zoomSettingsStore";
 
 afterEach(() => {
-  window.localStorage.clear();
   zoomSettingsStore.reloadForTests();
+  window.localStorage.clear();
 });
 
 describe("display scale", () => {
@@ -41,5 +41,26 @@ describe("zoomSettingsStore", () => {
     const settings = zoomSettingsStore.get();
 
     expect(settings).toEqual({ mouse: 1, trackpad: 1, displayScale: "auto" });
+  });
+
+  it("snaps a stored pinned scale to the nearest menu option", () => {
+    window.localStorage.setItem("codechroma.zoomSettings", JSON.stringify({ displayScale: 0.75 }));
+
+    const settings = zoomSettingsStore.get();
+
+    expect(settings.displayScale).toBe(1);
+  });
+});
+
+describe("nearestDisplayScale", () => {
+  it.each([
+    [0.5, 1],
+    [1.3, 1.25],
+    [1.9, 2],
+    [3, 2],
+  ])("snaps %f to %f", (scale, expected) => {
+    const snapped = nearestDisplayScale(scale);
+
+    expect(snapped).toBe(expected);
   });
 });

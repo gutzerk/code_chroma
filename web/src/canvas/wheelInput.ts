@@ -28,11 +28,15 @@ const WHEEL_DEBUG = (() => {
   }
 })();
 
-/** Converts any deltaMode to pixels, so line-mode (Firefox) and pixel-mode wheels compare. */
+/** Converts one wheel delta in any deltaMode to pixels, so line-mode (Firefox) and pixel-mode wheels compare. */
+export function deltaToPx(delta: number, deltaMode: number): number {
+  if (deltaMode === 1) return delta * LINE_HEIGHT_PX;
+  if (deltaMode === 2) return delta * PAGE_HEIGHT_PX;
+  return delta;
+}
+
 function wheelDeltaPx(e: WheelLike): number {
-  if (e.deltaMode === 1) return e.deltaY * LINE_HEIGHT_PX;
-  if (e.deltaMode === 2) return e.deltaY * PAGE_HEIGHT_PX;
-  return e.deltaY;
+  return deltaToPx(e.deltaY, e.deltaMode);
 }
 
 /** Notches from a true 120-step legacy delta, or null; WebKit's legacy delta is always 3x the pixel delta, so that case proves nothing. */

@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Stores;
 
 namespace CodeChroma.Bridge.Questions;
 
@@ -59,16 +60,8 @@ public sealed record McpEndpoint(string WorkspaceId, string BaseUrl, string Toke
         return path;
     }
 
-    private static readonly object DirectoryGate = new();
-    private static string? _directory;
-
     /// <summary>A per-process 0700 dir (mkdtemp); a fixed shared /tmp path can be pre-planted by another user.</summary>
-    private static string PrivateDirectory()
-    {
-        lock (DirectoryGate)
-        {
-            if (_directory is null || !Directory.Exists(_directory)) _directory = Directory.CreateTempSubdirectory("codechroma-mcp-").FullName;
-            return _directory;
-        }
-    }
+    private static readonly PrivateTemp Temp = new("codechroma-mcp-");
+
+    private static string PrivateDirectory() => Temp.Get();
 }

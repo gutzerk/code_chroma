@@ -51,7 +51,7 @@ public sealed class AgentRecord
 
     public string ContextKind { get; set; } = "view";
 
-    /// <summary>The diagram type (or "any") a task agent draws; such an agent starts bare, with the draw skill inlined (see BareSkill.ComposeInteractive).</summary>
+    /// <summary>The diagram type (or "any") a task agent draws; on claude it runs as a normal agent that hands drawing to the drawer subagent (BareSkill.ComposeDelegation), elsewhere it starts with the draw skill inlined (BareSkill.ComposeInteractive).</summary>
     public string? DiagramType { get; set; }
 
     /// <summary>What the user asked that diagram to show (trimmed, at most 2000 chars); null when they left it for the agent to ask.</summary>

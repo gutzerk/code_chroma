@@ -48,7 +48,8 @@ A Python-only change does not fix the production desktop runtime.
   simply wait for a later idle poll, if still wider. An agent with an `ask_user` question on its
   canvas is rechecked every 5 s. Skipped (the width is taken as printed, no error shown) when the
   launch is untracked, bare (`--system-prompt`), not claude, has no session id or no transcript yet,
-  or the new PTY fails to start (the old one keeps running).
+  or the new PTY fails to start (the old one keeps running). A drawing window resumes with its
+  drawer plugin dir and lead instruction (`AgentSession.Delegation`), since the CLI does not store them.
   - 🔴 `Respawn` re-checks the input under `_gate` and refuses (old process untouched) while an
     injection is queued or typing, a draft exists or a key came within `TypingQuiet`.
     `InjectWhenIdle` counts itself in under the same `_gate`, so its text and the Enter

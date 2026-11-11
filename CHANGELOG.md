@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.18.0](https://github.com/gutzerk/code_chroma/compare/v1.17.3...v1.18.0) (2026-11-11)
+
+
+### Features
+
+* **bridge:** run Draw windows as a normal agent with a drawer subagent ([23eb5bf](https://github.com/gutzerk/code_chroma/commit/23eb5bfdf658a2ac8f09fa8baafb4247c8c4b844))
+* **bridge:** run Draw windows as a normal agent with a drawer subagent ([65b7126](https://github.com/gutzerk/code_chroma/commit/65b7126587c306ef8e67c9df3bb226debd0d1615))
+* **canvas:** normalize wheel and pinch zoom, add zoom settings ([19da2b8](https://github.com/gutzerk/code_chroma/commit/19da2b870b6874f3e401ff2e2b36e07531de935a))
+* **web:** highlight Draw and Fit All, require a draw request ([fe0dfd7](https://github.com/gutzerk/code_chroma/commit/fe0dfd75b60cc6b19e5b0385adc11bccc9d247bf))
+
+
+### Bug Fixes
+
+* **bridge:** narrow Draw window permissions and harden the drawer plugin ([99f04ca](https://github.com/gutzerk/code_chroma/commit/99f04cacd44b04407804a92182d6a72b3e783750))
+* **canvas:** address zoom settings review findings ([b1b7a88](https://github.com/gutzerk/code_chroma/commit/b1b7a88fec0ec0a48d2edb97c7f58435ffaf709c))
+
 ## [1.17.3](https://github.com/gutzerk/code_chroma/compare/v1.17.2...v1.17.3) (2026-11-10)
 
 

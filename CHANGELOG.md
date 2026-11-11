@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.18.1](https://github.com/gutzerk/code_chroma/compare/v1.18.0...v1.18.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **shell:** show a window instead of hanging when WebKitGTK is missing on Linux ([b97b8d7](https://github.com/gutzerk/code_chroma/commit/b97b8d7d1942d128664305952e3ecb7a4628fc0d))
+* **shell:** show a window instead of hanging when WebKitGTK is missing on Linux ([060b585](https://github.com/gutzerk/code_chroma/commit/060b585bdf3a0e84b235fa4a7f10fcb7e1a6ee15))
+
 ## [1.18.0](https://github.com/gutzerk/code_chroma/compare/v1.17.3...v1.18.0) (2026-11-11)
 
 

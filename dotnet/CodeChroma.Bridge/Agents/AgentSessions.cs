@@ -286,6 +286,9 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         }
     }
 
+    /// <summary>A drawing window's drawer subagent and lead instruction, passed again when the window restarts on its own session.</summary>
+    public Skills.DrawDelegation? Delegation { get; set; }
+
     /// <summary>Whether a claude launch that can be resumed in place: tracked by CodeChroma and not a bare skill window.</summary>
     public bool ResumesOnWiden => SessionTrackingFile is not null && !Argv.Contains("--system-prompt");
 

@@ -58,7 +58,7 @@ public sealed class WidenResume(AgentManager agents, AgentSessionRegistry sessio
         // a session with no transcript yet (nothing said) cannot be resumed, and its banner is not worth a restart
         if (string.IsNullOrEmpty(sessionId) || Transcripts.Locate(sessionId, record.Worktree, projectsRoot) is null) return null;
         var launch = terminalAgents.Resolve(record.Kind, sessionId, agentId: agentId, bridgeUrl: BareSkill.BridgeUrl, newSessionId: Guid.NewGuid().ToString(),
-            sessionTrackingFile: AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString()), workdir: record.Worktree);
+            sessionTrackingFile: AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString()), workdir: record.Worktree, delegation: session.Delegation);
         // the CLI may have changed since launch; only a tracked claude can resume the same session
         if (launch is null || !launch.Env.ContainsKey(AgentSessionOwnership.FileEnv)) return null;
         var env = new Dictionary<string, string>(launch.Env);

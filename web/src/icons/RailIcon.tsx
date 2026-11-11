@@ -24,7 +24,8 @@ export type RailIconName =
   | "hierarchy"
   | "layer"
   | "games"
-  | "share";
+  | "share"
+  | "zoom-settings";
 
 export interface RailIconProps {
   name: RailIconName;
@@ -41,6 +42,15 @@ export function RailIcon({ name }: RailIconProps) {
 }
 
 const PATHS: Record<RailIconName, ReactElement> = {
+  // Three slider tracks with knobs -- the zoom sensitivity/scale settings.
+  "zoom-settings": (
+    <>
+      <path fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" d="M2 4h12M2 8h12M2 12h12" />
+      <circle cx="5" cy="4" r="1.6" fill="var(--bg-panel, #1b1e27)" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="10.5" cy="8" r="1.6" fill="var(--bg-panel, #1b1e27)" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="7" cy="12" r="1.6" fill="var(--bg-panel, #1b1e27)" stroke="currentColor" strokeWidth="1.2" />
+    </>
+  ),
   draw: <path d="M10 2l4 4-7 7-5 1 1-5zM8.5 3.5l4 4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />,
   // Prompt chevron over a cursor underscore (the canvas design's terminal glyph).
   terminal: (

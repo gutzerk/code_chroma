@@ -23,7 +23,7 @@ function taskFor(card: DrawCard): string {
 /** A saved type is named in the request so the agent draws that type; the user's own words follow it. */
 function requestFor(card: DrawCard, prompt: string): string {
   if (!card.customTypeId) return prompt;
-  return `Use the saved diagram type "${card.customTypeId}". ${prompt}`.trim();
+  return `Use the saved diagram type "${card.customTypeId}". ${prompt}`;
 }
 
 /**
@@ -48,7 +48,9 @@ function DrawDialogBody() {
 
   const card = cards.find((c) => c.id === cardId) ?? cards.find((c) => c.id === "any") ?? cards[0];
   const blockedReason = tutorialActive ? undefined : launchBlocked;
-  const canDraw = card !== undefined && !blockedReason;
+  // The scripted tutorial draws without a request; a real agent needs to know what to draw.
+  const missingRequest = !tutorialActive && prompt.trim() === "";
+  const disabledReason = blockedReason ?? (missingRequest ? "Describe what the diagram should show first" : undefined);
   // The tutorial lets the user change the type only while it asks for one, so it draws what is shown.
   const pickCard = (id: string) => {
     if (!tutorialActive) {
@@ -61,7 +63,10 @@ function DrawDialogBody() {
   };
 
   const draw = async () => {
-    if (!card || blockedReason) return;
+    if (!card || disabledReason) {
+      if (missingRequest) promptRef.current?.focus();
+      return;
+    }
     setError(null);
     if (tutorialActive) {
       drawDialogStore.drawn();
@@ -72,7 +77,7 @@ function DrawDialogBody() {
     const text = prompt.trim();
     await attachAgent(agentClient, null, taskFor(card), {
       type: card.type,
-      request: requestFor(card, text) || undefined,
+      request: requestFor(card, text),
       title: `Draw · ${card.name}`,
     });
     const failure = agentStore.getLaunchError();
@@ -192,6 +197,7 @@ function DrawDialogBody() {
             rows={3}
             value={prompt}
             placeholder={card?.placeholder}
+            required
             data-testid="draw-dialog-prompt"
             onChange={(event) => drawDialogStore.setPrompt(event.target.value)}
             onKeyDown={(event) => {
@@ -221,8 +227,8 @@ function DrawDialogBody() {
               type="button"
               className="draw-btn draw-btn--primary"
               data-testid="draw-dialog-submit"
-              disabled={!canDraw}
-              title={blockedReason}
+              disabled={!card || !!disabledReason}
+              title={disabledReason}
               onClick={() => void draw()}
             >
               Draw with agent

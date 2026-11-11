@@ -4,7 +4,8 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { CanvasViewport, type CanvasViewportHandle } from "./CanvasViewport";
 import { selectionStore } from "../state/selectionStore";
 import { gridStep, MIN_SCALE } from "./canvasGrid";
-import { clearSavedCameraView } from "./canvasCameraStore";
+import { clearSavedCameraView, readSavedCameraView } from "./canvasCameraStore";
+import { zoomSettingsStore } from "./zoomSettingsStore";
 import { ZOOM_FAR_SCALE } from "./layout/layoutMetrics";
 import { tutorialStore } from "../tutorial/tutorialStore";
 
@@ -1022,5 +1023,162 @@ describe("CanvasViewport dot grid", () => {
 
     expect(style.getPropertyValue("--canvas-grid-x")).toBe("0px");
     expect(style.getPropertyValue("--canvas-grid-size")).toBe("28px");
+  });
+});
+
+describe("CanvasViewport wheel and pinch input", () => {
+  const nextFrame = () => act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+
+  function renderViewport() {
+    render(
+      <CanvasViewport>
+        <div />
+      </CanvasViewport>,
+    );
+    const viewport = screen.getByTestId("app-canvas");
+    mockRect(viewport, { left: 0, top: 0, width: 1000, height: 800 });
+    return viewport;
+  }
+
+  it("folds a burst of mouse notches into one zoom applied on the next frame", async () => {
+    const viewport = renderViewport();
+    const notch = { deltaY: -100, deltaMode: 0, clientX: 0, clientY: 0, bubbles: true, cancelable: true };
+
+    fireEvent(viewport, new WheelEvent("wheel", notch));
+    fireEvent(viewport, new WheelEvent("wheel", notch));
+    const beforeFrame = readTransform().scale;
+    await nextFrame();
+
+    expect(beforeFrame).toBe(1);
+    expect(readTransform().scale).toBeCloseTo(Math.exp(2 * 0.18), 4);
+  });
+
+  it("zooms on a WebKit pinch gesture by the gesture's scale", async () => {
+    const viewport = renderViewport();
+    const gesture = (type: string, scale: number) =>
+      Object.assign(new Event(type, { bubbles: true, cancelable: true }), { scale, clientX: 0, clientY: 0 });
+
+    fireEvent(viewport, gesture("gesturestart", 1));
+    fireEvent(viewport, gesture("gesturechange", 1.5));
+    fireEvent(viewport, gesture("gesturechange", 2));
+    fireEvent(viewport, gesture("gestureend", 2));
+    await nextFrame();
+
+    expect(readTransform().scale).toBeCloseTo(2, 4);
+  });
+
+  it("cancels the native page zoom for both wheel and gesture input", () => {
+    const viewport = renderViewport();
+    const wheel = new WheelEvent("wheel", { deltaY: -3, ctrlKey: true, bubbles: true, cancelable: true });
+    const pinch = new Event("gesturechange", { bubbles: true, cancelable: true });
+
+    fireEvent(viewport, wheel);
+    fireEvent(viewport, pinch);
+
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(pinch.defaultPrevented).toBe(true);
+  });
+});
+
+describe("CanvasViewport display scale", () => {
+  const nextFrame = () => act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  const defaultWidth = window.innerWidth;
+
+  afterEach(() => {
+    zoomSettingsStore.reloadForTests();
+    window.localStorage.clear();
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: defaultWidth });
+  });
+
+  function renderViewport() {
+    const ref = createRef<CanvasViewportHandle>();
+    render(
+      <CanvasViewport ref={ref}>
+        <div />
+      </CanvasViewport>,
+    );
+    mockRect(screen.getByTestId("app-canvas"), { left: 0, top: 0, width: 1000, height: 800 });
+    return ref;
+  }
+
+  function resizeWindow(width: number) {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+  }
+
+  it("rescales the camera around the centre when the scale setting changes", () => {
+    renderViewport();
+
+    act(() => zoomSettingsStore.set({ displayScale: 1.5 }));
+
+    expect(readTransform()).toEqual({ x: 500 - 500 * 1.5, y: 400 - 400 * 1.5, scale: 1.5 });
+  });
+
+  it("leaves a moved camera alone when only the window width changes the Auto scale", () => {
+    const ref = renderViewport();
+    act(() => ref.current?.panBy(40, 0));
+
+    resizeWindow(3200);
+
+    expect(readTransform()).toEqual({ x: 40, y: 0, scale: 1 });
+  });
+
+  it("follows the Auto scale while the camera still sits at its reset origin", () => {
+    renderViewport();
+
+    resizeWindow(2560);
+
+    expect(readTransform()).toEqual({ x: 0, y: 0, scale: 1.6 });
+  });
+
+  it("resets to the display scale and drops the saved camera", () => {
+    const ref = renderViewport();
+    act(() => zoomSettingsStore.set({ displayScale: 1.5 }));
+    act(() => ref.current?.panBy(40, 0));
+
+    act(() => ref.current?.resetView());
+
+    expect(readTransform()).toEqual({ x: 0, y: 0, scale: 1.5 });
+    expect(readSavedCameraView()).toBeNull();
+  });
+
+  it("raises the zoom-in ceiling with the display scale", () => {
+    const ref = renderViewport();
+    act(() => zoomSettingsStore.set({ displayScale: 2 }));
+
+    for (let i = 0; i < 40; i++) act(() => ref.current?.zoomIn());
+
+    expect(readTransform().scale).toBeCloseTo(2.5 * 2, 5);
+  });
+
+  it("ignores ctrl+wheel during a WebKit pinch, and zooms again once the window loses focus", async () => {
+    renderViewport();
+    const viewport = screen.getByTestId("app-canvas");
+    const ctrlWheel = () => new WheelEvent("wheel", { deltaY: -10, ctrlKey: true, clientX: 0, clientY: 0, bubbles: true, cancelable: true });
+    fireEvent(viewport, new Event("gesturestart", { bubbles: true, cancelable: true }));
+    fireEvent(viewport, ctrlWheel());
+    await nextFrame();
+    const duringPinch = readTransform().scale;
+    act(() => {
+      window.dispatchEvent(new Event("blur"));
+    });
+
+    fireEvent(viewport, ctrlWheel());
+    await nextFrame();
+
+    expect(duringPinch).toBe(1);
+    expect(readTransform().scale).toBeGreaterThan(1);
+  });
+
+  it("pans by a Firefox line-mode horizontal wheel in pixels", async () => {
+    renderViewport();
+    const viewport = screen.getByTestId("app-canvas");
+
+    fireEvent(viewport, new WheelEvent("wheel", { deltaX: 3, deltaMode: 1, bubbles: true, cancelable: true }));
+    await nextFrame();
+
+    expect(readTransform().x).toBe(-48);
   });
 });

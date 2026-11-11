@@ -9,6 +9,8 @@ export interface RailButtonProps {
   pressed?: boolean;
   /** For a disclosure control (e.g. a dropdown trigger) rather than a toggle button. */
   ariaExpanded?: boolean;
+  /** Id of the panel a disclosure trigger opens. */
+  ariaControls?: string;
   disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
@@ -19,7 +21,7 @@ export interface RailButtonProps {
  * since `label` already names the button. Forwards its ref so a caller (e.g. a dropdown) can return
  * focus to the trigger on close. */
 export const RailButton = forwardRef<HTMLButtonElement, RailButtonProps>(function RailButton(
-  { label, tooltip, className, testId, pressed, ariaExpanded, disabled, onClick, children },
+  { label, tooltip, className, testId, pressed, ariaExpanded, ariaControls, disabled, onClick, children },
   ref,
 ) {
   return (
@@ -31,6 +33,7 @@ export const RailButton = forwardRef<HTMLButtonElement, RailButtonProps>(functio
       aria-label={label}
       aria-pressed={pressed}
       aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
       disabled={disabled}
       onClick={onClick}
     >

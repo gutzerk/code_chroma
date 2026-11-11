@@ -57,6 +57,10 @@ def _diagram_hint(body: dict) -> dict:
     if request is not None:
         if not isinstance(request, str):
             raise HTTPException(status_code=400, detail="diagram_request must be a string")
+        if not request.strip():
+            raise HTTPException(
+                status_code=400, detail="diagram_request must be a non-empty string"
+            )
         if len(request.strip()) > kinds.max_request_chars():
             raise HTTPException(
                 status_code=400,

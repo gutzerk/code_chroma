@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { agentStore } from "../agents/agentStore";
 import {
   clearSavedCameraView,
+  isOriginView,
   readSavedCameraView,
   writeSavedCameraView,
 } from "./canvasCameraStore";
@@ -58,5 +59,26 @@ describe("canvasCameraStore", () => {
     window.localStorage.setItem(KEY, JSON.stringify({ x: "oops", y: 1, scale: 1 }));
 
     expect(readSavedCameraView()).toBeNull();
+  });
+});
+
+describe("isOriginView", () => {
+  it.each([
+    [{ x: 0, y: 0, scale: 1 }, 1, true],
+    [{ x: 0, y: 0, scale: 1.5 }, 1.5, true],
+    [{ x: 0, y: 0, scale: 1 }, 1.5, false],
+    [{ x: 10, y: 0, scale: 1.5 }, 1.5, false],
+  ])("%o at display scale %f is origin: %s", (view, displayScale, expected) => {
+    const origin = isOriginView(view, displayScale);
+
+    expect(origin).toBe(expected);
+  });
+
+  it("treats the reset origin at a non-1 display scale as nothing saved", () => {
+    writeSavedCameraView({ x: 0, y: 0, scale: 1.5 });
+
+    const view = readSavedCameraView(1.5);
+
+    expect(view).toBeNull();
   });
 });

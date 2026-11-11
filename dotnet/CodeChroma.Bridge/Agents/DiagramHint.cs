@@ -14,7 +14,7 @@ public sealed record DiagramHint(string? Type, string? Request, string? Workflow
             if (Json.Str(rawType) is not { } t || !DiagramKinds.Ids.Contains(t)) return Failed($"unknown diagram_type: {Json.Str(rawType) ?? rawType.ToJsonString()}");
             type = t;
         }
-        var (request, requestError) = ReadRequest(body, "diagram_request", allowBlank: true);
+        var (request, requestError) = ReadRequest(body, "diagram_request", allowBlank: false);
         if (requestError is not null) return Failed(requestError);
         var (workflow, workflowError) = ReadRequest(body, "workflow_request", allowBlank: false);
         if (workflowError is not null) return Failed(workflowError);
@@ -22,7 +22,7 @@ public sealed record DiagramHint(string? Type, string? Request, string? Workflow
         return new DiagramHint(type, request, workflow, null);
     }
 
-    /// <summary>One optional request string: trimmed and cleaned, at most the Draw request limit.</summary>
+    /// <summary>One optional request string: absent is fine, present must be non-blank, trimmed and cleaned, at most the Draw request limit.</summary>
     private static (string? Value, string? Error) ReadRequest(JsonObject body, string key, bool allowBlank)
     {
         if (body[key] is not { } raw) return (null, null);

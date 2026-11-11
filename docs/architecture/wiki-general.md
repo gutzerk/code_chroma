@@ -550,8 +550,10 @@ each treat it differently.
   jobs, see 035's own plan). This is the canvas's first real "Generate" button —
   `DiagramHealthNote`/`SidecarSummaryCard` only ever read `useDiagramGeneration` status, neither
   renders one.
-  ⚠ `.wiki-general-notice`'s `max-width` is capped at `calc(50% - 100px)` so, at any viewport width,
-  it can't reach the bottom-center `.fit-all-button`; the tall progress feed grows upward instead.
+  ⚠ `.wiki-general-notice` sits at `bottom: 80px`, above the bottom-center `.fit-all-button` row
+  (20px + 48px). Both are children of `.canvas-stage`, but with the left panel open the `:has(.left-panel)`
+  rule shifts the notice ~266px right while the old `calc(50% - 100px)` width cap ignored that shift, so
+  beside Fit All it covered the button (or had no room to read). The progress feed grows upward from there.
 
 ## Tests
 

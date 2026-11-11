@@ -781,7 +781,7 @@ renders it identically to a resolver-authored conceptual box.
 
 ## Router precedence: the named type wins, "flow" does not mean sequence
 
-🔴 Agents were drawing `sequence` for almost every "flow" request (data flow, request path, lineage). The router (`SKILL.md`) now opens with "First: draw the type the user named" and never substitutes a nearby row; the `sequence` row triggers only on an explicit sequence diagram or strict call order over time; a "Data flow vs Sequence" disambiguation row sends data-flow requests to a saved type or the Fallback. Interactive agents get this text inlined (`BareSkill.ComposeInteractive`), so it must stay in `SKILL.md`, not only in a reference.
+🔴 Agents were drawing `sequence` for almost every "flow" request (data flow, request path, lineage). The router (`SKILL.md`) now opens with "First: draw the type the user named" and never substitutes a nearby row; the `sequence` row triggers only on an explicit sequence diagram or strict call order over time; a "Data flow vs Sequence" disambiguation row sends data-flow requests to a saved type or the Fallback. Drawing agents get this text through the drawer subagent's prompt (`BareSkill.ComposeDelegation`) or, on other CLIs, inlined (`BareSkill.ComposeInteractive`), so it must stay in `SKILL.md`, not only in a reference.
 
 ## Sequence diagram — messages become elements, not edges
 
@@ -1056,7 +1056,8 @@ Clicking a step, or Enter/Space on its full-box toggle button, expands it in pla
 
 The rail's "Draw…" button opens `web/src/canvas/doc/drawDialog/DrawDialog.tsx` instead of launching an agent. The cards come from `GET /diagram-kinds` (`src/codechroma/diagrams/kinds.json`, read by Python and embedded in C# as `diagram_kinds.json`; it also lists the schematic ids and the request limit) plus saved custom types that carry a `schematic`. "Draw with agent" calls `attachAgent` with `{ type, request, title: "Draw · <type>" }`.
 
-- With a request, `BareSkill.ComposeInteractive(..., request)` ends in a "How this session starts" block that states the picked type and the request, and says not to greet or ask; the card's visible first message is the request itself and the bridge prints no "What do you want to see?" banner. Without a request, the old behaviour stays.
+- On claude the window is a normal agent that hands drawing to the `codechroma-draw:drawer` subagent (`BareSkill.ComposeDelegation`, see [`context-tool.md`](context-tool.md)); the lead instruction carries the start block below. Other CLIs get `BareSkill.ComposeInteractive`.
+- With a request, the start block that states the picked type and the request, and says not to greet or ask; the card's visible first message is the request itself and the bridge prints no "What do you want to see?" banner. Without a request, the old behaviour stays.
 - The type is a hint, not a lock: the agent may say a different type fits, but draws the picked one unless the user agrees.
 - `plan` (Feature plan) is a mode of `impact`: it inlines `bare-impact.md` and points at `references/feature-plan-mode.md`.
 - A saved custom type's card sends `type: "custom"` and names the type id in the request.

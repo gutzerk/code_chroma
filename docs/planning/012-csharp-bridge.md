@@ -140,7 +140,7 @@ Pre-existing, not from this change: on the integration branch `tests/fixtures/sa
 
 Main-only wikis: the C# bridge tracks both wikis against the main branch tip, keeps one copy in the main checkout shared by every worktree tab, broadcasts wiki pings to all tabs and restores the manifest after a failed update (`docs/architecture/wiki-general.md`). Deliberate gap: Python is unchanged (its wiki-general generate/update routes were already C#-only), so it still keeps a per-workspace wiki tracked by HEAD.
 
-Draw dialog (025): the Python bridge now validates and persists `diagram_type` / `diagram_request` / `diagram_scope` / `selection_ids` on `POST /agents` (it carried no diagram hint before) and serves `GET /diagram-kinds`, both from the same `kinds.json` as C#. Deliberate gap: only C# composes the drawing agent's first message from the request (Python has no `BareSkill`).
+Draw dialog (025): the Python bridge now validates and persists `diagram_type` / `diagram_request` / `diagram_scope` / `selection_ids` on `POST /agents` (it carried no diagram hint before) and serves `GET /diagram-kinds`, both from the same `kinds.json` as C#. Deliberate gap: only C# composes the drawing agent's first message from the request (Python has no `BareSkill`). The same holds for the drawer subagent: only C# launches a claude drawing window as a normal agent with the `codechroma-draw:drawer` plugin subagent (`BareSkill.ComposeDelegation`).
 
 Agent-designed workflows: `workflow_request` on `POST /agents`, `BareSkill.ComposeWorkflow` and the `{type: "workflows"}` ping are C#-only, like the rest of workflows (`docs/architecture/workflows.md`); the Python bridge ignores the field.
 

@@ -105,15 +105,29 @@ public static class AgentRoutes
             var bare = false;
             string? visible = null;
             string? banner = null;
-            if (taskText is not null && record.DiagramType is { } diagramType)
+            DrawDelegation? delegation = null;
+            var delegates = record.DiagramType is not null && BareSkill.Enabled() && terminalAgents.Delegates(record.Kind);
+            if ((taskText is not null || (sessionId is not null && delegates)) && record.DiagramType is { } diagramType)
             {
                 var workspaceId = record.SharesWorkspaceWith ?? record.Id;
                 var target = TryWorkspace(registry, workspaceId);
+                var root = target?.Root ?? record.Worktree;
                 var command = target is null ? null : await diagramContext.CommandAsync(target);
-                // A resumed or forked session gets no bare --system-prompt, so the skill rides as the prompt and nothing waits on the question.
                 var requested = !string.IsNullOrWhiteSpace(record.DiagramRequest);
-                var asksInTerminal = !requested && sessionId is null && diagramType == DiagramContext.AnyType && BareSkill.Enabled() && terminalAgents.SplitsSystemPrompt(record.Kind);
-                if (BareSkill.ComposeInteractive(diagramType, target?.Root ?? record.Worktree, workspaceId, command, asksInTerminal, record.DiagramRequest) is { } composed)
+                var openStart = !requested && sessionId is null && diagramType == DiagramContext.AnyType && BareSkill.Enabled();
+                if (delegates)
+                {
+                    // A normal agent hands drawing to the drawer subagent; a resume or fork passes the drawer again (the CLI does not store it).
+                    delegation = BareSkill.ComposeDelegation(diagramType, root, workspaceId, command, openStart, record.DiagramRequest);
+                    if (delegation is not null && sessionId is null)
+                    {
+                        taskText = requested ? record.DiagramRequest : openStart ? null : BareSkill.InteractiveVisiblePrompt;
+                        banner = openStart ? BareSkill.InteractiveQuestion : null;
+                    }
+                }
+                // A resumed or forked session gets no bare --system-prompt, so the skill rides as the prompt and nothing waits on the question.
+                var asksInTerminal = openStart && terminalAgents.SplitsSystemPrompt(record.Kind);
+                if (delegation is null && taskText is not null && BareSkill.ComposeInteractive(diagramType, root, workspaceId, command, asksInTerminal, record.DiagramRequest) is { } composed)
                 {
                     taskText = composed;
                     bare = BareSkill.Enabled();
@@ -133,7 +147,7 @@ public static class AgentRoutes
             }
             var trackingFile = AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString());
             var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork, agentId: agentId, bridgeUrl: BareSkill.BridgeUrl,
-                newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile, workdir: record.Worktree);
+                newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile, workdir: record.Worktree, delegation: delegation);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);
@@ -146,6 +160,7 @@ public static class AgentRoutes
                 throw;
             }
             record.StartError = null;
+            session.Delegation = delegation;
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
             // a view context rides hidden with the user's first prompt (UserPromptSubmit hook); a CLI without that hook gets it typed once idle
             if (pending is { Kind: not "task" } view && launch.PromptContext == PromptContext.Hidden) session.HoldPromptContext(ViewContext(view.Text));

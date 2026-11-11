@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using CodeChroma.Bridge.Agents;
 using CodeChroma.Bridge.Context;
-using CodeChroma.Bridge.Context;
 using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Skills;
@@ -51,30 +50,90 @@ public static partial class BareSkill
     public static string? ComposeInteractive(string type, string repoRoot, string workspaceId, string? contextCommand, bool askedInTerminal = false,
         string? request = null)
     {
+        if (DrawBody(type, repoRoot, workspaceId) is not var (body, source)) return null;
+        var text = new StringBuilder(body);
+        text.AppendLine().AppendLine("## How this session starts").AppendLine();
+        if (!string.IsNullOrWhiteSpace(request))
+        {
+            text.AppendLine(RequestedStart(type, request, source));
+            if (contextCommand is not null) text.AppendLine(ContextLine(contextCommand, "Start by running", "that request"));
+            return text.ToString();
+        }
+        text.AppendLine(askedInTerminal ? AskedLine : $"{AskLine} Do nothing else until they answer.");
+        if (contextCommand is not null) text.AppendLine(ContextLine(contextCommand, askedInTerminal ? "Start by running" : "Once they answer, run", "their request"));
+        return text.ToString();
+    }
+
+    /// <summary>The plugin and agent name of the subagent a drawing window hands every drawing job to.</summary>
+    public const string DrawerPlugin = "codechroma-draw";
+
+    public const string DrawerAgent = "drawer";
+
+    /// <summary>The drawer's subagent type, as the Agent tool lists it.</summary>
+    public const string DrawerName = $"{DrawerPlugin}:{DrawerAgent}";
+
+    public const string DrawerDescription = "Draws or changes a CodeChroma diagram on the user's canvas from a self-contained brief. Use for every diagram drawing job in this window.";
+
+    /// <summary>A drawing window that runs as a normal agent and hands drawing to the drawer subagent: the lead instruction, its first-launch start block, and the drawer's own prompt.</summary>
+    public static DrawDelegation? ComposeDelegation(string type, string repoRoot, string workspaceId, string? contextCommand, bool askedInTerminal = false, string? request = null)
+    {
+        if (DrawBody(type, repoRoot, workspaceId) is not var (body, source)) return null;
+        var drawer = new StringBuilder(body);
+        drawer.AppendLine().AppendLine("## How you work").AppendLine();
+        drawer.AppendLine("You are the diagram drawer, a subagent. The brief from the main agent is the user's request. You cannot ask the user anything: make a reasonable choice and say it in your report.");
+        if (contextCommand is not null) drawer.AppendLine(ContextLine(contextCommand, "Start by running", "the brief"));
+        if (type == PlanType) drawer.AppendLine(PlanLine(source));
+        drawer.AppendLine(TitleRule);
+        drawer.AppendLine("Run the self-check until it passes. End with a short report: the diagram type, its title, what it shows, and anything you left out or guessed.");
+        return new DrawDelegation(Lead(type), LeadStart(askedInTerminal, request), drawer.ToString());
+    }
+
+    /// <summary>The main agent's standing part of a drawing window: hand drawing to the drawer and ask the user first.</summary>
+    private static string Lead(string type) => new StringBuilder()
+        .AppendLine("## Drawing diagrams in this window").AppendLine()
+        .AppendLine($"This window draws CodeChroma diagrams on the user's canvas. Hand every drawing job (a new diagram, a redraw, a change the user asks for) to the `{DrawerName}` subagent through the Agent tool. It already has the diagram rules, the output file, the self-check and the context tool, so do not read the draw skill or write the diagram yourself.")
+        .AppendLine("The drawer cannot ask the user anything. Settle open questions with the user first, then give it one self-contained brief: the diagram type, the user's request in their own words, the scope and anything they ruled out. When it returns, tell the user in a few lines what was drawn. For a follow-up change, send it a new brief that names the existing diagram and the change.")
+        .AppendLine("Outside drawing, work as usual: the project's skills, tools and instructions all apply.").AppendLine()
+        .AppendLine(type == DiagramContext.AnyType ? "The user did not pick a diagram type; the drawer chooses the one that fits." : $"The window draws the `{TypeName(type)}` diagram type.")
+        .ToString();
+
+    /// <summary>How a drawing window's first launch starts; a resume or fork leaves it out.</summary>
+    private static string LeadStart(bool askedInTerminal, string? request)
+    {
+        var text = new StringBuilder().AppendLine("## How this session starts").AppendLine();
+        if (!string.IsNullOrWhiteSpace(request))
+            return text.AppendLine("The user's request:").AppendLine().AppendLine(request.Trim()).AppendLine()
+                .AppendLine($"This request is their answer: do not greet them or ask what to draw. {HintRule} Hand the drawer its brief now.").ToString();
+        return text.AppendLine(askedInTerminal ? $"{AskedLine} Hand the drawer its brief." : $"{AskLine} Hand the drawer its brief once they answer.").ToString();
+    }
+
+    private const string AskedLine = "The terminal already asked the user what they want to see; their first message is the answer. Do not greet or ask again.";
+
+    private const string AskLine = "The user has not said yet what to draw. Greet them in one short line and ask what they want to see (the whole project is a fine answer).";
+
+    private const string HintRule = "The picked type is a hint, not a lock: if the request clearly fits another type better, say so in one line, but draw the picked type unless they agree.";
+
+    private const string TitleRule = "Name the diagram from this request: its top-level `title` says what it shows, in the request's language, and differs from the titles already on the canvas — never just the type name.";
+
+    private static string TypeName(string type) => type == PlanType ? "feature plan" : type;
+
+    private static string PlanLine(string source) => $"Follow `{Path.Combine(source, "references", "feature-plan-mode.md")}` for the planned blocks.";
+
+    /// <summary>The instruction to run the context tool with phrases taken from <paramref name="from"/>, then draw from its output.</summary>
+    private static string ContextLine(string command, string verb, string from) =>
+        $"{verb} `{command} \"phrase\" \"phrase\" ...` with 3-6 short phrases taken from {from} (one component, flow or concept each), read its output, then draw from it and open a file only to confirm a detail.";
+
+    /// <summary>The draw skill for one type with its placeholders filled (the short body when there is one, else the whole skill) and the skill folder; null when the skill is not installed.</summary>
+    private static (string Body, string Source)? DrawBody(string type, string repoRoot, string workspaceId)
+    {
         if (SkillSync.SkillSource(DrawSkill) is not { } source || !File.Exists(Path.Combine(source, "SKILL.md"))) return null;
         var text = new StringBuilder();
         text.Append("Repository root: ").AppendLine(repoRoot).AppendLine();
         var bodyType = type == PlanType ? "impact" : type;
         var shortBody = Path.Combine(source, "references", $"bare-{bodyType}.md");
-        if (File.Exists(shortBody)) text.AppendLine(Fill(File.ReadAllText(shortBody), bodyType, source, repoRoot, workspaceId));
-        else
-        {
-            text.AppendLine($"The `{DrawSkill}` skill follows. Files it names under `references/` and `scripts/` are in `{source}`; read them by those absolute paths.").AppendLine();
-            text.AppendLine(StripFrontmatter(File.ReadAllText(Path.Combine(source, "SKILL.md"))));
-        }
-        text.AppendLine().AppendLine("## How this session starts").AppendLine();
-        if (!string.IsNullOrWhiteSpace(request))
-        {
-            text.AppendLine(RequestedStart(type, request, source));
-            if (contextCommand is not null)
-                text.AppendLine($"Run `{contextCommand} \"phrase\" \"phrase\" ...` first with 3-6 short phrases taken from that request (one component, flow or concept each), read its output, then draw from it and open a file only to confirm a detail.");
-            return text.ToString();
-        }
-        if (askedInTerminal) text.AppendLine("The terminal already asked the user what they want to see; their first message is the answer. Do not greet or ask again.");
-        else text.AppendLine("The user has not said yet what to draw. Greet them in one short line and ask what they want to see (the whole project is a fine answer). Do nothing else until they answer.");
-        if (contextCommand is not null)
-            text.AppendLine($"{(askedInTerminal ? "Start by running" : "Once they answer, run")} `{contextCommand} \"phrase\" \"phrase\" ...` with 3-6 short phrases taken from their request (one component, flow or concept each), read its output, then draw from it and open a file only to confirm a detail.");
-        return text.ToString();
+        if (File.Exists(shortBody)) return (text.AppendLine(Fill(File.ReadAllText(shortBody), bodyType, source, repoRoot, workspaceId)).ToString(), source);
+        text.AppendLine($"The `{DrawSkill}` skill follows. Files it names under `references/` and `scripts/` are in `{source}`; read them by those absolute paths.").AppendLine();
+        return (text.AppendLine(StripFrontmatter(File.ReadAllText(Path.Combine(source, "SKILL.md")))).ToString(), source);
     }
 
     /// <summary>The skill a "New workflow → With an agent" window gets inlined.</summary>
@@ -104,12 +163,11 @@ public static partial class BareSkill
         var text = new StringBuilder();
         text.Append(type == DiagramContext.AnyType
             ? "The user did not pick a diagram type; choose the one that fits."
-            : $"The user picked the `{(type == PlanType ? "feature plan" : type)}` diagram type.");
+            : $"The user picked the `{TypeName(type)}` diagram type.");
         text.AppendLine().AppendLine().AppendLine("Their request:").AppendLine().AppendLine(request.Trim()).AppendLine();
-        if (type == PlanType)
-            text.AppendLine($"Follow `{Path.Combine(source, "references", "feature-plan-mode.md")}` for the planned blocks.");
-        text.AppendLine("This request is their answer: do not greet them or ask what to draw. The picked type is a hint, not a lock: if the request clearly fits another type better, say so in one line, but draw the picked type unless they agree.");
-        text.AppendLine("Name the diagram from this request: its top-level `title` says what it shows, in the request's language, and differs from the titles already on the canvas — never just the type name.");
+        if (type == PlanType) text.AppendLine(PlanLine(source));
+        text.AppendLine($"This request is their answer: do not greet them or ask what to draw. {HintRule}");
+        text.AppendLine(TitleRule);
         return text.ToString();
     }
 
@@ -158,3 +216,6 @@ public static partial class BareSkill
     [GeneratedRegex(@"references/[\w.\-]+\.md")]
     private static partial Regex References();
 }
+
+/// <summary>A drawing window split in two: <paramref name="Lead"/> (plus <paramref name="Start"/> on a first launch) is appended to the main agent's system prompt, <paramref name="DrawerPrompt"/> is the drawer subagent's prompt.</summary>
+public sealed record DrawDelegation(string Lead, string Start, string DrawerPrompt);

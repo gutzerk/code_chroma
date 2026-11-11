@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Skills;
 using CodeChroma.Bridge.Stores;
 using CodeChroma.Bridge.Terminal;
 
@@ -87,5 +88,37 @@ public sealed class TerminalAgentsBareTests : IDisposable
 
         Assert.Equal(["--resume", "session-1"], argv.Skip(argv.Count - 2));
         Assert.DoesNotContain("--strict-mcp-config", argv);
+    }
+
+    [Fact]
+    public void A_drawing_window_is_a_normal_launch_with_the_drawer_subagent_and_the_lead_instruction()
+    {
+        var argv = _agents.Resolve("claude", null, "draw the save flow", delegation: new DrawDelegation("LEAD TEXT", "START TEXT", "DRAWER TEXT"))!.Argv.ToList();
+
+        var drawer = File.ReadAllText(Path.Combine(argv[argv.IndexOf("--plugin-dir") + 1], "agents", BareSkill.DrawerAgent + ".md"));
+        Assert.EndsWith("DRAWER TEXT", drawer);
+        Assert.Contains("tools: Bash, Read", drawer);
+        Assert.Equal(CliAdapters.DefaultBareTools, argv[argv.IndexOf("--allowedTools") + 1]);
+        Assert.EndsWith("LEAD TEXT\nSTART TEXT", argv[argv.IndexOf("--append-system-prompt") + 1]);
+        Assert.DoesNotContain("--strict-mcp-config", argv);
+        Assert.DoesNotContain("--system-prompt", argv);
+        Assert.Equal("draw the save flow", argv[^1]);
+    }
+
+    [Fact]
+    public void Resuming_a_drawing_window_passes_the_drawer_again_without_the_start_block()
+    {
+        var argv = _agents.Resolve("claude", "session-1", null, delegation: new DrawDelegation("LEAD", "START", "DRAWER"))!.Argv.ToList();
+
+        Assert.Contains(argv, arg => File.Exists(Path.Combine(arg, "agents", BareSkill.DrawerAgent + ".md")));
+        Assert.Equal("LEAD", argv[argv.IndexOf("--append-system-prompt") + 1]);
+        Assert.Equal(["--resume", "session-1"], argv.Skip(argv.Count - 2));
+    }
+
+    [Fact]
+    public void Only_a_real_claude_window_delegates_drawing()
+    {
+        Assert.True(_agents.Delegates("claude"));
+        Assert.False(_agents.Delegates("shell"));
     }
 }

@@ -74,18 +74,18 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         ["agent"] = [],
     };
 
-    /// <summary>An allow-listed agent's argv and provider environment, or null for an unknown kind; `forkSession` (claude only) resumes into a new session; `workdir` is where the window runs.</summary>
-    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null, bool bare = false, string? visiblePrompt = null, bool forkSession = false, string? agentId = null, string? bridgeUrl = null, string? newSessionId = null, string? sessionTrackingFile = null, string? workdir = null)
+    /// <summary>An allow-listed agent's argv and provider environment, or null for an unknown kind; `forkSession` (claude only) resumes into a new session; `workdir` is where the window runs; `delegation` (claude only) adds a drawing window's drawer subagent and lead instruction.</summary>
+    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null, bool bare = false, string? visiblePrompt = null, bool forkSession = false, string? agentId = null, string? bridgeUrl = null, string? newSessionId = null, string? sessionTrackingFile = null, string? workdir = null, DrawDelegation? delegation = null)
     {
         if (agent == "agent")
         {
             var resolution = ResolveProviderCli(AgentCallSite);
-            var isClaude = resolution.AdapterKey == "claude" && (resolution.ProviderAssigned || resolution.Binary == DefaultCli);
+            var isClaude = IsRealClaude(resolution);
             // The claude adapter behind a stand-in binary is not the real CLI, so it gets no MCP server.
             var standIn = resolution.AdapterKey == "claude" && !isClaude;
             var adapter = standIn ? null : CliAdapters.All.GetValueOrDefault(resolution.AdapterKey);
             var mcp = McpFor(adapter, agentId, bridgeUrl, bare, workdir);
-            var argv = Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, ModelArgs(resolution));
+            var argv = Argv(resolution.Binary, isClaude, resolution.AdapterKey, resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, ModelArgs(resolution), delegation);
             var hooks = isClaude ? HookEndpointFor(agentId, bridgeUrl) : null;
             var launch = OwnedLaunch(argv, WithEnv(resolution.Env, mcp), isClaude, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, hooks);
             return launch with { DetectorKind = standIn ? null : resolution.AdapterKey, Clear = ClearWatch.For(adapter, launch.StatusHooks) };
@@ -95,7 +95,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         {
             var binary = AssistantRoutes.EffectiveCli(paths);
             var mcp = McpFor(binary == DefaultCli ? CliAdapters.All["claude"] : null, agentId, bridgeUrl, bare, workdir);
-            var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args);
+            var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, delegation: delegation);
             var hooks = binary == DefaultCli ? HookEndpointFor(agentId, bridgeUrl) : null;
             var launch = OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, hooks);
             return launch with { Clear = ClearWatch.For(binary == DefaultCli ? CliAdapters.All["claude"] : null, launch.StatusHooks) };
@@ -112,6 +112,17 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         var promptAt = Array.IndexOf(bareArgs.ToArray(), "--system-prompt");
         return promptAt >= 0 && promptAt + 1 < bareArgs.Count();
     }
+
+    /// <summary>Whether a window of this kind launches the real claude CLI, so a drawing window can run as a normal agent with the drawer subagent.</summary>
+    public bool Delegates(string kind) => kind switch
+    {
+        "claude" => AssistantRoutes.EffectiveCli(paths) == DefaultCli,
+        "agent" => IsRealClaude(ResolveProviderCli(AgentCallSite)),
+        _ => false,
+    };
+
+    /// <summary>Whether a provider-routed window runs the real claude CLI, not another adapter or a stand-in binary.</summary>
+    private static bool IsRealClaude(CliResolution cli) => cli.AdapterKey == "claude" && (cli.ProviderAssigned || cli.Binary == DefaultCli);
 
     /// <summary>The ask_user registration with the endpoint env merged in, or null for a CLI with no MCP route, bare windows, no agent id or before the bridge URL is known.</summary>
     private McpLaunch? McpFor(ICliAdapter? adapter, string? agentId, string? bridgeUrl, bool bare, string? workdir)
@@ -181,7 +192,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
     }
 
     /// <summary>The argv of an agent window; a bare one gets the prompt first and the CLI's ambient context stripped (no plugin, settings, MCP or slash commands), keeping the session file so Resume works.</summary>
-    private string[] Argv(string binary, bool isClaude, string adapterKey, string? resumeSessionId, string? initialPrompt, bool bare, string? visiblePrompt, IReadOnlyList<string>? mcpArgs = null, string[]? modelArgs = null)
+    private string[] Argv(string binary, bool isClaude, string adapterKey, string? resumeSessionId, string? initialPrompt, bool bare, string? visiblePrompt, IReadOnlyList<string>? mcpArgs = null, string[]? modelArgs = null, DrawDelegation? delegation = null)
     {
         var bareArgs = bare && string.IsNullOrEmpty(resumeSessionId) && CliAdapters.All.TryGetValue(adapterKey, out var adapter)
             ? adapter.BareArgs(CliAdapters.DefaultBareTools).Where(a => a != "--no-session-persistence").ToArray()
@@ -195,12 +206,19 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             return [binary, .. model, .. ResumePrompt(null, visiblePrompt), .. bareArgs];
         }
         if (bareArgs.Length > 0) return [binary, .. model, .. ResumePrompt(null, initialPrompt), .. bareArgs];
-        return [binary, .. model, .. InstructionArgs(isClaude), .. mcpArgs ?? [], .. PluginArgs(isClaude), .. ResumePrompt(resumeSessionId, initialPrompt)];
+        // Only a real claude launch gets a delegation (TerminalAgents.Delegates); the start block rides on the first launch only.
+        var drawer = delegation is null ? [] : CliAdapters.All[adapterKey].SubagentArgs(BareSkill.DrawerPlugin, BareSkill.DrawerAgent, BareSkill.DrawerDescription, delegation.DrawerPrompt, CliAdapters.DefaultBareTools);
+        var lead = delegation is null ? null : string.IsNullOrEmpty(resumeSessionId) ? $"{delegation.Lead}\n{delegation.Start}" : delegation.Lead;
+        return [binary, .. model, .. InstructionArgs(isClaude, lead), .. drawer, .. mcpArgs ?? [], .. PluginArgs(isClaude), .. ResumePrompt(resumeSessionId, initialPrompt)];
     }
 
-    /// <summary>Appends the user's saved agent-window instruction to claude's system prompt; empty when unset.</summary>
-    private string[] InstructionArgs(bool isClaude) =>
-        isClaude && Json.Str(AssistantRoutes.Load(paths)["instruction"])?.Trim() is { Length: > 0 } text ? ["--append-system-prompt", text] : [];
+    /// <summary>Appends the user's saved agent-window instruction, then a drawing window's lead instruction, to claude's system prompt; empty when neither is set.</summary>
+    private string[] InstructionArgs(bool isClaude, string? lead = null)
+    {
+        if (!isClaude) return [];
+        var text = string.Join("\n\n", new[] { Json.Str(AssistantRoutes.Load(paths)["instruction"])?.Trim(), lead?.Trim() }.Where(part => !string.IsNullOrEmpty(part)));
+        return text.Length > 0 ? ["--append-system-prompt", text] : [];
+    }
 
     /// <summary>Load CodeChroma skills for this Claude Code process without changing its project.</summary>
     private static string[] PluginArgs(bool isClaude) => isClaude && SkillSync.PluginDir() is { } dir ? ["--plugin-dir", dir] : [];

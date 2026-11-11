@@ -17,8 +17,8 @@ public interface ICliAdapter
     /// <summary>Extra options that strip the CLI's ambient context (skills, MCP, settings) for a bare run limited to <paramref name="tools"/>; empty when the CLI has no verified switch.</summary>
     IReadOnlyList<string> BareArgs(string tools) => [];
 
-    /// <summary>Options that define subagent <paramref name="name"/> of <paramref name="plugin"/> an interactive window can hand work to, limited to <paramref name="tools"/>; empty when the CLI has no verified switch.</summary>
-    IReadOnlyList<string> SubagentArgs(string plugin, string name, string description, string prompt, string tools) => [];
+    /// <summary>Options that define subagent <paramref name="name"/> of <paramref name="plugin"/> an interactive window can hand work to, limited to <paramref name="tools"/>, with <paramref name="allowedTools"/> pre-approved for the window; empty when the CLI has no verified switch.</summary>
+    IReadOnlyList<string> SubagentArgs(string plugin, string name, string description, string prompt, string tools, string allowedTools) => [];
 
     /// <summary>Whether the CLI can resume (and fork) an earlier session by id.</summary>
     bool CanResume => false;
@@ -112,9 +112,9 @@ public sealed class ClaudeAdapter : ICliAdapter
     public IReadOnlyList<string> ParseLine(string raw, string repoRoot) =>
         CliAdapters.ParseEvent(raw) is { } evt ? SkillOutput.Render(evt, repoRoot) : [];
 
-    /// <summary>A temp `--plugin-dir` holding the subagent (`--agents` ones are dropped once an MCP server connects), plus `--allowedTools` for its tools: a subagent's own `permissionMode` does not lift the parent's permission prompts.</summary>
-    public IReadOnlyList<string> SubagentArgs(string plugin, string name, string description, string prompt, string tools) =>
-        ["--plugin-dir", SubagentPlugin.Write(plugin, name, description, prompt, tools), "--allowedTools", tools];
+    /// <summary>A temp `--plugin-dir` holding the subagent (`--agents` ones are dropped once an MCP server connects), plus narrow `--allowedTools` rules: a subagent's own `permissionMode` does not lift the parent's permission prompts.</summary>
+    public IReadOnlyList<string> SubagentArgs(string plugin, string name, string description, string prompt, string tools, string allowedTools) =>
+        ["--plugin-dir", SubagentPlugin.Write(plugin, name, description, prompt, tools), "--allowedTools", allowedTools];
 
     /// <summary>Works with OAuth logins, unlike `--bare` (which needs an API key): no slash commands, MCP, user/project settings or session file.</summary>
     public IReadOnlyList<string> BareArgs(string tools) =>

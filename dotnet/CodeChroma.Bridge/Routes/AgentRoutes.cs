@@ -111,29 +111,9 @@ public static class AgentRoutes
             {
                 var workspaceId = record.SharesWorkspaceWith ?? record.Id;
                 var target = TryWorkspace(registry, workspaceId);
-                var root = target?.Root ?? record.Worktree;
                 var command = target is null ? null : await diagramContext.CommandAsync(target);
-                var requested = !string.IsNullOrWhiteSpace(record.DiagramRequest);
-                var openStart = !requested && sessionId is null && diagramType == DiagramContext.AnyType && BareSkill.Enabled();
-                if (delegates)
-                {
-                    // A normal agent hands drawing to the drawer subagent; a resume or fork passes the drawer again (the CLI does not store it).
-                    delegation = BareSkill.ComposeDelegation(diagramType, root, workspaceId, command, openStart, record.DiagramRequest);
-                    if (delegation is not null && sessionId is null)
-                    {
-                        taskText = requested ? record.DiagramRequest : openStart ? null : BareSkill.InteractiveVisiblePrompt;
-                        banner = openStart ? BareSkill.InteractiveQuestion : null;
-                    }
-                }
-                // A resumed or forked session gets no bare --system-prompt, so the skill rides as the prompt and nothing waits on the question.
-                var asksInTerminal = openStart && terminalAgents.SplitsSystemPrompt(record.Kind);
-                if (delegation is null && taskText is not null && BareSkill.ComposeInteractive(diagramType, root, workspaceId, command, asksInTerminal, record.DiagramRequest) is { } composed)
-                {
-                    taskText = composed;
-                    bare = BareSkill.Enabled();
-                    visible = bare ? (requested ? record.DiagramRequest : asksInTerminal ? "" : BareSkill.InteractiveVisiblePrompt) : null;
-                    banner = asksInTerminal ? BareSkill.InteractiveQuestion : null;
-                }
+                (taskText, banner, bare, visible, delegation) = DrawStart.Plan(diagramType, record.DiagramRequest, taskText, sessionId is not null, delegates,
+                    terminalAgents.SplitsSystemPrompt(record.Kind), target?.Root ?? record.Worktree, workspaceId, command);
             }
             else if (taskText is not null && record.WorkflowRequest is { } workflowRequest)
             {

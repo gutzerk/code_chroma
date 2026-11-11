@@ -11,13 +11,14 @@ public sealed class TerminalAgentsBareTests : IDisposable
     private readonly TerminalAgents _agents;
     private readonly ProviderStore _providers;
     private readonly CallSiteStore _callSites;
+    private readonly UserPaths _paths;
 
     public TerminalAgentsBareTests()
     {
-        var paths = UserPaths.Under(_dir);
-        _providers = new ProviderStore(paths);
-        _callSites = new CallSiteStore(paths, _providers);
-        _agents = new TerminalAgents(paths, _providers, _callSites);
+        _paths = UserPaths.Under(_dir);
+        _providers = new ProviderStore(_paths);
+        _callSites = new CallSiteStore(_paths, _providers);
+        _agents = new TerminalAgents(_paths, _providers, _callSites);
     }
 
     [Fact]
@@ -93,12 +94,12 @@ public sealed class TerminalAgentsBareTests : IDisposable
     [Fact]
     public void A_drawing_window_is_a_normal_launch_with_the_drawer_subagent_and_the_lead_instruction()
     {
-        var argv = _agents.Resolve("claude", null, "draw the save flow", delegation: new DrawDelegation("LEAD TEXT", "START TEXT", "DRAWER TEXT"))!.Argv.ToList();
+        var argv = _agents.Resolve("claude", null, "draw the save flow", delegation: new DrawDelegation("LEAD TEXT", "START TEXT", "DRAWER TEXT", "Read,Bash(curl -s http://b/:*)"))!.Argv.ToList();
 
         var drawer = File.ReadAllText(Path.Combine(argv[argv.IndexOf("--plugin-dir") + 1], "agents", BareSkill.DrawerAgent + ".md"));
         Assert.EndsWith("DRAWER TEXT", drawer);
         Assert.Contains("tools: Bash, Read", drawer);
-        Assert.Equal(CliAdapters.DefaultBareTools, argv[argv.IndexOf("--allowedTools") + 1]);
+        Assert.Equal("Read,Bash(curl -s http://b/:*)", argv[argv.IndexOf("--allowedTools") + 1]);
         Assert.EndsWith("LEAD TEXT\nSTART TEXT", argv[argv.IndexOf("--append-system-prompt") + 1]);
         Assert.DoesNotContain("--strict-mcp-config", argv);
         Assert.DoesNotContain("--system-prompt", argv);
@@ -108,11 +109,23 @@ public sealed class TerminalAgentsBareTests : IDisposable
     [Fact]
     public void Resuming_a_drawing_window_passes_the_drawer_again_without_the_start_block()
     {
-        var argv = _agents.Resolve("claude", "session-1", null, delegation: new DrawDelegation("LEAD", "START", "DRAWER"))!.Argv.ToList();
+        var argv = _agents.Resolve("claude", "session-1", null, delegation: new DrawDelegation("LEAD", "START", "DRAWER", "Read"))!.Argv.ToList();
 
         Assert.Contains(argv, arg => File.Exists(Path.Combine(arg, "agents", BareSkill.DrawerAgent + ".md")));
         Assert.Equal("LEAD", argv[argv.IndexOf("--append-system-prompt") + 1]);
         Assert.Equal(["--resume", "session-1"], argv.Skip(argv.Count - 2));
+    }
+
+    [Fact]
+    public void A_window_that_no_longer_runs_claude_ignores_a_stored_delegation()
+    {
+        JsonFile.Write(_paths.Assistant, new JsonObject { ["cli"] = "/opt/stand-in" });
+
+        var argv = _agents.Resolve("claude", "session-1", null, delegation: new DrawDelegation("LEAD", "START", "DRAWER", "Read"))!.Argv;
+
+        Assert.DoesNotContain("--allowedTools", argv);
+        Assert.DoesNotContain("--append-system-prompt", argv);
+        Assert.False(_agents.Delegates("claude"));
     }
 
     [Fact]

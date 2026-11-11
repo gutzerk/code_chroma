@@ -179,6 +179,35 @@ public class BareSkillTests
     }
 
     [Fact]
+    public void A_drawing_window_pre_approves_only_diagram_writes_and_the_drawers_own_commands()
+    {
+        var rules = BareSkill.ComposeDelegation("sequence", Root, "main", "ctx-tool --repo-path x")!.AllowedTools.Split(',');
+
+        Assert.Contains("Write(//repo/.codechroma/diagrams/**)", rules);
+        Assert.Contains("Edit(//repo/.codechroma/diagrams/**)", rules);
+        Assert.Contains("Bash(ctx-tool --repo-path x:*)", rules);
+        Assert.Contains(rules, rule => rule.StartsWith("Bash(curl -s ") && rule.EndsWith("/:*)"));
+        Assert.Contains(rules, rule => rule.Contains("check_diagram.py") && rule.EndsWith(":*)"));
+        Assert.DoesNotContain("Bash", rules);
+        Assert.DoesNotContain("Write", rules);
+        Assert.DoesNotContain("Edit", rules);
+    }
+
+    [Fact]
+    public void Writing_the_same_drawer_again_leaves_the_file_a_running_cli_reads_in_place()
+    {
+        var root = SubagentPlugin.Write(BareSkill.DrawerPlugin, BareSkill.DrawerAgent, "d", "SAME PROMPT", "Read");
+        var file = Path.Combine(root, "agents", "drawer.md");
+        var written = File.GetLastWriteTimeUtc(file);
+        File.SetLastWriteTimeUtc(file, written.AddHours(-1));
+
+        SubagentPlugin.Write(BareSkill.DrawerPlugin, BareSkill.DrawerAgent, "d", "SAME PROMPT", "Read");
+
+        Assert.Equal(written.AddHours(-1), File.GetLastWriteTimeUtc(file));
+        Assert.Empty(Directory.GetFiles(Path.Combine(root, "agents"), "*.tmp"));
+    }
+
+    [Fact]
     public void A_workflow_start_inlines_the_workflow_skill_and_the_users_description()
     {
         var prompt = BareSkill.ComposeWorkflow(Root, "plan, implement, then let me review")!;

@@ -85,7 +85,28 @@ public static partial class BareSkill
         if (type == PlanType) drawer.AppendLine(PlanLine(source));
         drawer.AppendLine(TitleRule);
         drawer.AppendLine("Run the self-check until it passes. End with a short report: the diagram type, its title, what it shows, and anything you left out or guessed.");
-        return new DrawDelegation(Lead(type), LeadStart(askedInTerminal, request), drawer.ToString());
+        return new DrawDelegation(Lead(type), LeadStart(askedInTerminal, request), drawer.ToString(), DrawerPermissions(source, repoRoot, contextCommand));
+    }
+
+    /// <summary>The window's `--allowedTools` rules: read anywhere, write only diagram files, run only the bridge, context and self-check commands; anything else still asks the user.</summary>
+    private static string DrawerPermissions(string source, string repoRoot, string? contextCommand)
+    {
+        var diagrams = PermissionPath(Path.Combine(repoRoot, ".codechroma", "diagrams"));
+        var rules = new List<string>
+        {
+            "Read", "Glob", "Grep", $"Edit({diagrams}/**)", $"Write({diagrams}/**)",
+            $"Bash(curl -s {Bridge}/:*)", $"Bash(curl -s '{Bridge}/:*)", $"Bash({CheckCommand(source, "").TrimEnd()}:*)",
+        };
+        if (contextCommand is not null) rules.Add($"Bash({contextCommand}:*)");
+        return string.Join(",", rules);
+    }
+
+    /// <summary>An absolute path as a Claude Code permission rule writes it: `//` and forward slashes, a Windows drive as `/c/...`.</summary>
+    private static string PermissionPath(string path)
+    {
+        var full = path.Replace('\\', '/');
+        if (full.Length > 1 && full[1] == ':') full = "/" + char.ToLowerInvariant(full[0]) + full[2..];
+        return "/" + full;
     }
 
     /// <summary>The main agent's standing part of a drawing window: hand drawing to the drawer and ask the user first.</summary>
@@ -217,5 +238,5 @@ public static partial class BareSkill
     private static partial Regex References();
 }
 
-/// <summary>A drawing window split in two: <paramref name="Lead"/> (plus <paramref name="Start"/> on a first launch) is appended to the main agent's system prompt, <paramref name="DrawerPrompt"/> is the drawer subagent's prompt.</summary>
-public sealed record DrawDelegation(string Lead, string Start, string DrawerPrompt);
+/// <summary>A drawing window split in two: <paramref name="Lead"/> (plus <paramref name="Start"/> on a first launch) is appended to the main agent's system prompt, <paramref name="DrawerPrompt"/> is the drawer subagent's prompt, <paramref name="AllowedTools"/> the window's narrow `--allowedTools` rules.</summary>
+public sealed record DrawDelegation(string Lead, string Start, string DrawerPrompt, string AllowedTools);

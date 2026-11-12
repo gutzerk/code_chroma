@@ -25,13 +25,16 @@ export function ConnectedQuestionCard({ question, client, doc, variant, selected
   const [error, setError] = useState<string | null>(null);
   const history = useMemo(() => sessionHistory(doc.elements, question), [doc.elements, question]);
 
-  const run = (action: () => Promise<unknown>) => {
+  /** Runs one question write; resolves true when it succeeded. */
+  const run = (action: () => Promise<unknown>): Promise<boolean> => {
     setBusy(true);
     setError(null);
-    action()
+    return action()
+      .then(() => true)
       .catch((cause: unknown) => {
         setError(S.failed);
         reportAsyncError("question answer", cause);
+        return false;
       })
       .finally(() => setBusy(false));
   };
@@ -51,7 +54,8 @@ export function ConnectedQuestionCard({ question, client, doc, variant, selected
       onSkip={() => run(() => skipQuestion(client, question))}
       onRevise={(q: QuestionView) => run(() => reviseQuestion(client, q))}
       onRequestDiagram={() => run(() => requestDiagram(client, question))}
-      onChat={() => run(() => chatQuestion(client, question))}
+      // Focus moves to the terminal only once the question is closed, so a failure stays visible on the card.
+      onChat={() => void run(() => chatQuestion(client, question)).then((ok) => ok && onReturnFocus?.())}
     />
   );
 }

@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 import time
 import uuid
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from codechroma.questions import delivery, store
 from codechroma.questions.mcp_server import NEXT_STEP, NO_WINDOW, QuestionAuthError, QuestionMcp
-from codechroma.questions.models import CHAT, AskRequest, QuestionOption
+from codechroma.questions.models import CHAT, DIAGRAM_REQUEST, SKIPPED, AskRequest, QuestionOption
 from codechroma.questions.validation import QuestionRejected
 
 OPTIONS = [
@@ -287,6 +289,14 @@ def test_chat_types_the_answered_questions_and_the_chat_at_once_and_leaves_the_o
         f"[CodeChroma answer · Q1 · {chat}] Which store? → {CHAT}"
     )
     assert [e.meta["question_id"] for e in store.list_questions(bridge.main)] == [still_open]
+
+
+def test_outcome_texts_match_the_shared_contract_text():
+    fixture = Path(__file__).parents[1] / "fixtures" / "bridge_contract" / "question_outcomes.json"
+
+    shared = json.loads(fixture.read_text(encoding="utf-8"))
+
+    assert shared == {"skipped": SKIPPED, "chat": CHAT, "diagram_request": DIAGRAM_REQUEST}
 
 
 def test_answer_after_revise_is_delivered_as_a_changed_answer(bridge):

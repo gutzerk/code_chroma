@@ -95,9 +95,9 @@ export interface AgentClient {
   answerQuestion?(id: string, questionId: string, body: QuestionAnswerBody): Promise<QuestionAck>;
   skipQuestion?(id: string, questionId: string): Promise<QuestionAck>;
   reviseQuestion?(id: string, questionId: string): Promise<QuestionAck>;
-  /** The "Add diagram" button: asks the agent to draw one diagram per option. */
   /** "Chat about it": closes the question and types a "let's discuss" note into the agent. */
   chatQuestion?(id: string, questionId: string): Promise<QuestionAck>;
+  /** The "Add diagram" button: asks the agent to draw one diagram per option. */
   requestQuestionDiagram?(id: string, questionId: string): Promise<QuestionAck>;
   /** Makes a workspace the canvas's data source and kicks off its lazy bring-up. */
   activateWorkspace(id: string): Promise<WorkspaceStatus>;
@@ -266,10 +266,10 @@ export class HttpAgentClient implements AgentClient {
   reviseQuestion(id: string, questionId: string): Promise<QuestionAck> {
     return this.request<QuestionAck>(`/agents/${id}/questions/${encodeURIComponent(questionId)}/revise`, this.json("POST"));
   }
+
   chatQuestion(id: string, questionId: string): Promise<QuestionAck> {
     return this.request<QuestionAck>(`/agents/${id}/questions/${encodeURIComponent(questionId)}/chat`, this.json("POST"));
   }
-
 
   requestQuestionDiagram(id: string, questionId: string): Promise<QuestionAck> {
     return this.request<QuestionAck>(`/agents/${id}/questions/${encodeURIComponent(questionId)}/request-diagram`, this.json("POST"));

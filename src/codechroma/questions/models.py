@@ -8,6 +8,12 @@ from pydantic import BaseModel, Field
 
 QuestionState = Literal["open", "answered", "skipped", "chat"]
 
+# Outcome texts typed to the agent; bridge_contract/question_outcomes.json pins them to C#.
+SKIPPED = "skipped by the user, decide yourself"
+DIAGRAM_REQUEST = (
+    "the user wants a diagram for each option: draw them with draw_option_diagram, "
+    "then call ask_user again with the same session_id and question"
+)
 # Typed to the agent (and read back by ask_user_result) when the user presses "Chat about it".
 CHAT = (
     "the user wants to talk this question through in chat before deciding: discuss it with them, "

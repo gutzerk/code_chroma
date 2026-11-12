@@ -200,13 +200,4 @@ describe("QuestionCard", () => {
     expect(p.onChat).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "Chat about it" })).toBeNull();
   });
-
-  it("Chat about it hands focus to the agent terminal", () => {
-    const p = props({ onChat: vi.fn(), onReturnFocus: vi.fn() });
-    render(<QuestionCard {...p} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Chat about it" }));
-
-    expect(p.onReturnFocus).toHaveBeenCalledTimes(1);
-  });
 });

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { canvasDocStore, useCanvasDoc } from "../canvasDocStore";
 import { useLoadCanvasDoc } from "../canvasDocSync";
@@ -9,6 +9,7 @@ import { ConnectedQuestionCard } from "./ConnectedQuestionCard";
 import { WIRE_OPTIONS } from "./fixtures";
 import { toQuestionView } from "./questionAdapter";
 import { listOpenQuestions } from "./questionClient";
+import { QUESTION_STRINGS } from "./questionStrings";
 
 function addQuestion(step: number, title: string): CanvasOp {
   return {
@@ -21,19 +22,18 @@ function addQuestion(step: number, title: string): CanvasOp {
 afterEach(() => canvasDocStore.reset());
 
 /** Renders one connected card per question element in the live doc, as the agent window would. */
-function Cards() {
+function Cards({ onReturnFocus }: { onReturnFocus?: () => void }) {
   const client = useEngineClient();
   useLoadCanvasDoc(client);
   const doc = useCanvasDoc();
-  return <>{Object.values(doc.elements).filter((el) => el.render === "question").map((el) => <ConnectedQuestionCard key={el.id} question={toQuestionView(el)} client={client} doc={doc} />)}</>;
+  return <>{Object.values(doc.elements).filter((el) => el.render === "question").map((el) => <ConnectedQuestionCard key={el.id} question={toQuestionView(el)} client={client} doc={doc} onReturnFocus={onReturnFocus} />)}</>;
 }
 
-async function mount(ops: CanvasOp[]) {
-  const client = new MockBridgeEngineClient();
+async function mount(ops: CanvasOp[], { client = new MockBridgeEngineClient(), onReturnFocus }: { client?: MockBridgeEngineClient; onReturnFocus?: () => void } = {}) {
   await client.patchCanvas({ ops, layer: "default", explanation: "", confirm_mass_delete: false });
   render(
     <EngineClientProvider repoId="default" client={client}>
-      <Cards />
+      <Cards onReturnFocus={onReturnFocus} />
     </EngineClientProvider>,
   );
   await screen.findByText("First?");
@@ -77,6 +77,27 @@ describe("question answer flow (mock bridge)", () => {
 
     await waitFor(() => expect(screen.getByText(/Discussing in chat/)).toBeInTheDocument());
     expect(await listOpenQuestions(client)).toHaveLength(0);
+  });
+
+  it("Chat about it hands focus to the agent terminal once the question is closed", async () => {
+    const onReturnFocus = vi.fn();
+    await mount([addQuestion(1, "First?")], { onReturnFocus });
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat about it" }));
+
+    await waitFor(() => expect(onReturnFocus).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps focus on the card when Chat about it fails", async () => {
+    const client = new MockBridgeEngineClient();
+    client.chatQuestion = () => Promise.reject(new Error("bridge down"));
+    const onReturnFocus = vi.fn();
+    await mount([addQuestion(1, "First?")], { client, onReturnFocus });
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat about it" }));
+
+    await screen.findByText(QUESTION_STRINGS.failed);
+    expect(onReturnFocus).not.toHaveBeenCalled();
   });
 
   it("revise reopens the question and drops later steps", async () => {

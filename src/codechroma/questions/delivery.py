@@ -12,15 +12,9 @@ from codechroma.bridge.workspaces import Workspace
 from codechroma.canvas.document import Element
 from codechroma.config import settings
 from codechroma.questions import agent_view, store
-from codechroma.questions.models import CHAT
+from codechroma.questions.models import CHAT, DIAGRAM_REQUEST, SKIPPED
 
 logger = logging.getLogger(__name__)
-
-SKIPPED = "skipped by the user, decide yourself"
-DIAGRAM_REQUEST = (
-    "the user wants a diagram for each option: draw them with draw_option_diagram, "
-    "then call ask_user again with the same session_id and question"
-)
 
 
 def _one_line(value: object) -> str:

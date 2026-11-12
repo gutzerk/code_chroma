@@ -16,7 +16,7 @@ export interface QuestionCardProps {
   onRevise: (question: QuestionView) => void;
   /** Asks the agent to add a diagram to every option that lacks one. */
   onRequestDiagram?: () => void;
-  /** Closes the question and tells the agent the user wants to discuss it; the button shows only when set. */
+  /** Closes the question and tells the agent the user wants to discuss it (the host moves focus on success); the button shows only when set. */
   onChat?: () => void;
   /** Controlled highlighted option (a host shares it with the diagram); leave unset for the card to own it. */
   selectedId?: string | null;
@@ -183,7 +183,7 @@ export function QuestionCard({
           </button>
         )}
         {onChat && (
-          <button type="button" className="question-quiet" disabled={busy} onClick={() => { onChat(); onReturnFocus?.(); }}>
+          <button type="button" className="question-quiet" disabled={busy} onClick={onChat}>
             {S.chat}
           </button>
         )}

@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Stores;
+using CodeChroma.Bridge.Tests.Contract;
 
 namespace CodeChroma.Bridge.Tests.Questions;
 
@@ -38,6 +39,18 @@ public class QuestionDeliveryTests
         var text = QuestionDelivery.AnswerMessage(Element("chat"));
 
         Assert.Equal("[CodeChroma answer · Q2/3 · q1] How to structure checkout? → " + QuestionDelivery.Chat, text);
+    }
+
+    [Fact]
+    public void Outcome_texts_match_the_shared_contract_text()
+    {
+        var path = Path.Combine(ContractCases.FixtureDir, "question_outcomes.json");
+
+        var shared = JsonNode.Parse(File.ReadAllText(path))!;
+
+        Assert.Equal(QuestionDelivery.Skipped, (string?)shared["skipped"]);
+        Assert.Equal(QuestionDelivery.Chat, (string?)shared["chat"]);
+        Assert.Equal(QuestionDelivery.DiagramRequest, (string?)shared["diagram_request"]);
     }
 
     [Fact]

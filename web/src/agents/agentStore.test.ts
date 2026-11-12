@@ -92,22 +92,12 @@ describe("agentStore", () => {
     expect(agentStore.getAgent("a")?.window.z).toBe(8);
   });
 
-  it("reports capacity once the bridge's limit is reached", () => {
-    agentStore.setList({
-      agents: [agent("a"), agent("b")],
-      max_agents: 2,
-    });
-
-    expect(agentStore.getIsAtCapacity()).toBe(true);
-  });
-
   it("preserves the z order the bridge restored", () => {
     agentStore.setList({
       agents: [
         agent("a", { window: { ...agent("a").window, z: 5 } }),
         agent("b", { window: { ...agent("b").window, z: 2 } }),
       ],
-      max_agents: 5,
     });
 
     expect(agentStore.getAgents().map((entry) => entry.window.z)).toEqual([5, 2]);
@@ -260,7 +250,7 @@ describe("workspace switching", () => {
   it("does not follow another window's pick once this window has chosen its workspace", () => {
     agentStore.setActiveWorkspace("pr-9");
 
-    const list = { agents: [], active_workspace: "refund-flow", max_agents: 5 };
+    const list = { agents: [], active_workspace: "refund-flow" };
 
     agentStore.setList(list);
 
@@ -268,7 +258,7 @@ describe("workspace switching", () => {
   });
 
   it("leaves the boot's restore to ensureWorktrees: a list never moves the workspace", () => {
-    const list = { agents: [agent("refund-flow")], active_workspace: "pr-7", max_agents: 5 };
+    const list = { agents: [agent("refund-flow")], active_workspace: "pr-7" };
 
     agentStore.setList(list);
 
@@ -278,7 +268,6 @@ describe("workspace switching", () => {
   it("switching does not touch any agent's status", () => {
     agentStore.setList({
       agents: [agent("a", { status: "working" }), agent("b", { status: "blocked" })],
-      max_agents: 5,
     });
 
     agentStore.setActiveWorkspace("a");
@@ -299,9 +288,9 @@ describe("launchAgent's store-side state", () => {
   });
 
   it("publishes and clears a launch error", () => {
-    agentStore.setLaunchError("the limit of 5 concurrent agents is reached");
+    agentStore.setLaunchError("claude failed to start");
 
-    expect(agentStore.getLaunchError()).toBe("the limit of 5 concurrent agents is reached");
+    expect(agentStore.getLaunchError()).toBe("claude failed to start");
 
     agentStore.setLaunchError(null);
 

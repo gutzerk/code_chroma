@@ -7,6 +7,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import { useTerminalClient } from "./TerminalClientContext";
 import type { TerminalSession } from "./TerminalClient";
+import { attachStickToBottom, type StickToBottomHandle } from "./stickToBottom";
 
 const REFIT_DEBOUNCE_MS = 60;
 const SELECTION_COPY_DEBOUNCE_MS = 150;
@@ -156,6 +157,7 @@ export function useXtermSession(
   const refitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectionCopyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSizeRef = useRef<{ rows: number; cols: number } | null>(null);
+  const stickyRef = useRef<StickToBottomHandle | null>(null);
 
   // Reflow the grid to the container, then forward the new size to the PTY — but only when cols/rows
   // actually changed, so a settled resize is one clean SIGWINCH rather than a redundant reprint.
@@ -274,6 +276,9 @@ export function useXtermSession(
     lastSizeRef.current = null;
     refit();
 
+    const sticky = attachStickToBottom(term, container, () => hiddenRef.current);
+    stickyRef.current = sticky;
+
     const resizeObserver = new ResizeObserver(() => scheduleRefit());
     resizeObserver.observe(container);
 
@@ -281,6 +286,8 @@ export function useXtermSession(
 
     return () => {
       disposed = true;
+      sticky.detach();
+      stickyRef.current = null;
       removeLiveTerminal(live);
       detachConsumer?.();
       resizeObserver.disconnect();
@@ -301,6 +308,7 @@ export function useXtermSession(
     if (hidden || !enabled) return;
     repaint();
     scheduleRefit();
+    stickyRef.current?.shown();
     termRef.current?.focus();
   }, [hidden, enabled, scheduleRefit, repaint]);
 

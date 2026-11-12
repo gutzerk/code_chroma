@@ -69,7 +69,6 @@ export function ensureStepAgent(client: AgentClient, title: string, runId: strin
   const key = `${runId}:${sessionId}`;
   const inFlight = stepStarts.get(key);
   if (inFlight) return inFlight;
-  if (agentStore.getIsAtCapacity()) return Promise.reject(new Error("Too many agents are open; close one to talk to this step."));
   const launch = createAndStart(client, () => client.openStepSession(title, runId, sessionId)).finally(() => stepStarts.delete(key));
   stepStarts.set(key, launch);
   return launch;
@@ -90,9 +89,9 @@ async function createAndStart(client: AgentClient, create: () => Promise<AgentRe
   }
 }
 
-/** The shared launch bookkeeping: capacity guard, create (null: stop quietly), start, open its window; a failure after create opens it with the error. True once an agent was created. */
+/** The shared launch bookkeeping: double-launch guard, create (null: stop quietly), start, open its window; a failure after create opens it with the error. True once an agent was created. */
 async function runLaunch(client: AgentClient, create: () => Promise<AgentRecord | null>): Promise<boolean> {
-  if (agentStore.getIsAtCapacity() || agentStore.getIsLaunching()) return false;
+  if (agentStore.getIsLaunching()) return false;
   agentStore.setLaunchError(null);
   agentStore.setIsLaunching(true);
   let createdId: string | null = null;

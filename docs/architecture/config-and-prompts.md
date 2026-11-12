@@ -1,8 +1,8 @@
 # Config and prompts (`src/codechroma/config.py`, `src/codechroma/prompts/`)
 
 Every tunable limit/timeout/model-name that used to sit as a bare module-level constant next to the
-code it configured (e.g. `context/structure.py`'s `DEFAULT_DEPTH`, `bridge/agents/manager.py`'s
-`MAX_AGENTS`) now has one source of truth in `config.py`, and every Claude system/user prompt that
+code it configured (e.g. `context/structure.py`'s `DEFAULT_DEPTH`, `bridge/prs/manager.py`'s
+`MAX_PR_WORKSPACES`) now has one source of truth in `config.py`, and every Claude system/user prompt that
 used to be an inline string constant (e.g. `context/patterns_generator.py`'s `_SYSTEM_PROMPT`) now lives in
 `prompts/*.yaml`. Neither module does anything clever — they exist so the same default is defined
 once and every consumer imports it, instead of the same idea (a timeout, a token cap, a prompt's
@@ -11,7 +11,7 @@ wording) drifting across files that each hardcoded their own copy.
 ## `config.py`
 
 One pydantic `Settings` object (`settings = Settings()`), built from ~20 frozen `BaseModel` groups —
-one per subsystem, named after the module it configures (`StructureConfig`, `AgentsConfig`,
+one per subsystem, named after the module it configures (`StructureConfig`, `WorktreeConfig`,
 `PublishConfig`, …). Each group's docstring names the file it replaced. A consuming module reads the
 value **at call time**, not at import — so a custom `Settings(...)` built first actually takes
 effect:
@@ -23,11 +23,11 @@ def gh_timeout() -> int:
     return settings.publish.gh_timeout_seconds
 ```
 
-Most modules expose a small module-level *function* (`gh_timeout()`, `max_agents()`,
+Most modules expose a small module-level *function* (`gh_timeout()`,
 `max_pr_workspaces()`, …) that reads `settings.<group>.<field>` lazily, rather than a bare constant
 snapshot, because the old import-time constants made it impossible for two apps in one process to
 differ in config. Where a value has a single call site it is read inline. The handful of constants
-that tests or other modules still import by name (e.g. `MAX_AGENTS`) became functions and those
+that tests or other modules still import by name (e.g. `MAX_PR_WORKSPACES`) became functions and those
 importers were updated in the same change (plan-04).
 
 🔴 Not migrated: reason-code/state-tag string constants (`STATUS_IDLE`, `REASON_GH_MISSING`, …) and

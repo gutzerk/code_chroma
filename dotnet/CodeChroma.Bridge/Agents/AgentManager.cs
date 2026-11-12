@@ -7,20 +7,16 @@ using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Agents;
 
-/// <summary>The hard limit of live agents is reached (409).</summary>
-public sealed class AgentLimitException(string message) : BridgeException(409, message);
-
 /// <summary>No agent with that id is registered (404).</summary>
 public sealed class UnknownAgentException(string id) : BridgeException(404, id);
 
 /// <summary>
-/// The agent registry, worktree creation, and the 5-agent cap. agents.json lives in the main repository because it spans all
+/// The agent registry, worktree creation and persistence (no cap on live agents). agents.json lives in the main repository because it spans all
 /// worktrees; an agent's own artifacts already sit in the .codechroma/ of its worktree. There is no base_commit field: the
 /// divergence point is `git merge-base`, computed on demand.
 /// </summary>
 public sealed partial class AgentManager
 {
-    public const int MaxAgents = 5;
     private const int RegistryVersion = 1;
 
     private readonly object _lock = new();
@@ -214,13 +210,12 @@ public sealed partial class AgentManager
         public void Dispose() => Interlocked.Exchange(ref _release, null)?.Invoke();
     }
 
-    /// <summary>Under the agent limit, builds a record for a fresh id (title falls back to it), stacks its window on top and persists.</summary>
+    /// <summary>Builds a record for a fresh id (title falls back to it), stacks its window on top and persists.</summary>
     private AgentRecord Add(string title, Func<string, string, string, AgentRecord> build)
     {
         AgentRecord record;
         lock (_lock)
         {
-            if (_agents.Count >= MaxAgents) throw new AgentLimitException($"the limit of {MaxAgents} concurrent agents is reached");
             var agentId = UniqueId(title);
             record = build(agentId, title.Trim().Length > 0 ? title.Trim() : agentId, Json.Iso(DateTimeOffset.UtcNow));
             record.Window["z"] = _agents.Count + 1;

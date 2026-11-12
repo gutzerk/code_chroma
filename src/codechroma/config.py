@@ -133,12 +133,6 @@ class PRWorkspacesConfig(_Config):
     max_pr_workspaces: int = 3
 
 
-class AgentsConfig(_Config):
-    """bridge/agents/manager.py"""
-
-    max_agents: int = 5
-
-
 class WorktreeConfig(_Config):
     """bridge/agents/worktree.py"""
 
@@ -259,7 +253,6 @@ class Settings(_Config):
     questions: QuestionsConfig = QuestionsConfig()
     workspaces: WorkspacesConfig = WorkspacesConfig()
     pr_workspaces: PRWorkspacesConfig = PRWorkspacesConfig()
-    agents: AgentsConfig = AgentsConfig()
     worktree: WorktreeConfig = WorktreeConfig()
     agent_status: AgentStatusConfig = AgentStatusConfig()
     publish: PublishConfig = PublishConfig()

@@ -215,10 +215,10 @@ describe("RootCanvas agent launch error", () => {
     renderCanvas();
     await waitFor(() => expect(screen.getByTestId("app-canvas")).toBeTruthy());
 
-    act(() => agentStore.setLaunchError("the limit of 5 concurrent agents is reached"));
+    act(() => agentStore.setLaunchError("claude failed to start"));
 
     expect(terminalPanelStore.getIsOpen()).toBe(false);
-    expect(screen.getByRole("alert")).toHaveTextContent("the limit of 5 concurrent agents is reached");
+    expect(screen.getByRole("alert")).toHaveTextContent("claude failed to start");
   });
 });
 

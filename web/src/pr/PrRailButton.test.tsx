@@ -35,7 +35,7 @@ function pr(number: number): PrWorkspace {
 function client(overrides: Partial<AgentClient> = {}): AgentClient {
   return {
     ...PR_CLIENT_STUB,
-    list: async () => ({ agents: [], active_workspace: "main", max_agents: 5 }),
+    list: async () => ({ agents: [], active_workspace: "main" }),
     create: async () => {
       throw new Error("unused");
     },

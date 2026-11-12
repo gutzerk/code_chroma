@@ -21,7 +21,7 @@ function client(activateWorkspace = vi.fn(async (id: string) => ({
 }))): AgentClient & { activateWorkspace: typeof activateWorkspace } {
   return {
     ...PR_CLIENT_STUB,
-    list: async () => ({ agents: [], active_workspace: "main", max_agents: 5 }),
+    list: async () => ({ agents: [], active_workspace: "main" }),
     create: async () => {
       throw new Error("not used");
     },

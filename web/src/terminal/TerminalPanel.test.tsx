@@ -51,6 +51,15 @@ vi.mock("@xterm/xterm", () => {
 
     onBinary(): void {}
 
+    buffer = { active: { viewportY: 0, baseY: 0 } };
+    onScroll(): { dispose(): void } {
+      return { dispose() {} };
+    }
+    onWriteParsed(): { dispose(): void } {
+      return { dispose() {} };
+    }
+    scrollToBottom(): void {}
+
     onSelectionChange(callback: () => void): void {
       this.selectionHandler = callback;
     }

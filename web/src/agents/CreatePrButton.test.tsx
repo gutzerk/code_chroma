@@ -30,7 +30,7 @@ function record(overrides: Partial<AgentRecord> = {}): AgentRecord {
 function agentClient(overrides: Partial<AgentClient> = {}): AgentClient {
   return {
     ...PR_CLIENT_STUB,
-    list: async () => ({ agents: [], active_workspace: "main", max_agents: 5 }),
+    list: async () => ({ agents: [], active_workspace: "main" }),
     create: async () => record(),
     start: async () => record(),
     stop: async () => record(),

@@ -1,4 +1,4 @@
-"""The agent registry, worktree creation, and the 5-agent cap.
+"""The agent registry and worktree creation (no cap on live agents).
 
 The file lives in the *main* repository rather than in a worktree, because it is a list spanning all
 worktrees. An agent's own artifacts (c1.json, …) are not in here: they already sit in the
@@ -30,7 +30,6 @@ from codechroma.bridge.agents.live_status import STATUS_STOPPED, AgentError
 from codechroma.bridge.agents.worktree import WorktreeError
 from codechroma.bridge.git_cmd import ensure_excluded
 from codechroma.bridge.workspaces import BRANCH_ID_PREFIX, MAIN_ID, PR_ID_PREFIX
-from codechroma.config import settings
 from codechroma.errors import codechromaError
 from codechroma.io import load_json, utc_now_iso, write_json
 
@@ -41,12 +40,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("uvicorn.error")
 
-# Each agent is its own in-memory GraphEngine plus subscription spend; revisit with measurements.
 REGISTRY_VERSION = 1
-
-
-def max_agents() -> int:
-    return settings.agents.max_agents
 
 DEFAULT_KIND = "claude"
 
@@ -104,10 +98,6 @@ def _shadows_a_workspace(agent_id: str) -> bool:
     """Whether this id already names a non-agent workspace, making such an agent unreachable."""
     # 🔴 `main` is the main repo and `pr-<number>` a fetched PR; shadowing either hides the agent.
     return agent_id == MAIN_ID or _PR_WORKSPACE_ID.fullmatch(agent_id) is not None
-
-
-class AgentLimitError(codechromaError):
-    """The hard limit of live agents is reached; the route turns this into a 409."""
 
 
 class UnknownAgentError(codechromaError, KeyError):
@@ -474,8 +464,6 @@ class AgentManager:
         # Whole body under the lock: id reservation must be atomic with insertion, or two
         # threads creating the same title reserve one id and silently evict each other's record.
         with self._lock:
-            if len(self._agents) >= max_agents():
-                raise AgentLimitError(f"the limit of {max_agents()} concurrent agents is reached")
             if attach_to is None and workspace is not None:
                 attach_to = workspace
             agent_id = self._unique_id(title)

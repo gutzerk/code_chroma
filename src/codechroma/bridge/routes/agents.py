@@ -23,7 +23,6 @@ from codechroma.bridge.agents.manager import (
     AgentRecord,
     UnknownAgentError,
     _clean_context,
-    max_agents,
 )
 from codechroma.bridge.agents.session_ownership import file_for
 from codechroma.bridge.agents.sessions import AgentSession, AgentStartError, agent_run_env
@@ -94,7 +93,6 @@ def get_agents(services: Services) -> dict:
             for r in services.agent_manager.list()
         ],
         "active_workspace": services.agent_manager.active_workspace,
-        "max_agents": max_agents(),
     }
 
 

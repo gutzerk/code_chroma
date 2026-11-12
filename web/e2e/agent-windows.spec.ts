@@ -56,17 +56,16 @@ test("keeps terminals mounted while changing tabs, collapsing and switching work
   await expect(terminal).toHaveAttribute("data-e2e-mark", "original");
 });
 
-test("closing an attached agent removes it and respects agent capacity", async ({ page }) => {
+test("runs a sixth agent with no cap and closing one removes it", async ({ page }) => {
   await gotoApp(page);
   const run = page.getByRole("button", { name: "Run agent" });
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 6; i++) {
     await run.click();
     await expect(page.getByTestId(`agent-dock-panel-agent${i}`)).toBeVisible();
   }
-  await expect(run).toBeDisabled();
-  await page.getByRole("button", { name: "Close agent5", exact: true }).click();
-  await expect(page.getByTestId("agent-dock-panel-agent5")).toHaveCount(0);
   await expect(run).toBeEnabled();
+  await page.getByRole("button", { name: "Close agent6", exact: true }).click();
+  await expect(page.getByTestId("agent-dock-panel-agent6")).toHaveCount(0);
   await expect(page.getByTestId("agent-layer")).toHaveAttribute("data-active-workspace", "main");
 });
 

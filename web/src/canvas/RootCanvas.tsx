@@ -45,7 +45,6 @@ import { ActivityPanel } from "../agents/ActivityPanel";
 import { AgentWindowLayer } from "../agents/AgentWindowLayer";
 import {
   useActiveWorkspace,
-  useIsAtAgentCapacity,
   useIsLaunchingAgent,
 } from "../agents/agentStore";
 import { useAgentClient } from "../agents/AgentClientContext";
@@ -115,7 +114,6 @@ export function RootCanvas() {
     [prWorkspaces, workspaceId],
   );
   const viewContext = useCurrentViewContext();
-  const isAtAgentCapacity = useIsAtAgentCapacity();
   const isLaunchingAgent = useIsLaunchingAgent();
   const isInspectorOpen = useIsInspectorOpen();
   // Latched: each panel stays mounted (hidden via CSS) after its first open, so PTY scrollback
@@ -563,7 +561,7 @@ export function RootCanvas() {
               {activeModes.map(({ id, Controls }) => Controls && <Controls key={id} />)}
               <DrawDialog />
             </div>
-            <ActivityPanel disabled={isAtAgentCapacity || isLaunchingAgent} onRunAgent={() => {
+            <ActivityPanel disabled={isLaunchingAgent} onRunAgent={() => {
               if (tutorialStore.isActive()) tutorialSimStore.startAgent2();
               else void attachAgent(agentClient, viewContext);
             }} />

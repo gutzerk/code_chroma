@@ -51,8 +51,11 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   `Redraw()`) writes the open project and PR workspace tabs (in order, plus the active index) to
   `<userData>/session.json` via temp-file-then-rename, only when the JSON differs; launcher tabs are not saved. On window `Opened`,
   `RestoreSessionAsync` reopens the saved projects (first one reuses the empty launcher tab, bridges start in parallel),
-  then each project's PR tabs once its bridge is up, and re-activates the saved tab. Missing repo folders are skipped.
+  then each project's PR tabs once its bridge is up, and re-activates the saved tab (a saved active PR tab takes focus only
+  if the user has not switched tabs meanwhile). Missing repo folders are skipped. A project whose bridge fails to start keeps
+  its saved entries (and its PR tabs) on its error tab until that tab is closed or reused, so one failed launch never forgets it.
   Saves are paused while restoring and after `ShutdownAsync`, so a partial restore or app quit never overwrites the file.
+  The temp file is per process (`session.json.<pid>.tmp`), so two running instances never write the same temp file.
   A `--repo` argument opens alongside the restored tabs. PR tabs are appended after all projects, so a mixed order is not kept.
   Tests: `CodeChroma.Shell.Tests/TabSessionTests.cs`.
 - `Projects/ProjectStores` (recents, with missing folders kept but flagged), `Projects/TutorialProject` (+

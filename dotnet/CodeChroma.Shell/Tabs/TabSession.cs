@@ -17,21 +17,23 @@ public static class TabSession
 {
     public static string StorePath(string userDataDir) => Path.Combine(userDataDir, "session.json");
 
-    public static SessionState Capture(TabModel tabs)
+    /// <summary>The saved tabs in strip order; `unopened` holds the saved tabs of an error tab whose restore failed.</summary>
+    public static SessionState Capture(TabModel tabs, IReadOnlyDictionary<string, IReadOnlyList<SessionTab>>? unopened = null)
     {
         var saved = new List<SessionTab>();
         var active = -1;
         foreach (var tab in tabs.Tabs)
         {
-            SessionTab? entry = tab switch
+            IReadOnlyList<SessionTab> entries = tab switch
             {
-                { RepoPath: { } repo } => new SessionTab(repo),
-                { WorkspaceId: { } id, OwnerTabId: { } owner } when tabs.FindTab(owner)?.RepoPath is { } repo => new SessionTab(repo, id, tab.Label),
-                _ => null,
+                { RepoPath: { } repo } => [new SessionTab(repo)],
+                { WorkspaceId: { } id, OwnerTabId: { } owner } when tabs.FindTab(owner)?.RepoPath is { } repo => [new SessionTab(repo, id, tab.Label)],
+                { WorkspaceId: null } when unopened?.GetValueOrDefault(tab.Id) is { } held => held,
+                _ => [],
             };
-            if (entry is null) continue;
+            if (entries.Count == 0) continue;
             if (tab.Id == tabs.ActiveTab?.Id) active = saved.Count;
-            saved.Add(entry);
+            saved.AddRange(entries);
         }
         return new SessionState(saved, active);
     }
@@ -52,7 +54,7 @@ public static class TabSession
     public static void Write(string storePath, string json)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(storePath)!);
-        var temp = storePath + ".tmp";
+        var temp = $"{storePath}.{Environment.ProcessId}.tmp";
         File.WriteAllText(temp, json);
         File.Move(temp, storePath, overwrite: true);
     }

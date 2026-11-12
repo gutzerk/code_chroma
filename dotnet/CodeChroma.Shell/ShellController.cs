@@ -8,6 +8,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
     private bool shuttingDown;
     private bool restoring;
     private string? savedSession;
+    private readonly Dictionary<string, IReadOnlyList<SessionTab>> unopened = [];
 
     public string Version { get; } = version;
 
@@ -95,6 +96,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         var requesting = requestingTabId is null ? null : tabs.FindTab(requestingTabId);
         var tab = requesting is { RepoPath: null, WorkspaceId: null } ? requesting : tabs.NewTab();
         tab.RepoPath = repoPath;
+        unopened.Remove(tab.Id);
         tabs.SetActive(tab.Id);
         Changed();
 
@@ -136,22 +138,27 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         try
         {
             var launcher = tabs.ActiveTab?.Id;
-            var opens = repos.Select((repo, i) => (Repo: repo, Open: OpenRepoAsync(repo, i == 0 ? launcher : null))).ToList();
+            var opens = new List<(string Repo, string? TabId, Task Open)>();
+            foreach (var repo in repos)
+            {
+                var open = OpenRepoAsync(repo, opens.Count == 0 ? launcher : null);
+                opens.Add((repo, tabs.ActiveTab?.Id, open));
+            }
             if (saved.Active is { WorkspaceId: null } activeRepo && tabs.FindByRepoPath(activeRepo.RepoPath) is { } first) tabs.SetActive(first.Id);
-            var expected = tabs.ActiveTab?.Id;
+            var expectedActive = tabs.ActiveTab?.Id;
             Changed();
-            foreach (var (repo, open) in opens)
+            foreach (var (repo, tabId, open) in opens)
             {
                 await open;
-                if (tabs.FindByRepoPath(repo) is not { Bridge: not null } owner) continue;
-                foreach (var ws in saved.Tabs.Where(t => t.WorkspaceId is not null && RepoPaths.Canonical(t.RepoPath) == RepoPaths.Canonical(repo)))
+                var workspaces = saved.Tabs.Where(t => t.WorkspaceId is not null && RepoPaths.Canonical(t.RepoPath) == RepoPaths.Canonical(repo)).ToList();
+                if (tabs.FindByRepoPath(repo) is not { Bridge: not null } owner)
                 {
-                    var before = tabs.ActiveTab?.Id;
-                    await OpenWorkspaceTabAsync(owner.Id, ws.WorkspaceId!, ws.Label);
-                    if (ReferenceEquals(ws, saved.Active) && before == expected) expected = tabs.ActiveTab?.Id;
-                    else if (before is not null) tabs.SetActive(before);
-                    Changed();
+                    // A bridge that failed to start keeps its saved tabs on the error tab, so one slow launch never forgets them.
+                    if (tabId is not null && tabs.FindTab(tabId) is { RepoPath: null, WorkspaceId: null }) unopened[tabId] = [new SessionTab(repo), .. workspaces];
+                    continue;
                 }
+                foreach (var ws in workspaces)
+                    expectedActive = await RestoreWorkspaceTabAsync(owner.Id, ws, ReferenceEquals(ws, saved.Active), expectedActive);
             }
         }
         finally
@@ -159,6 +166,17 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
             restoring = false;
             SaveSession();
         }
+    }
+
+    /// <summary>Reopens one saved PR tab; it takes focus only if it was the saved active tab and the user has not switched tabs since. Returns the tab restore now expects to be active.</summary>
+    private async Task<string?> RestoreWorkspaceTabAsync(string ownerId, SessionTab saved, bool wasActive, string? expectedActive)
+    {
+        var current = tabs.ActiveTab?.Id;
+        await OpenWorkspaceTabAsync(ownerId, saved.WorkspaceId!, saved.Label);
+        var takeFocus = wasActive && current == expectedActive;
+        if (!takeFocus && current is not null) tabs.SetActive(current);
+        Changed();
+        return takeFocus ? tabs.ActiveTab?.Id : expectedActive;
     }
 
     public async Task OpenWorkspaceTabAsync(string senderTabId, string workspaceId, string? label = null)
@@ -220,7 +238,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
     private void SaveSession()
     {
         if (sessionPath is null || restoring || shuttingDown) return;
-        var json = TabSession.Serialize(TabSession.Capture(tabs));
+        var json = TabSession.Serialize(TabSession.Capture(tabs, unopened));
         if (json == savedSession) return;
         try
         {

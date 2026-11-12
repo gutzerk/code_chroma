@@ -7,6 +7,12 @@ public class TabSessionTests
     private static void Save(ShellHarness h, int active, params SessionTab[] tabs) =>
         TabSession.Write(h.SessionPath, TabSession.Serialize(new SessionState(tabs, active)));
 
+    private static void FailBridgeOf(ShellHarness h, string repo) => h.Launcher.OnStart = p =>
+    {
+        if (p.Spec.RepoPath == repo) p.Exit("bridge exited (code 3)");
+        else p.Say($"[codechroma-live] bridge ready at http://127.0.0.1:{p.Spec.Port}");
+    };
+
     [Fact]
     public async Task Opening_projects_saves_them_in_tab_order_with_the_active_one()
     {
@@ -95,6 +101,54 @@ public class TabSessionTests
         Assert.Equal("PR #7: fix", workspace.Label);
         Assert.Equal(workspace, h.Tabs.ActiveTab);
         Assert.Equal((workspace, "http://127.0.0.1:41000/?workspace=pr-7"), h.Ui.Navigations[^1]);
+    }
+
+    [Fact]
+    public async Task A_project_whose_bridge_fails_on_restore_stays_saved_after_later_changes()
+    {
+        using var h = new ShellHarness();
+        var alpha = h.Repo("alpha");
+        var beta = h.Repo("beta");
+        FailBridgeOf(h, beta);
+        Save(h, 0, new SessionTab(alpha), new SessionTab(beta), new SessionTab(beta, "pr-7", "PR #7: fix"));
+        await h.Controller.RestoreSessionAsync();
+
+        h.Controller.NewTab();
+
+        Assert.Equal([new SessionTab(alpha), new SessionTab(beta), new SessionTab(beta, "pr-7", "PR #7: fix")], TabSession.Read(h.SessionPath).Tabs);
+    }
+
+    [Fact]
+    public async Task Closing_the_error_tab_of_a_failed_restore_drops_its_saved_project()
+    {
+        using var h = new ShellHarness();
+        var alpha = h.Repo("alpha");
+        var beta = h.Repo("beta");
+        FailBridgeOf(h, beta);
+        Save(h, 0, new SessionTab(alpha), new SessionTab(beta));
+        await h.Controller.RestoreSessionAsync();
+        var errorTab = h.Ui.TabErrors.Single().Tab;
+
+        await h.Controller.CloseTabAsync(errorTab.Id);
+
+        Assert.Equal([new SessionTab(alpha)], TabSession.Read(h.SessionPath).Tabs);
+    }
+
+    [Fact]
+    public async Task A_saved_active_pr_tab_does_not_take_focus_after_the_user_switched_tabs_during_restore()
+    {
+        using var h = new ShellHarness();
+        var alpha = h.Repo("alpha");
+        var beta = h.Repo("beta");
+        Save(h, 2, new SessionTab(alpha), new SessionTab(beta), new SessionTab(alpha, "pr-7", "PR #7: fix"));
+        var restore = h.Controller.RestoreSessionAsync();
+        var alphaTab = h.Tabs.FindByRepoPath(alpha)!;
+
+        h.Controller.SwitchTab(alphaTab.Id);
+        await restore;
+
+        Assert.NotNull(h.Tabs.FindWorkspaceTab("pr-7"));
+        Assert.Equal(alphaTab, h.Tabs.ActiveTab);
     }
 
     [Fact]

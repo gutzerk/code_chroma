@@ -60,15 +60,20 @@ const SYNTHESIZED_LAYER_PREFIXES = ["custom/", "feature-plan/", "epics/"];
  * kind of diagram, even though it was really on the canvas.) See `isRecipeBackedLayer` below for the
  * separate question of whether a given layer's row can be refreshed. */
 export function listActiveDiagramLayers(doc: CanvasDoc): string[] {
-  return [...collectActiveLayers(doc)].filter((layer) => isDiagramLayer(layer) && !isDecisionLayer(layer));
+  return [...collectActiveLayers(doc)].filter(isListedDiagramLayer);
 }
 
-/** Whether at least one diagram is on the canvas and not hidden via the Diagrams tab; a boolean subscription, not the whole doc. */
+/** Whether `layer` gets a Diagrams-tab row: a real diagram that the canvas (not only the agent window) shows. */
+function isListedDiagramLayer(layer: string): boolean {
+  return isDiagramLayer(layer) && !isDecisionLayer(layer);
+}
+
+/** Whether a Diagrams-tab layer is on the canvas and not hidden; a boolean subscription, not the whole doc. Ignores stray `default`-layer boxes on purpose: they have no row to show or hide them. */
 export function useHasVisibleDiagram(): boolean {
   const collapsed = useCollapsedLayers();
   return useSyncExternalStore(canvasDocStore.subscribe, () =>
     Object.values(canvasDocStore.getDoc().elements).some(
-      ({ layer }) => isDiagramLayer(layer) && !isDecisionLayer(layer) && !collapsed.has(layer),
+      ({ layer }) => isListedDiagramLayer(layer) && !collapsed.has(layer),
     ),
   );
 }

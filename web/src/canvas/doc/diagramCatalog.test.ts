@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { act, renderHook } from "@testing-library/react";
 import type { CanvasDoc, CanvasElement, DiagramsStatus, DiagramTypeSummary } from "../../state/types";
 import { EMPTY_CANVAS_DOC } from "../../state/types";
 import type { EngineClient } from "../../engine-client/EngineClient";
 import { canvasDocStore } from "./canvasDocStore";
+import { collapsedLayersStore } from "./collapsedLayersStore";
 import { reset as resetLayerPositionCache } from "./layerPositionCache";
 import {
   WATCHED_DIAGRAM_EVENT_KINDS,
@@ -15,6 +17,7 @@ import {
   redrawLayerFromScratch,
   removeLayerAndRefresh,
   runRecipeAndLayout,
+  useHasVisibleDiagram,
 } from "./diagramCatalog";
 import { patchCanvasDoc } from "./canvasDocSync";
 
@@ -76,6 +79,34 @@ describe("listActiveDiagramLayers", () => {
     const doc = docWith([element("x1", "Serving Unit TLS Process (LMP-126)")]);
 
     expect(listActiveDiagramLayers(doc)).toEqual(["Serving Unit TLS Process (LMP-126)"]);
+  });
+});
+
+describe("useHasVisibleDiagram", () => {
+  afterEach(() => {
+    canvasDocStore.reset();
+    collapsedLayersStore.reset();
+  });
+
+  it.each([
+    ["an empty canvas", [], false],
+    ["only non-diagram and decision layers", [element("h", "hierarchy"), element("d", "default"), element("q", "decisions/q1")], false],
+    ["a visible diagram", [element("p", "patterns")], true],
+  ])("with %s returns %s", (_case, elements, expected) => {
+    canvasDocStore.setDoc(docWith(elements));
+
+    const { result } = renderHook(() => useHasVisibleDiagram());
+
+    expect(result.current).toBe(expected);
+  });
+
+  it("turns false when the only diagram is hidden", () => {
+    canvasDocStore.setDoc(docWith([element("p", "patterns")]));
+    const { result } = renderHook(() => useHasVisibleDiagram());
+
+    act(() => collapsedLayersStore.collapse("patterns"));
+
+    expect(result.current).toBe(false);
   });
 });
 

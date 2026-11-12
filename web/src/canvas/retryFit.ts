@@ -13,12 +13,21 @@ export function retryFitLoop(
   isCancelled: () => boolean,
   onDone?: () => void,
 ): void {
+  retryEachFrame(() => fitToNodes(nodeIds) || nodeIds.length === 0, maxFrames, isCancelled, onDone);
+}
+
+/** Calls `attempt` once per animation frame until it returns true or `maxFrames` calls are made; the loop under `retryFitLoop`. */
+export function retryEachFrame(
+  attempt: () => boolean,
+  maxFrames: number,
+  isCancelled: () => boolean,
+  onDone?: () => void,
+): void {
   let attempts = 0;
   const step = () => {
     if (isCancelled()) return;
     attempts += 1;
-    const settled = fitToNodes(nodeIds);
-    if (settled || nodeIds.length === 0 || attempts >= maxFrames) {
+    if (attempt() || attempts >= maxFrames) {
       onDone?.();
       return;
     }

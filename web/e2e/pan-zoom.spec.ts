@@ -3,7 +3,6 @@ import { clickTreeNodeName, diagramBox, gotoApp, seedCanvasDoc } from "./helpers
 
 test("zooms toward the cursor on wheel and pans on drag", async ({ page }) => {
   await gotoApp(page);
-  await seedCanvasDoc(page, { elements: { a: diagramBox("a", "patterns") } });
 
   const content = page.getByTestId("canvas-content");
   const viewport = page.getByTestId("app-canvas");

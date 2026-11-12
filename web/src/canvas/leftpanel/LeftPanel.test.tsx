@@ -95,6 +95,14 @@ describe("LeftPanel", () => {
     expect(focusDiagram).toHaveBeenCalledWith("patterns");
   });
 
+  it("names the focus button by the row's visible text, element count included", () => {
+    renderPanel();
+
+    const focus = screen.getByTestId("left-panel-row-focus-patterns");
+
+    expect(focus).toHaveAccessibleName(/1 element$/);
+  });
+
   it("switches to the Files tab", () => {
     renderPanel();
 

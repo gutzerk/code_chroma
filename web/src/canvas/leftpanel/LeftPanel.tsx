@@ -183,7 +183,6 @@ function DiagramsTab({ arrange, rootName }: { arrange?: ReactNode; rootName?: st
                 <button
                   type="button"
                   className="left-panel-row-text"
-                  aria-label={`Focus ${name}`}
                   data-testid={`left-panel-row-focus-${layer}`}
                   onClick={() => focusDiagram(layer)}
                 >

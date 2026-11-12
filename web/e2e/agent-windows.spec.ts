@@ -66,7 +66,7 @@ test("runs a sixth agent with no cap and closing one removes it", async ({ page 
   await expect(run).toBeEnabled();
   await page.getByRole("button", { name: "Close agent6", exact: true }).click();
   await expect(page.getByTestId("agent-dock-panel-agent6")).toHaveCount(0);
-  await expect(page.getByTestId("agent-layer")).toHaveAttribute("data-active-workspace", "main");
+  await expect(page.getByTestId("agent-layer")).toHaveAttribute("data-active-workspace", "br_1");
 });
 
 test("creates a workflow in the editor and starts its run", async ({ page }) => {

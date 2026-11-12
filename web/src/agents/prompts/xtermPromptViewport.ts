@@ -51,8 +51,7 @@ export function attachXtermPromptViewport(
     if (frame) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
-      const buffer = term.buffer.active;
-      promptNavStore.onViewport(agentId, buffer.viewportY, isAtBottom(term));
+      promptNavStore.onViewport(agentId, term.buffer.active.viewportY, isAtBottom(term));
     });
   };
 

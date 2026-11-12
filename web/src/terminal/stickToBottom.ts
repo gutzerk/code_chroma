@@ -1,6 +1,9 @@
 /** How long after a wheel or key press a scroll still counts as the user's. */
 const INTENT_MS = 300;
 
+/** Keys that scroll the viewport; typing (Enter included) is not a scroll and must not unpin. */
+const SCROLL_KEYS = new Set(["PageUp", "PageDown", "Home", "End"]);
+
 interface Disposable {
   dispose(): void;
 }
@@ -46,12 +49,14 @@ export function attachStickToBottom(term: StickyTerminal, host: HTMLElement, isH
   const follow = () => { if (pinned && !atBottom()) term.scrollToBottom(); };
   const userIntent = () => pointerHeld || Date.now() < intentUntil;
   const markIntent = () => { intentUntil = Date.now() + INTENT_MS; };
+  const onKeyDown = (event: KeyboardEvent) => { if (SCROLL_KEYS.has(event.key)) markIntent(); };
   const onPointerDown = () => { pointerHeld = true; };
   const onPointerUp = () => {
     if (!pointerHeld) return;
     pointerHeld = false;
     markIntent();
   };
+  const onPointerLost = () => { pointerHeld = false; };
 
   const settle = () => {
     if (isHidden()) return;
@@ -64,9 +69,11 @@ export function attachStickToBottom(term: StickyTerminal, host: HTMLElement, isH
     follow();
   });
   host.addEventListener("wheel", markIntent, { passive: true });
-  host.addEventListener("keydown", markIntent);
+  host.addEventListener("keydown", onKeyDown);
   host.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("pointerup", onPointerUp);
+  window.addEventListener("pointercancel", onPointerLost);
+  window.addEventListener("blur", onPointerLost);
   const scrolls = term.onScroll(settle);
   const writes = term.onWriteParsed(settle);
 
@@ -75,9 +82,11 @@ export function attachStickToBottom(term: StickyTerminal, host: HTMLElement, isH
     detach: () => {
       pins.delete(term);
       host.removeEventListener("wheel", markIntent);
-      host.removeEventListener("keydown", markIntent);
+      host.removeEventListener("keydown", onKeyDown);
       host.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerLost);
+      window.removeEventListener("blur", onPointerLost);
       scrolls.dispose();
       writes.dispose();
     },

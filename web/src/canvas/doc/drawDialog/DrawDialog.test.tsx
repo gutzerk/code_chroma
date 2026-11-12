@@ -235,8 +235,9 @@ describe("DrawDialog", () => {
       drawDialogStore.open();
     });
     await screen.findByTestId("draw-card-sequence");
+    typeRequest("the checkout flow");
 
-    expect(screen.getByTestId("draw-dialog-submit")).not.toHaveAttribute("title", expect.stringContaining("limit"));
+    expect(screen.getByTestId("draw-dialog-submit")).toBeEnabled();
   });
 
   it("gives a saved type with a schematic its own card, named in the request", async () => {

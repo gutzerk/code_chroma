@@ -109,7 +109,7 @@ Each canvas page reports its agents to the shell; the tab strip shows the most u
 - Page -> shell: `window.codechromaDesktop.reportAgents(summary)` posts `{"type":"agent-summary", agents:[{id, title,
   status, worktree, worktree_title, activity, pending_permission, status_since}]}` (debounced on the page; the shell
   derives every roll-up itself and ignores legacy `top`/`count` fields). `DesktopMessage.Parse` turns it into
-  `Agents/AgentSummary` (the agent list, capped at `MaxAgents` = 50 rows; display strings are clipped to `MaxText` = 200
+  `Agents/AgentSummary` (the agent list, capped at `MaxAgents` = 50 rows, so past 50 live agents the strip shows only the first 50; display strings are clipped to `MaxText` = 200
   chars and a longer `id`/`request_id` drops the row or the permission); `MainWindow.OnCanvasMessage` hands it to
   `ShellController.ReportAgents(tabId, ...)`, which stores it per tab in `Agents/AgentBoard` (keyed by the tab whose
   WebView sent it). A summary is dropped, and the strip redrawn, when its page goes away: tab close, a bridge crash

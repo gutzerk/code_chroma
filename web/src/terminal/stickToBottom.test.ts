@@ -76,6 +76,41 @@ describe("attachStickToBottom", () => {
     expect(term.scrollToBottom).not.toHaveBeenCalled();
   });
 
+  it("forgets a held pointer once it is cancelled, so a later stale scroll still snaps back", () => {
+    const term = fakeTerm();
+    const host = document.createElement("div");
+    attachStickToBottom(term, host, () => false);
+
+    host.dispatchEvent(new Event("pointerdown"));
+    window.dispatchEvent(new Event("pointercancel"));
+    vi.advanceTimersByTime(1000);
+    term.scroll(30);
+
+    expect(term.buffer.active.viewportY).toBe(100);
+  });
+
+  it("does not unpin on typing: a stale scroll right after Enter snaps back", () => {
+    const term = fakeTerm();
+    const host = document.createElement("div");
+    attachStickToBottom(term, host, () => false);
+
+    host.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    term.scroll(30);
+
+    expect(term.buffer.active.viewportY).toBe(100);
+  });
+
+  it("treats a scroll key as the user's scroll", () => {
+    const term = fakeTerm();
+    const host = document.createElement("div");
+    attachStickToBottom(term, host, () => false);
+
+    host.dispatchEvent(new KeyboardEvent("keydown", { key: "PageUp" }));
+    term.scroll(30);
+
+    expect(term.scrollToBottom).not.toHaveBeenCalled();
+  });
+
   it("does nothing while hidden, then shows a pinned terminal at the bottom", () => {
     const term = fakeTerm();
     let hidden = true;

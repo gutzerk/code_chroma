@@ -112,6 +112,16 @@ async def _skip(
     return _ack(question_id, "skipped", None, waiting)
 
 
+async def _chat(
+    ws: Workspace, services: BridgeServices, question_id: str, agent_id: str | None = None
+) -> dict:
+    element = await run_in_threadpool(_open_element, ws, question_id, agent_id)
+    settled = await run_in_threadpool(store.settle, ws, element, "chat", QuestionResult())
+    waiting = await delivery.deliver_settled(services, ws, settled)
+    await agent_view.announce(services, element.meta.get("agent_id"))
+    return _ack(question_id, "chat", None, waiting)
+
+
 async def _request_diagram(
     ws: Workspace, services: BridgeServices, question_id: str, agent_id: str | None = None
 ) -> dict:
@@ -149,6 +159,12 @@ async def answer_question(ws: Ws, services: Services, question_id: str, body: An
 async def skip_question(ws: Ws, services: Services, question_id: str) -> dict:
     """Marks the question skipped; the agent then decides itself once its batch completes."""
     return await _skip(ws, services, question_id)
+
+
+@router.post("/repos/{repo_id}/questions/{question_id}/chat")
+async def chat_question(ws: Ws, services: Services, question_id: str) -> dict:
+    """"Chat about it": closes the question and tells the agent the user wants to discuss it."""
+    return await _chat(ws, services, question_id)
 
 
 @router.post("/repos/{repo_id}/questions/{question_id}/request-diagram")
@@ -196,6 +212,12 @@ async def answer_agent_question(
 async def skip_agent_question(agent_id: str, question_id: str, services: Services) -> dict:
     """`skip` by agent id."""
     return await _skip(await _agent_workspace(services, agent_id), services, question_id, agent_id)
+
+
+@router.post("/agents/{agent_id}/questions/{question_id}/chat")
+async def chat_agent_question(agent_id: str, question_id: str, services: Services) -> dict:
+    """`chat` by agent id."""
+    return await _chat(await _agent_workspace(services, agent_id), services, question_id, agent_id)
 
 
 @router.post("/agents/{agent_id}/questions/{question_id}/request-diagram")

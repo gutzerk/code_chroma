@@ -1,11 +1,8 @@
 import { useMemo, useState } from "react";
-import { useOptionalAgentClient } from "../../../agents/AgentClientContext";
-import { restoreAgentWindow } from "../../../agents/windowActions";
 import type { CanvasDoc } from "../../../state/types";
-import { layoutStore } from "../../layout/layoutStore";
 import { reportAsyncError } from "../../../util/reportError";
 import { sessionHistory, type QuestionView } from "./questionAdapter";
-import { answerCustom, answerOption, requestDiagram, reviseQuestion, skipQuestion, type QuestionActions } from "./questionClient";
+import { answerCustom, answerOption, chatQuestion, requestDiagram, reviseQuestion, skipQuestion, type QuestionActions } from "./questionClient";
 import { QuestionCard } from "./QuestionCard";
 import type { QuestionVariant } from "./QuestionOptions";
 import { QUESTION_STRINGS as S } from "./questionStrings";
@@ -22,9 +19,8 @@ export interface ConnectedQuestionCardProps {
   onReturnFocus?: () => void;
 }
 
-/** A QuestionCard wired to the bridge: answer, skip and revise for one `question` element. */
+/** A QuestionCard wired to the bridge: answer, skip, chat and revise for one `question` element. */
 export function ConnectedQuestionCard({ question, client, doc, variant, selectedId, onSelectedIdChange, onReturnFocus }: ConnectedQuestionCardProps) {
-  const agentClient = useOptionalAgentClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const history = useMemo(() => sessionHistory(doc.elements, question), [doc.elements, question]);
@@ -39,14 +35,6 @@ export function ConnectedQuestionCard({ question, client, doc, variant, selected
       })
       .finally(() => setBusy(false));
   };
-
-  const { agentId } = question;
-  const chat = agentClient && agentId
-    ? () => {
-        layoutStore.setAgentsMode("full");
-        restoreAgentWindow(agentClient, agentId);
-      }
-    : undefined;
 
   return (
     <QuestionCard
@@ -63,7 +51,7 @@ export function ConnectedQuestionCard({ question, client, doc, variant, selected
       onSkip={() => run(() => skipQuestion(client, question))}
       onRevise={(q: QuestionView) => run(() => reviseQuestion(client, q))}
       onRequestDiagram={() => run(() => requestDiagram(client, question))}
-      onChat={chat}
+      onChat={() => run(() => chatQuestion(client, question))}
     />
   );
 }

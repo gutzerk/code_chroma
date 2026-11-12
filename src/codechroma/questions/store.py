@@ -13,7 +13,7 @@ from codechroma.canvas.apply_batch import BatchResult, apply_batch, apply_batch_
 from codechroma.canvas.document import CanvasDoc, Element
 from codechroma.canvas.locks import canvas_lock
 from codechroma.questions import diagrams
-from codechroma.questions.models import AskRequest, QuestionResult
+from codechroma.questions.models import CHAT, AskRequest, QuestionResult
 
 AWAITING_DELIVERY = "awaiting_delivery"
 # Questions a completed batch removed, per (canvas file, session_id): later steps count on.
@@ -202,11 +202,12 @@ def agent_questions_in(doc: CanvasDoc, agent_id: str) -> list[Element]:
 
 
 def _ready_batch(doc: CanvasDoc, agent_id: str) -> list[Element]:
-    """The agent's undelivered answers, or none while any of its questions is still open."""
+    """The agent's undelivered answers; none while a question is open, unless one awaits a chat."""
     mine = agent_questions_in(doc, agent_id)
-    if any(e.meta.get("state") == "open" for e in mine):
-        return []
-    return [e for e in mine if e.meta.get(AWAITING_DELIVERY)]
+    awaiting = [e for e in mine if e.meta.get(AWAITING_DELIVERY)]
+    if any(e.meta.get("state") == "chat" for e in awaiting):
+        return awaiting
+    return [] if any(e.meta.get("state") == "open" for e in mine) else awaiting
 
 
 def claim_batch(ws: Workspace, agent_id: str) -> bool:
@@ -284,6 +285,8 @@ def result_from(element: Element) -> QuestionResult | None:
         )
     if state == "skipped":
         return QuestionResult(skipped=True)
+    if state == "chat":
+        return QuestionResult(answer=CHAT)
     return None
 
 

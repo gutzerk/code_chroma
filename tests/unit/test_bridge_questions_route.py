@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from codechroma.questions import delivery, store
 from codechroma.questions.mcp_server import NEXT_STEP, NO_WINDOW, QuestionAuthError, QuestionMcp
-from codechroma.questions.models import AskRequest, QuestionOption
+from codechroma.questions.models import CHAT, AskRequest, QuestionOption
 from codechroma.questions.validation import QuestionRejected
 
 OPTIONS = [
@@ -253,6 +253,40 @@ def test_skip_tells_the_agent_to_decide_itself(bridge):
         f"[CodeChroma answer · Q1 · {question_id}] How to structure checkout? → "
         "skipped by the user, decide yourself"
     )
+
+
+def test_chat_closes_the_question_and_tells_the_agent_the_user_wants_to_discuss_it(bridge):
+    session = _live_agent(bridge)
+    question_id = _ask_for(bridge)
+
+    with TestClient(bridge.app) as client:
+        reply = client.post(f"/repos/main/questions/{question_id}/chat").json()
+        _typed(session)
+
+    assert reply["state"] == "chat"
+    assert reply["waiting"] is True
+    assert session.injected[0][0] == (
+        f"[CodeChroma answer · Q1 · {question_id}] How to structure checkout? → {CHAT}"
+    )
+
+
+def test_chat_types_the_answered_questions_and_the_chat_at_once_and_leaves_the_open_one(bridge):
+    session = _live_agent(bridge)
+    answered = _ask_for(bridge)
+    chat = _ask_for(bridge, question="Which store?")
+    still_open = _ask_for(bridge, question="Which queue?")
+
+    with TestClient(bridge.app) as client:
+        client.post(f"/repos/main/questions/{answered}/answer", json={"answer": "Monolith"})
+        reply = client.post(f"/repos/main/questions/{chat}/chat").json()
+        _typed(session)
+
+    assert reply["waiting"] is True
+    assert session.injected[0][0] == (
+        f"[CodeChroma answer · Q1 · {answered}] How to structure checkout? → Monolith "
+        f"[CodeChroma answer · Q1 · {chat}] Which store? → {CHAT}"
+    )
+    assert [e.meta["question_id"] for e in store.list_questions(bridge.main)] == [still_open]
 
 
 def test_answer_after_revise_is_delivered_as_a_changed_answer(bridge):

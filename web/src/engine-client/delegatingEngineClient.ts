@@ -113,6 +113,9 @@ export abstract class DelegatingEngineClient implements EngineClient {
   skipQuestion(questionId: string): Promise<QuestionAck> {
     return this.inner.skipQuestion(questionId);
   }
+  chatQuestion(questionId: string): Promise<QuestionAck> {
+    return this.inner.chatQuestion(questionId);
+  }
   reviseQuestion(questionId: string): Promise<QuestionAck> {
     return this.inner.reviseQuestion(questionId);
   }

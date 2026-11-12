@@ -70,6 +70,15 @@ describe("question answer flow (mock bridge)", () => {
     await waitFor(() => expect(screen.getByText(/Skipped/)).toBeInTheDocument());
   });
 
+  it("Chat about it closes the question as a chat request", async () => {
+    const client = await mount([addQuestion(1, "First?")]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat about it" }));
+
+    await waitFor(() => expect(screen.getByText(/Discussing in chat/)).toBeInTheDocument());
+    expect(await listOpenQuestions(client)).toHaveLength(0);
+  });
+
   it("revise reopens the question and drops later steps", async () => {
     const client = await mount([addQuestion(1, "First?"), addQuestion(2, "Second?")]);
     const first = Object.values((await client.getCanvas()).elements).find((el) => el.label === "First?")!;

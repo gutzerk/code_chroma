@@ -131,15 +131,17 @@ public static class QuestionStore
     internal static List<CanvasElement> AgentQuestions(CanvasDoc doc, string agentId) =>
         doc.Elements.Values.Where(e => e.Render == "question" && Json.Str(e.Meta["agent_id"]) == agentId).ToList();
 
-    /// <summary>Writes the answered/skipped state onto the element's meta and marks it for the agent's next wake-up.</summary>
+    /// <summary>Writes the answered/skipped/chat state onto the element's meta and marks it for the agent's next wake-up.</summary>
     public static void Settle(Workspace ws, string elementId, string state, QuestionResult result) =>
         Commit(ws, _ => [Update(elementId, new JsonObject { ["state"] = state, ["answer"] = result.Answer, ["option_id"] = result.OptionId, [AwaitingDelivery] = true })]);
 
-    /// <summary>The agent's undelivered answers, or none while any of its questions is still open.</summary>
+    /// <summary>The agent's undelivered answers; none while a question is open, unless one awaits a chat.</summary>
     private static List<CanvasElement> ReadyBatch(CanvasDoc doc, string agentId)
     {
         var mine = AgentQuestions(doc, agentId);
-        return mine.Any(e => Json.Str(e.Meta["state"]) == "open") ? [] : mine.Where(e => Json.Truthy(e.Meta[AwaitingDelivery])).ToList();
+        var awaiting = mine.Where(e => Json.Truthy(e.Meta[AwaitingDelivery])).ToList();
+        if (awaiting.Any(e => Json.Str(e.Meta["state"]) == "chat")) return awaiting;
+        return mine.Any(e => Json.Str(e.Meta["state"]) == "open") ? [] : awaiting;
     }
 
     /// <summary>True when the agent's batch is complete and no wake-up for it is queued yet; claims it.</summary>
@@ -209,6 +211,7 @@ public static class QuestionStore
     {
         "answered" => new QuestionResult { Answer = Json.Str(element.Meta["answer"]), OptionId = Json.Str(element.Meta["option_id"]) },
         "skipped" => new QuestionResult { Skipped = true },
+        "chat" => new QuestionResult { Answer = QuestionDelivery.Chat },
         _ => null,
     };
 

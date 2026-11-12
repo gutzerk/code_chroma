@@ -16,7 +16,7 @@ export interface QuestionCardProps {
   onRevise: (question: QuestionView) => void;
   /** Asks the agent to add a diagram to every option that lacks one. */
   onRequestDiagram?: () => void;
-  /** Opens the asking agent's full-window chat; the button shows only when set. */
+  /** Closes the question and tells the agent the user wants to discuss it; the button shows only when set. */
   onChat?: () => void;
   /** Controlled highlighted option (a host shares it with the diagram); leave unset for the card to own it. */
   selectedId?: string | null;
@@ -43,7 +43,7 @@ export function QuestionCard({
   const progress = step !== null && total !== null ? { step, total } : null;
 
   if (question.state !== "open") {
-    const result = question.state === "skipped" ? S.skipped : question.answer ?? "";
+    const result = S.outcome(question.state, question.answer);
     return (
       <div className="question-card question-card--done" data-testid="question-card" data-state={question.state}>
         <p className="question-result">{S.answeredRow(question.step, question.title, result)}</p>
@@ -166,7 +166,7 @@ export function QuestionCard({
       <div className="question-footer">
         {lastAnswer ? (
           <button type="button" className="question-quiet" onClick={() => setShowHistory((v) => !v)}>
-            {S.earlier(lastAnswer.state === "skipped" ? S.skipped : lastAnswer.answer ?? "")} · {S.change}
+            {S.earlier(S.outcome(lastAnswer.state, lastAnswer.answer))} · {S.change}
           </button>
         ) : (
           <span />
@@ -183,7 +183,7 @@ export function QuestionCard({
           </button>
         )}
         {onChat && (
-          <button type="button" className="question-quiet" onClick={() => { onChat(); onReturnFocus?.(); }}>
+          <button type="button" className="question-quiet" disabled={busy} onClick={() => { onChat(); onReturnFocus?.(); }}>
             {S.chat}
           </button>
         )}

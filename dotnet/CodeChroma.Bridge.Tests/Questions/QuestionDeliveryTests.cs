@@ -33,6 +33,14 @@ public class QuestionDeliveryTests
     }
 
     [Fact]
+    public void A_chat_request_tells_the_agent_the_user_wants_to_discuss_it()
+    {
+        var text = QuestionDelivery.AnswerMessage(Element("chat"));
+
+        Assert.Equal("[CodeChroma answer · Q2/3 · q1] How to structure checkout? → " + QuestionDelivery.Chat, text);
+    }
+
+    [Fact]
     public void A_re_answer_after_a_revise_says_changed_answer()
     {
         var text = QuestionDelivery.AnswerMessage(Element("answered", "Microservices", revised: true));

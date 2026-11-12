@@ -59,6 +59,10 @@ export const CANVAS_STUB = {
     question_id: questionId,
     state: "skipped",
   }),
+  chatQuestion: async (questionId: string): Promise<QuestionAck> => ({
+    question_id: questionId,
+    state: "chat",
+  }),
   reviseQuestion: async (questionId: string): Promise<QuestionAck> => ({
     question_id: questionId,
     state: "open",

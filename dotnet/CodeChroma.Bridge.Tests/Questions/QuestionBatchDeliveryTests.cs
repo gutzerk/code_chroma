@@ -84,6 +84,31 @@ public class QuestionBatchDeliveryTests
     }
 
     [Fact]
+    public void A_chat_request_types_the_answered_questions_and_the_chat_at_once_and_leaves_the_open_one()
+    {
+        using var host = new BridgeHost();
+        var terminals = new Terminals();
+        var ws = Main(host);
+        var answered = Ask(host, "agent-1");
+        var chat = Ask(host, "agent-1", "Which store?");
+        var open = Ask(host, "agent-1", "Which queue?");
+        Settle(host, answered, terminals.Live("agent-1"));
+        QuestionStore.Settle(ws, QuestionStore.FindElement(ws, chat)!.Id, "chat", new QuestionResult());
+
+        var waiting = QuestionDelivery.DeliverSettled(ws, QuestionStore.FindElement(ws, chat)!, terminals.Live("agent-1"));
+
+        Assert.True(waiting);
+        var (_, text) = Assert.Single(terminals.Typed);
+        Assert.Equal(
+            $"[CodeChroma answer · Q1 · {answered}] How to structure checkout? → Option a [CodeChroma answer · Q1 · {chat}] Which store? → {QuestionDelivery.Chat}",
+            text);
+        Assert.DoesNotContain(open, text);
+        var left = Assert.Single(QuestionStore.ListQuestions(ws));
+        Assert.Equal(open, (string?)left.Meta["question_id"]);
+        Assert.Equal("open", (string?)left.Meta["state"]);
+    }
+
+    [Fact]
     public void Another_agents_open_question_neither_blocks_nor_receives_the_wake_up()
     {
         using var host = new BridgeHost();

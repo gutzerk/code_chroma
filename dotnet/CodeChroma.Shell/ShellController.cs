@@ -1,11 +1,13 @@
 namespace CodeChroma.Shell;
 
 /// <summary>The open-repo flow: BridgeRegistry -> TabModel -> navigate, plus PR workspace tabs, respawn and shutdown.</summary>
-public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShellUi ui, string recentsPath, string version, Action<Action>? post = null)
+public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShellUi ui, string recentsPath, string version, Action<Action>? post = null, string? sessionPath = null)
 {
     private readonly Action<Action> dispatch = post ?? (action => action());
     private readonly AgentBoard agents = new();
     private bool shuttingDown;
+    private bool restoring;
+    private string? savedSession;
 
     public string Version { get; } = version;
 
@@ -44,7 +46,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         if (tabs.FindTab(tabId) is null) return;
         switch (agents.Report(tabId, summary))
         {
-            case AgentChange.Tabs: Changed(); break;
+            case AgentChange.Tabs: Redraw(); break;
             case AgentChange.Activity: ui.AgentsChanged(tabId, summary); break;
         }
     }
@@ -54,7 +56,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
 
     private void ForgetAgents(IEnumerable<string> tabIds)
     {
-        if (tabIds.Count(agents.Forget) > 0) Changed();
+        if (tabIds.Count(agents.Forget) > 0) Redraw();
     }
 
     public BlockedAgent? FocusNextBlocked()
@@ -105,6 +107,7 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         {
             tab.RepoPath = null;
             ForgetAgents([tab.Id]);
+            SaveSession();
             ui.ShowTabError(tab, e.Message);
             return;
         }
@@ -119,6 +122,43 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         Watch(tab.Id, handle);
         Changed();
         ui.Navigate(tab, workspaceId is null ? RepoUrl(handle) : WorkspaceUrl(handle, workspaceId));
+    }
+
+    /// <summary>Reopens the tabs saved by the last session; repo folders that no longer exist are skipped.</summary>
+    public async Task RestoreSessionAsync()
+    {
+        if (sessionPath is null) return;
+        var saved = TabSession.Read(sessionPath);
+        var repos = saved.Tabs.Where(t => t.WorkspaceId is null && Directory.Exists(t.RepoPath))
+            .DistinctBy(t => RepoPaths.Canonical(t.RepoPath)).Select(t => t.RepoPath).ToList();
+        if (repos.Count == 0) return;
+        restoring = true;
+        try
+        {
+            var launcher = tabs.ActiveTab?.Id;
+            var opens = repos.Select((repo, i) => (Repo: repo, Open: OpenRepoAsync(repo, i == 0 ? launcher : null))).ToList();
+            if (saved.Active is { WorkspaceId: null } activeRepo && tabs.FindByRepoPath(activeRepo.RepoPath) is { } first) tabs.SetActive(first.Id);
+            var expected = tabs.ActiveTab?.Id;
+            Changed();
+            foreach (var (repo, open) in opens)
+            {
+                await open;
+                if (tabs.FindByRepoPath(repo) is not { Bridge: not null } owner) continue;
+                foreach (var ws in saved.Tabs.Where(t => t.WorkspaceId is not null && RepoPaths.Canonical(t.RepoPath) == RepoPaths.Canonical(repo)))
+                {
+                    var before = tabs.ActiveTab?.Id;
+                    await OpenWorkspaceTabAsync(owner.Id, ws.WorkspaceId!, ws.Label);
+                    if (ReferenceEquals(ws, saved.Active) && before == expected) expected = tabs.ActiveTab?.Id;
+                    else if (before is not null) tabs.SetActive(before);
+                    Changed();
+                }
+            }
+        }
+        finally
+        {
+            restoring = false;
+            SaveSession();
+        }
     }
 
     public async Task OpenWorkspaceTabAsync(string senderTabId, string workspaceId, string? label = null)
@@ -168,7 +208,27 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
     private static string WorkspaceUrl(BridgeHandle bridge, string workspaceId) =>
         $"{bridge.Origin}/?workspace={Uri.EscapeDataString(workspaceId)}";
 
-    private void Changed() => ui.TabsChanged(Snapshot());
+    private void Changed()
+    {
+        Redraw();
+        SaveSession();
+    }
+
+    /// <summary>Repaints the strip for agent pills and badges, which the saved session does not hold.</summary>
+    private void Redraw() => ui.TabsChanged(Snapshot());
+
+    private void SaveSession()
+    {
+        if (sessionPath is null || restoring || shuttingDown) return;
+        var json = TabSession.Serialize(TabSession.Capture(tabs));
+        if (json == savedSession) return;
+        try
+        {
+            TabSession.Write(sessionPath, json);
+            savedSession = json;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+    }
 
     private void SurfaceTab(Tab tab)
     {

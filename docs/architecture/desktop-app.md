@@ -47,6 +47,14 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   and open PRs (`prs.json`) via `WorkspaceSummaries`; no per-agent shortcuts. Clicking one calls
   `OpenRepoAsync(repo, tab, workspaceId)`, which loads `/?workspace=<id>`; if the project is already open its tab is focused
   and navigated (reloaded) to that URL, since there is no page-side switch message. A plain project open sends no param.
+- Session restore (`Tabs/TabSession`): every tab change (`ShellController.Changed()`, not agent-pill
+  `Redraw()`) writes the open project and PR workspace tabs (in order, plus the active index) to
+  `<userData>/session.json` via temp-file-then-rename, only when the JSON differs; launcher tabs are not saved. On window `Opened`,
+  `RestoreSessionAsync` reopens the saved projects (first one reuses the empty launcher tab, bridges start in parallel),
+  then each project's PR tabs once its bridge is up, and re-activates the saved tab. Missing repo folders are skipped.
+  Saves are paused while restoring and after `ShutdownAsync`, so a partial restore or app quit never overwrites the file.
+  A `--repo` argument opens alongside the restored tabs. PR tabs are appended after all projects, so a mixed order is not kept.
+  Tests: `CodeChroma.Shell.Tests/TabSessionTests.cs`.
 - `Projects/ProjectStores` (recents, with missing folders kept but flagged), `Projects/TutorialProject` (+
   `tutorial-project.json`: the bundled todo-app tutorial restored into `<userData>/codechroma-tutorial`) and
   new-project creation (`git init`, no commit) feed the launcher panel (`LauncherPanel`).

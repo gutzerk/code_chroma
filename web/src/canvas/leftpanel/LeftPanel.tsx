@@ -184,6 +184,7 @@ function DiagramsTab({ arrange, rootName }: { arrange?: ReactNode; rootName?: st
                   type="button"
                   className="left-panel-row-text"
                   data-testid={`left-panel-row-focus-${layer}`}
+                  aria-label={`${name}, ${typeLabel ? `${typeLabel}, ` : ""}${count} ${count === 1 ? "element" : "elements"}`}
                   onClick={() => focusDiagram(layer)}
                 >
                   <span className="left-panel-row-name" title={name}>{name}</span>

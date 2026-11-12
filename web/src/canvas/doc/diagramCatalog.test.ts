@@ -17,7 +17,7 @@ import {
   redrawLayerFromScratch,
   removeLayerAndRefresh,
   runRecipeAndLayout,
-  useHasVisibleDiagram,
+  useHasVisibleCanvasContent,
 } from "./diagramCatalog";
 import { patchCanvasDoc } from "./canvasDocSync";
 
@@ -82,7 +82,7 @@ describe("listActiveDiagramLayers", () => {
   });
 });
 
-describe("useHasVisibleDiagram", () => {
+describe("useHasVisibleCanvasContent", () => {
   afterEach(() => {
     canvasDocStore.reset();
     collapsedLayersStore.reset();
@@ -90,19 +90,24 @@ describe("useHasVisibleDiagram", () => {
 
   it.each([
     ["an empty canvas", [], false],
-    ["only non-diagram and decision layers", [element("h", "hierarchy"), element("d", "default"), element("q", "decisions/q1")], false],
+    [
+      "only hierarchy boxes, questions and decision diagrams",
+      [element("h", "hierarchy"), element("q", "questions", { render: "question" }), element("dd", "decisions/q1")],
+      false,
+    ],
+    ["a stray default-layer box", [element("d", "default")], true],
     ["a visible diagram", [element("p", "patterns")], true],
   ])("with %s returns %s", (_case, elements, expected) => {
     canvasDocStore.setDoc(docWith(elements));
 
-    const { result } = renderHook(() => useHasVisibleDiagram());
+    const { result } = renderHook(() => useHasVisibleCanvasContent());
 
     expect(result.current).toBe(expected);
   });
 
   it("turns false when the only diagram is hidden", () => {
     canvasDocStore.setDoc(docWith([element("p", "patterns")]));
-    const { result } = renderHook(() => useHasVisibleDiagram());
+    const { result } = renderHook(() => useHasVisibleCanvasContent());
 
     act(() => collapsedLayersStore.collapse("patterns"));
 

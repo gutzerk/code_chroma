@@ -28,13 +28,14 @@ trusted as-is (see caveat in [`web-engine-client.md`](web-engine-client.md)).
 Everything is one continuous in-memory DOM/CSS canvas — no per-node routing. A pluggable-camera
 pan/zoom system sits on top of that canvas (wheel-zoom toward cursor, drag-to-pan, zoom in/out/reset
 buttons, per-block "Center" focus, and a "Fit All" that fits the whole canvas) — see
-`CanvasViewport.tsx` and `web/e2e/pan-zoom.spec.ts`. Fit All renders only while at least one diagram
-is on the canvas and not hidden (`useHasVisibleDiagram` in `doc/diagramCatalog.ts`). Clicking a
+`CanvasViewport.tsx` and `web/e2e/pan-zoom.spec.ts`. Fit All renders only while the canvas draws something
+it can frame: an element on a shown layer that is not a question, a decision diagram or a legacy hierarchy box
+(`useHasVisibleCanvasContent` in `doc/diagramCatalog.ts`). Clicking a
 diagram row's name in the left panel's Diagrams tab frames that diagram through
 `CanvasDiagramFocusContext` (RootCanvas `focusDiagram`, also used by `GroupFrame`, logic in
 `focusDiagramLayer.ts`): it shows a hidden layer (`collapsedLayersStore.expand`), then waits up to 30
-frames (`retryEachFrame` in `retryFit.ts`) until the `[data-diagram-layer="…"]` frame is mounted and
-keeps one size for two frames, and only then calls `fitToSelector` — so it frames measured box sizes,
+frames (`retryEachFrame` in `retryFit.ts`) until the `[data-diagram-layer="…"]` frames are mounted and
+keep one size for two frames, and only then calls `fitToSelector` — so it frames measured box sizes,
 not authored ones. A newer focus cancels an older one. 🔴 **A reload returns to the exact saved spot —
 both the camera and the tree's expansion persist per workspace.** The camera's `view {x, y, scale}`
 is persisted to `localStorage` per workspace (`web/src/canvas/canvasCameraStore.ts`, same

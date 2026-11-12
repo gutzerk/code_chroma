@@ -4,10 +4,10 @@ import { retryEachFrame } from "./retryFit";
 // How many frames a diagram focus waits for a just-shown diagram's frame to mount and settle.
 export const FOCUS_DIAGRAM_MAX_FRAMES = 30;
 
-/** The frame's layout size (transform-free), or null while it is not mounted. */
+/** The layout sizes (transform-free) of every frame `fitToSelector` will union, or null while none is mounted. */
 function frameSize(selector: string): string | null {
-  const frame = document.querySelector<HTMLElement>(selector);
-  return frame ? `${frame.offsetWidth}x${frame.offsetHeight}` : null;
+  const frames = [...document.querySelectorAll<HTMLElement>(selector)];
+  return frames.length > 0 ? frames.map((frame) => `${frame.offsetWidth}x${frame.offsetHeight}`).join(",") : null;
 }
 
 /** Shows `layer` if hidden, then fits its frame once it mounts and holds one size for two frames, so measured box sizes are framed rather than authored ones. */

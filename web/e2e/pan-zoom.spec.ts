@@ -46,6 +46,8 @@ test("Ctrl+wheel zooms the canvas without moving the top chrome or Fit All butto
   page,
 }) => {
   await gotoApp(page);
+  // Fit All renders only while the canvas has visible content, so seed one diagram box.
+  await seedCanvasDoc(page, { elements: { a: diagramBox("a", "patterns") } });
 
   const content = page.getByTestId("canvas-content");
   const viewport = page.getByTestId("app-canvas");
@@ -90,7 +92,7 @@ test("zoom buttons and reset control the canvas scale", async ({ page }) => {
     .toBe(initialTransform);
 });
 
-test("Fit All is hidden when no diagrams are on the canvas", async ({ page }) => {
+test("Fit All is hidden when the canvas has nothing to show", async ({ page }) => {
   await gotoApp(page);
 
   await expect(page.getByTestId("canvas-hierarchy-element")).toHaveCount(0);

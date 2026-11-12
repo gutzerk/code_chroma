@@ -149,7 +149,7 @@ Expand/collapse itself isn't a separate button — click anywhere on the block's
 ### Floating "Fit All" button
 
 Sits over the canvas; fits the camera to every currently expanded block, in whichever view is
-active. It shows only while at least one diagram is visible on the canvas.
+active. It shows only while the canvas has something visible to fit.
 
 ## 4a. Diagrams (C1, Patterns, Impact, Epics, Sequence, custom)
 

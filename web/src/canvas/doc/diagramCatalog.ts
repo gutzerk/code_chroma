@@ -68,12 +68,12 @@ function isListedDiagramLayer(layer: string): boolean {
   return isDiagramLayer(layer) && !isDecisionLayer(layer);
 }
 
-/** Whether a Diagrams-tab layer is on the canvas and not hidden; a boolean subscription, not the whole doc. Ignores stray `default`-layer boxes on purpose: they have no row to show or hide them. */
-export function useHasVisibleDiagram(): boolean {
+/** Whether the canvas draws anything Fit All can frame: an element on a shown layer that is not a question, a decision diagram or a legacy hierarchy box; a boolean subscription, not the whole doc. */
+export function useHasVisibleCanvasContent(): boolean {
   const collapsed = useCollapsedLayers();
   return useSyncExternalStore(canvasDocStore.subscribe, () =>
     Object.values(canvasDocStore.getDoc().elements).some(
-      ({ layer }) => isListedDiagramLayer(layer) && !collapsed.has(layer),
+      (element) => element.layer !== "hierarchy" && !isAgentWindowOnly(element) && !collapsed.has(element.layer),
     ),
   );
 }

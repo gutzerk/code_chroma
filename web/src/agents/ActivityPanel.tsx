@@ -229,7 +229,7 @@ export function ActivityPanel({
             </button>
           </div>
           {tab === "workflows" ? (
-            <WorkflowsHeaderActions agentsMode={agentsMode} disabled={disabled} />
+            <WorkflowsHeaderActions agentsMode={agentsMode} />
           ) : (
             <AgentsHeaderActions agentsMode={agentsMode} disabled={disabled} onRunAgent={onRunAgent} />
           )}

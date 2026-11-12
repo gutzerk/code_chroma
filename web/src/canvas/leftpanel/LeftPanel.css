@@ -120,6 +120,17 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.left-panel-row-text:hover .left-panel-row-name {
+  text-decoration: underline;
 }
 
 .left-panel-row-name {

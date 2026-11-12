@@ -28,7 +28,12 @@ trusted as-is (see caveat in [`web-engine-client.md`](web-engine-client.md)).
 Everything is one continuous in-memory DOM/CSS canvas — no per-node routing. A pluggable-camera
 pan/zoom system sits on top of that canvas (wheel-zoom toward cursor, drag-to-pan, zoom in/out/reset
 buttons, per-block "Center" focus, and a "Fit All" that fits the whole canvas) — see
-`CanvasViewport.tsx` and `web/e2e/pan-zoom.spec.ts`. 🔴 **A reload returns to the exact saved spot —
+`CanvasViewport.tsx` and `web/e2e/pan-zoom.spec.ts`. Fit All renders only while at least one diagram
+is on the canvas and not hidden (`useHasVisibleDiagram` in `doc/diagramCatalog.ts`). Clicking a
+diagram row's name in the left panel's Diagrams tab frames that diagram through
+`CanvasDiagramFocusContext` (RootCanvas `focusDiagram`, also used by `GroupFrame`): it shows a hidden
+layer (`collapsedLayersStore.expand`), then `retryFitLoop` calls `fitToSelector('[data-diagram-layer="…"]')`
+for up to 30 frames until the frame mounts; a newer focus cancels an older one. 🔴 **A reload returns to the exact saved spot —
 both the camera and the tree's expansion persist per workspace.** The camera's `view {x, y, scale}`
 is persisted to `localStorage` per workspace (`web/src/canvas/canvasCameraStore.ts`, same
 `codechroma.*.<workspace>` namespace as `collapsedLayersStore`) on every pan/zoom; which blocks are

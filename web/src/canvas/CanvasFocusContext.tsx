@@ -10,9 +10,9 @@ export function useCanvasFocus(): (nodeId: string) => void {
   return useContext(CanvasFocusContext);
 }
 
-/** Centres and fits the view on one diagram layer's frame (`data-diagram-layer`), false when absent. */
-export const CanvasDiagramFocusContext = createContext<(layer: string) => boolean>(() => false);
+/** Shows one diagram layer if hidden, then fits the view on its frame (`data-diagram-layer`) once it mounts. */
+export const CanvasDiagramFocusContext = createContext<(layer: string) => void>(noop);
 
-export function useCanvasDiagramFocus(): (layer: string) => boolean {
+export function useCanvasDiagramFocus(): (layer: string) => void {
   return useContext(CanvasDiagramFocusContext);
 }

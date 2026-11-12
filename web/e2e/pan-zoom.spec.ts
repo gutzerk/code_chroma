@@ -1,8 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { clickTreeNodeName, gotoApp } from "./helpers";
+import { clickTreeNodeName, diagramBox, gotoApp, seedCanvasDoc } from "./helpers";
 
 test("zooms toward the cursor on wheel and pans on drag", async ({ page }) => {
   await gotoApp(page);
+  await seedCanvasDoc(page, { elements: { a: diagramBox("a", "patterns") } });
 
   const content = page.getByTestId("canvas-content");
   const viewport = page.getByTestId("app-canvas");
@@ -90,18 +91,25 @@ test("zoom buttons and reset control the canvas scale", async ({ page }) => {
     .toBe(initialTransform);
 });
 
-test("Fit All is a no-op when no diagrams are on the canvas", async ({ page }) => {
+test("Fit All is hidden when no diagrams are on the canvas", async ({ page }) => {
   await gotoApp(page);
+
   await expect(page.getByTestId("canvas-hierarchy-element")).toHaveCount(0);
-  await page.waitForTimeout(500);
 
+  await expect(page.getByRole("button", { name: "Fit all open blocks" })).toHaveCount(0);
+});
+
+test("clicking a hidden diagram in the Diagrams tab shows and frames it", async ({ page }) => {
+  await gotoApp(page, { files: false });
+  await seedCanvasDoc(page, {
+    elements: { a: diagramBox("a", "patterns", 300, 300), b: diagramBox("b", "system-context", 3000, 2000) },
+  });
+  await page.getByTestId("left-panel-row-system-context").getByRole("button", { name: /^Hide / }).click();
   const content = page.getByTestId("canvas-content");
-  const fitAllButton = page.getByRole("button", { name: "Fit all open blocks" });
-  const initialTransform = await content.evaluate((el) => getComputedStyle(el).transform);
-  const buttonPosition = await fitAllButton.boundingBox();
+  const before = await content.evaluate((el) => getComputedStyle(el).transform);
 
-  await fitAllButton.click();
+  await page.getByTestId("left-panel-row-focus-system-context").click();
 
-  await expect(content).toHaveCSS("transform", initialTransform);
-  expect(await fitAllButton.boundingBox()).toEqual(buttonPosition);
+  await expect.poll(() => content.evaluate((el) => getComputedStyle(el).transform)).not.toBe(before);
+  await expect(page.locator('[data-diagram-layer="system-context"]')).toBeInViewport();
 });

@@ -3,6 +3,7 @@ import { DeleteDiagramDialog } from "../../agents/DeleteDiagramDialog";
 import { useEngineClient } from "../../engine-client/EngineClientContext";
 import type { HierarchyNodeRef } from "../../state/types";
 import { FileTypeIcon } from "../../icons/FileTypeIcon";
+import { useCanvasDiagramFocus } from "../CanvasFocusContext";
 import { useCanvasDoc } from "../doc/canvasDocStore";
 import { deleteDiagramAndRefresh } from "../doc/diagramCatalog";
 import { DrawDiagramButton } from "../doc/DrawDiagramButton";
@@ -117,6 +118,7 @@ function DiagramsTab({ arrange, rootName }: { arrange?: ReactNode; rootName?: st
   const selected = useSelectedDiagrams();
   const playground = useLayoutPlaygroundEnabled();
   useLayoutPlaygroundShortcut();
+  const focusDiagram = useCanvasDiagramFocus();
   const [deletingLayer, setDeletingLayer] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -178,7 +180,13 @@ function DiagramsTab({ arrange, rootName }: { arrange?: ReactNode; rootName?: st
                   onChange={() => diagramSelectionStore.toggle(layer)}
                 />
                 <span className="left-panel-swatch" style={{ background: colorForLayer(layer) }} />
-                <div className="left-panel-row-text">
+                <button
+                  type="button"
+                  className="left-panel-row-text"
+                  aria-label={`Focus ${name}`}
+                  data-testid={`left-panel-row-focus-${layer}`}
+                  onClick={() => focusDiagram(layer)}
+                >
                   <span className="left-panel-row-name" title={name}>{name}</span>
                   <span className="left-panel-row-meta">
                     {typeLabel && (
@@ -188,7 +196,7 @@ function DiagramsTab({ arrange, rootName }: { arrange?: ReactNode; rootName?: st
                     )}
                     {count} {count === 1 ? "element" : "elements"}
                   </span>
-                </div>
+                </button>
                 <button
                   type="button"
                   className="left-panel-icon-btn left-panel-eye"

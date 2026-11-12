@@ -84,6 +84,7 @@ export function agentQuestionActions(client: AgentClient, agentId: string): Ques
   return {
     answerQuestion: (questionId, body) => run(client.answerQuestion?.(agentId, questionId, body)),
     skipQuestion: (questionId) => run(client.skipQuestion?.(agentId, questionId)),
+    chatQuestion: (questionId) => run(client.chatQuestion?.(agentId, questionId)),
     reviseQuestion: (questionId) => run(client.reviseQuestion?.(agentId, questionId)),
     requestQuestionDiagram: (questionId) => run(client.requestQuestionDiagram?.(agentId, questionId)),
   };

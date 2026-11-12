@@ -38,6 +38,8 @@ public static class QuestionRoutes
             Answer(registry.Get(repoId), questionId, null, await Reply.LenientBody(request), sessions, events));
         app.MapPost("/repos/{repoId}/questions/{questionId}/skip", (string repoId, string questionId, WorkspaceRegistry registry, AgentSessionRegistry sessions, AgentQuestionEvents events) =>
             Skip(registry.Get(repoId), questionId, null, sessions, events));
+        app.MapPost("/repos/{repoId}/questions/{questionId}/chat", (string repoId, string questionId, WorkspaceRegistry registry, AgentSessionRegistry sessions, AgentQuestionEvents events) =>
+            Chat(registry.Get(repoId), questionId, null, sessions, events));
         app.MapPost("/repos/{repoId}/questions/{questionId}/request-diagram", (string repoId, string questionId, WorkspaceRegistry registry, AgentSessionRegistry sessions, AgentQuestionEvents events) =>
             RequestDiagram(registry.Get(repoId), questionId, null, sessions, events));
         app.MapPost("/repos/{repoId}/questions/{questionId}/revise", (string repoId, string questionId, WorkspaceRegistry registry, AgentQuestionEvents events) =>
@@ -62,6 +64,8 @@ public static class QuestionRoutes
         });
         app.MapPost("/agents/{agentId}/questions/{questionId}/skip", (string agentId, string questionId, AgentManager agents, WorkspaceRegistry registry, AgentSessionRegistry sessions, AgentQuestionEvents events) =>
             AgentWrite(agents, registry, agentId, ws => Skip(ws, questionId, agentId, sessions, events)));
+        app.MapPost("/agents/{agentId}/questions/{questionId}/chat", (string agentId, string questionId, AgentManager agents, WorkspaceRegistry registry, AgentSessionRegistry sessions, AgentQuestionEvents events) =>
+            AgentWrite(agents, registry, agentId, ws => Chat(ws, questionId, agentId, sessions, events)));
         app.MapPost("/agents/{agentId}/questions/{questionId}/request-diagram", (string agentId, string questionId, AgentManager agents, WorkspaceRegistry registry, AgentSessionRegistry sessions, AgentQuestionEvents events) =>
             AgentWrite(agents, registry, agentId, ws => RequestDiagram(ws, questionId, agentId, sessions, events)));
         app.MapPost("/agents/{agentId}/questions/{questionId}/revise", (string agentId, string questionId, AgentManager agents, WorkspaceRegistry registry, AgentQuestionEvents events) =>
@@ -113,6 +117,16 @@ public static class QuestionRoutes
         var waiting = Deliver(sessions, events, ws, questionId);
         events.Changed(Owner(element));
         return Reply.Json(Ack(questionId, "skipped", null, waiting));
+    });
+
+    /// <summary>"Chat about it": closes the question and tells the agent the user wants to discuss it instead of picking an option.</summary>
+    private static IResult Chat(Workspace ws, string questionId, string? agentId, AgentSessionRegistry sessions, AgentQuestionEvents events) => WithCanvasLock(ws, _ =>
+    {
+        var element = OpenElement(ws, questionId, agentId);
+        QuestionStore.Settle(ws, element.Id, "chat", new QuestionResult());
+        var waiting = Deliver(sessions, events, ws, questionId);
+        events.Changed(Owner(element));
+        return Reply.Json(Ack(questionId, "chat", null, waiting));
     });
 
     private static IResult RequestDiagram(Workspace ws, string questionId, string? agentId, AgentSessionRegistry sessions, AgentQuestionEvents events) => WithCanvasLock(ws, _ =>

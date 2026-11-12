@@ -3,7 +3,7 @@ import type { CanvasElement } from "../../../state/types";
 /** The one place that maps 017's wire shapes (element `meta`, route payloads) to the UI's view
  * model -- adjust here if the backend's field names differ. */
 
-export type QuestionState = "open" | "answered" | "skipped";
+export type QuestionState = "open" | "answered" | "skipped" | "chat";
 
 export interface QuestionOption {
   id: string;
@@ -81,7 +81,7 @@ function toOption(raw: unknown, index: number): QuestionOption | null {
 }
 
 function toState(value: unknown): QuestionState {
-  return value === "answered" || value === "skipped" ? value : "open";
+  return value === "answered" || value === "skipped" || value === "chat" ? value : "open";
 }
 
 /** The agent that asked a `question` element, or null for any other element or a question with no agent. */

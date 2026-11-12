@@ -95,6 +95,10 @@ export class MockAgentClient implements AgentClient {
     return this.questionEngine.skipQuestion(questionId);
   }
 
+  async chatQuestion(_id: string, questionId: string): Promise<QuestionAck> {
+    return this.questionEngine.chatQuestion(questionId);
+  }
+
   async reviseQuestion(_id: string, questionId: string): Promise<QuestionAck> {
     return this.questionEngine.reviseQuestion(questionId);
   }

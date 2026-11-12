@@ -3,6 +3,9 @@ export const QUESTION_STRINGS = {
   agentAsks: "Agent asks",
   optionsLabel: "Options",
   skipped: "Skipped",
+  /** What a settled question shows: the answer, or the skip / chat outcome. */
+  outcome: (state: string, answer: string | null | undefined) =>
+    state === "skipped" ? "Skipped" : state === "chat" ? "Discussing in chat" : answer ?? "",
   progress: (step: number, total: number) => `Question ${step} of ${total}`,
   skip: "Skip",
   send: "Send",

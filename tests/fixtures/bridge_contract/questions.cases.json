@@ -635,6 +635,112 @@
       ]
     },
     {
+      "id": "chat_settles_the_question_even_when_it_cannot_be_skipped_and_a_second_settle_conflicts",
+      "steps": [
+        {
+          "http": {
+            "method": "PATCH",
+            "path": "/repos/main/canvas",
+            "json": {
+              "ops": [
+                {
+                  "op": "add_element",
+                  "temp_id": "q",
+                  "render": "question",
+                  "layer": "questions",
+                  "label": "Pick one?",
+                  "meta": {
+                    "question_id": "q1",
+                    "session_id": null,
+                    "step": 1,
+                    "total": 2,
+                    "kind": "choices",
+                    "state": "open",
+                    "answer": null,
+                    "option_id": null,
+                    "allow_custom": true,
+                    "allow_skip": false,
+                    "agent_id": "main",
+                    "options": [
+                      {
+                        "id": "a",
+                        "title": "Modular monolith",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 1
+                      },
+                      {
+                        "id": "b",
+                        "title": "Microservices",
+                        "description": "d",
+                        "pro": "p",
+                        "con": "c",
+                        "why": "w",
+                        "rank": 2
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.ok",
+                "equals": true
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/chat"
+          },
+          "expect": {
+            "status": 200,
+            "json": {
+              "ok": true,
+              "question_id": "q1",
+              "state": "chat",
+              "waiting": false
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "GET",
+            "path": "/repos/main/questions"
+          },
+          "expect": {
+            "status": 200,
+            "checks": [
+              {
+                "path": "$.questions",
+                "count": 0
+              }
+            ]
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/q1/chat"
+          },
+          "expect": {
+            "status": 409,
+            "json": {
+              "detail": "question is already settled"
+            }
+          }
+        }
+      ]
+    },
+    {
       "id": "skip_is_refused_when_the_question_cannot_be_skipped",
       "steps": [
         {
@@ -756,6 +862,18 @@
           "http": {
             "method": "POST",
             "path": "/repos/main/questions/ghost/request-diagram"
+          },
+          "expect": {
+            "status": 404,
+            "json": {
+              "detail": "unknown question"
+            }
+          }
+        },
+        {
+          "http": {
+            "method": "POST",
+            "path": "/repos/main/questions/ghost/chat"
           },
           "expect": {
             "status": 404,

@@ -63,17 +63,16 @@ public class AgentWindowStoreTests
     }
 
     [Fact]
-    public async Task The_sixth_agent_is_refused_and_Run_agent_explains_the_limit()
+    public async Task There_is_no_cap_on_agents_so_a_sixth_launches_and_Run_agent_stays_enabled()
     {
         var (store, client) = Make();
         for (var i = 0; i < 5; i++) await store.LaunchAsync();
 
         var sixth = await store.LaunchAsync();
 
-        Assert.Null(sixth);
-        Assert.False(store.CanRun);
-        Assert.Equal("5 agents is the limit — close one to start another", store.RunDisabledReason);
-        Assert.Equal(5, client.Created.Count);
+        Assert.NotNull(sixth);
+        Assert.True(store.CanRun);
+        Assert.Equal(6, client.Created.Count);
     }
 
     [Fact]
@@ -93,16 +92,15 @@ public class AgentWindowStoreTests
     }
 
     [Fact]
-    public async Task Closing_removes_the_window_without_a_confirmation_and_frees_a_slot()
+    public async Task Closing_removes_the_window_without_a_confirmation()
     {
         var (store, client) = Make();
-        for (var i = 0; i < 5; i++) await store.LaunchAsync();
+        for (var i = 0; i < 2; i++) await store.LaunchAsync();
 
         await store.CloseAsync("agent1");
 
         Assert.Null(store.Get("agent1"));
         Assert.Equal(new[] { "agent1" }, client.Deleted);
-        Assert.True(store.CanRun);
     }
 
     [Fact]

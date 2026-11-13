@@ -266,7 +266,7 @@ a tab and never hosts an agent. Artifacts are not shared between tabs.
 - `POST /agents` takes `workspace` (a `br_*` tab id). Without `attach_to` the agent shares that tab's
   worktree (`shares_workspace_with` = the tab, `AgentRecord.workspace` = the tab, `base_branch` = the tab's
   branch); `attach_to=main` or no `workspace` is a 400; an explicit `attach_to=pr-N` is respected. No
-  personal sub-worktree (`NewWorktree`) is created any more. `MaxAgents` stays global across tabs.
+  personal sub-worktree (`NewWorktree`) is created any more. There is no cap on live agents.
   Older records with an empty `workspace` still load.
 
 Tests: `dotnet/CodeChroma.Bridge.Tests/Workspaces/WorktreeTabTests.cs` plus the shared
@@ -324,9 +324,8 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   opened via `/tmp`, `/var` or a linked folder must not read as nested. `commit_plan()` reports what would land **in its default state** (every
   suspicious path pre-ticked for exclusion, `include=[...]` to keep one). 🔴 An existing `.gitignore`
   is never rewritten — the plan is computed against it and it is left alone.
-- `manager.py` — `AgentRecord`/`AgentManager`: atomic (temp+rename) writes, the hard limit of
-  **5** agents (`settings.agents.max_agents`, [`config.py`](config-and-prompts.md); a sixth is a
-  409), skill install into each new worktree, and startup reconciliation
+- `manager.py` — `AgentRecord`/`AgentManager`: atomic (temp+rename) writes, no cap on live
+  agents (the old 5-agent limit and its 409 are gone; `GET /agents` has no `max_agents`), skill install into each new worktree, and startup reconciliation
   (prune, clear dead pids, mark a vanished directory `worktree_lost` rather than dropping the card).
   🔴 `reconcile()` re-runs `install_skills` into every *existing*, present worktree: skills are
   installed once at `create()`, and the launcher's sync (`app.py`) only reaches the *main* repo, so a
@@ -842,8 +841,8 @@ The web side lives in `web/src/agents/prompts/`:
 | File | Role |
 |---|---|
 | `promptNav.ts` | Pure logic: `toPrompts` + `replySummary` ("1 edit, 1 run" / "answer"), `clampIndex`, `activeIndexAt` (last prompt at or above the viewport top + 3 rows), `filterPrompts`, `findPromptLines` (each prompt's echo row: a row starting with `>`/`❯`/`›`/`!` plus its indented rows up to a `⎿` row of hook/tool output, compared whole with the prompt, whitespace removed, first 60 chars; matched newest first so a repeated prompt keeps its own echo after old rows leave the 5000-line scrollback; null when not found) |
-| `promptNavStore.ts` | Per-agent state kept across agent switches: prompts, buffer lines, `current`, aria-live text, find requests. `go` scrolls the attached viewport and ignores its own scroll events for `JUMP_LOCK_MS` (250 ms). `ActivityPanel` calls `retain` with the live agent ids so a deleted agent's state is dropped |
-| `xtermPromptViewport.ts` | Attached through `useXtermSession`'s `onTerminal`: re-scans the buffer 200 ms after output or resize (skipped while the terminal is hidden; `AgentTerminal` calls `rescanPrompts` when it is shown again), follows the viewport (rAF-throttled), scrolls a prompt one row below the top, and highlights the current echo with an xterm decoration |
+| `promptNavStore.ts` | Per-agent state kept across agent switches: prompts, buffer lines, `current`, aria-live text, find requests. A new prompt becomes `current` when the latest one was selected (an older pick is kept); `onViewport` picks the latest prompt while the terminal is at the bottom, else `activeIndexAt`. `go` scrolls the attached viewport and ignores its own scroll events for `JUMP_LOCK_MS` (250 ms). `ActivityPanel` calls `retain` with the live agent ids so a deleted agent's state is dropped |
+| `xtermPromptViewport.ts` | Attached through `useXtermSession`'s `onTerminal`: re-scans the buffer 200 ms after output or resize (skipped while the terminal is hidden; `AgentTerminal` calls `rescanPrompts` when it is shown again), follows the viewport (rAF-throttled, passing whether it is at the bottom), scrolls a prompt one row below the top, and highlights the current echo with an xterm decoration |
 | `usePromptList.ts` | Loads the selected agent's prompts; polls every 3 s while the agent is working (shared with usage through `useAgentPoll`) and the page is visible |
 | `usePromptHotkeys.ts` | One window listener: Alt+↑/↓ prev/next and Cmd/Ctrl+Shift+P find, only while focus is inside a `data-prompt-nav-agent` element and not in another text field (the terminal's own input and the prompt search are allowed) |
 | `PromptNavBar.tsx`, `PromptPicker.tsx`, `PromptOutline.tsx`, `PromptMarkers.tsx` | The compact 44px bar with a listbox popover, the full-screen 48px bar (Prev/Next/Latest), the full-screen left-column outline under `AgentList`, and the marker rail on the terminal's right edge |

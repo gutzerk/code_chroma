@@ -49,6 +49,28 @@ describe("promptNavStore", () => {
     expect(promptNavStore.get("a").current).toBe(1);
   });
 
+  it("follows a new prompt when the latest one was selected and highlights it", () => {
+    const view = viewport();
+    promptNavStore.attach("a", view);
+    promptNavStore.setPrompts("a", [raw("one"), raw("two")]);
+    promptNavStore.setLayout("a", [10, 80], 200);
+
+    promptNavStore.setPrompts("a", [raw("one"), raw("two"), raw("three")]);
+    promptNavStore.setLayout("a", [10, 80, 190], 200);
+
+    expect(promptNavStore.get("a").current).toBe(3);
+    expect(view.highlight).toHaveBeenLastCalledWith(190);
+  });
+
+  it("keeps the latest prompt active while the viewport is at the bottom, even when its echo is below the top", () => {
+    promptNavStore.setPrompts("a", [raw("one"), raw("two"), raw("three")]);
+    promptNavStore.setLayout("a", [0, 50, 110], 120);
+
+    promptNavStore.onViewport("a", 90, true);
+
+    expect(promptNavStore.get("a").current).toBe(3);
+  });
+
   it("jumps by scrolling the prompt's line to the top, highlighting it and announcing it", () => {
     const view = viewport();
     promptNavStore.attach("a", view);

@@ -228,16 +228,16 @@ describe("DrawDialog", () => {
     expect(screen.getByTestId("draw-card-sequence")).toHaveAttribute("aria-checked", "true");
   });
 
-  it("disables drawing at agent capacity, with the limit as the reason", async () => {
+  it("keeps drawing available however many agents are open", async () => {
     renderDialog();
     act(() => {
-      for (let i = 0; i < 5; i++) agentStore.upsert({ ...agent(), id: `a${i}` });
+      for (let i = 0; i < 6; i++) agentStore.upsert({ ...agent(), id: `a${i}` });
       drawDialogStore.open();
     });
     await screen.findByTestId("draw-card-sequence");
+    typeRequest("the checkout flow");
 
-    expect(screen.getByTestId("draw-dialog-submit")).toBeDisabled();
-    expect(screen.getByTestId("draw-dialog-submit")).toHaveAttribute("title", expect.stringContaining("limit"));
+    expect(screen.getByTestId("draw-dialog-submit")).toBeEnabled();
   });
 
   it("gives a saved type with a schematic its own card, named in the request", async () => {

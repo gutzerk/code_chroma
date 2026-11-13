@@ -37,7 +37,6 @@ class AgentStore extends Store {
   // The bridge's "last active" never moves it from here: the boot (worktreeActions.ensureWorktrees)
   // decides once, so a list refresh can't race the tab selection or follow another window's pick.
   private activeWorkspace = initialWorkspace();
-  private maxAgents = 5;
   private gitPreflight: GitPreflight | null = null;
   private launchError: string | null = null;
   private startErrors: Record<string, string> = {};
@@ -56,8 +55,6 @@ class AgentStore extends Store {
 
   getActiveWorkspace = (): string => this.activeWorkspace;
 
-  getMaxAgents = (): number => this.maxAgents;
-
   getGitPreflight = (): GitPreflight | null => this.gitPreflight;
 
   getLaunchError = (): string | null => this.launchError;
@@ -68,16 +65,12 @@ class AgentStore extends Store {
 
   getDiagramsReady = (): ReadonlySet<string> => this.diagramsReady;
 
-  /** True once the hard cap is reached — the "Run agent" button greys out with an explanation. */
-  getIsAtCapacity = (): boolean => this.agents.length >= this.maxAgents;
-
   /** True while a launch/attach is in flight — the count only grows once `create()` resolves, so
    * this closes the gap a fast double-click could otherwise slip through. */
   getIsLaunching = (): boolean => this.isLaunching;
 
-  setList = (list: { agents: AgentRecord[]; max_agents: number }): void => {
+  setList = (list: { agents: AgentRecord[] }): void => {
     this.agents = list.agents.map((agent) => clampToViewport(normalized(agent)));
-    this.maxAgents = list.max_agents;
     this.emit();
   };
 
@@ -251,7 +244,6 @@ class AgentStore extends Store {
   reset = (): void => {
     this.agents = EMPTY;
     this.activeWorkspace = initialWorkspace();
-    this.maxAgents = 5;
     this.gitPreflight = null;
     this.launchError = null;
     this.startErrors = {};
@@ -353,33 +345,13 @@ export function useDiagramsReady(): ReadonlySet<string> {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getDiagramsReady);
 }
 
-export function useIsAtAgentCapacity(): boolean {
-  return useSyncExternalStore(agentStore.subscribe, agentStore.getIsAtCapacity);
-}
-
 export function useIsLaunchingAgent(): boolean {
   return useSyncExternalStore(agentStore.subscribe, agentStore.getIsLaunching);
 }
 
-/** Why no agent can start while `maxAgents` are open. */
-export const agentCapacityReason = (maxAgents: number): string => `${maxAgents} agents is the limit — close one to start another`;
-
-export function useMaxAgents(): number {
-  return useSyncExternalStore(agentStore.subscribe, agentStore.getMaxAgents);
-}
-
-/** Why no agent can start because too many are open, or undefined. */
-export function useAgentCapacityReason(): string | undefined {
-  const isAtCapacity = useIsAtAgentCapacity();
-  const maxAgents = useMaxAgents();
-  return isAtCapacity ? agentCapacityReason(maxAgents) : undefined;
-}
-
-/** Why a launch button is disabled right now (at capacity, or another launch running), or undefined. */
+/** Why a launch button is disabled right now (another launch running), or undefined. */
 export function useAgentLaunchBlockedReason(): string | undefined {
-  const capacity = useAgentCapacityReason();
-  const isLaunching = useIsLaunchingAgent();
-  return capacity ?? (isLaunching ? "Launching…" : undefined);
+  return useIsLaunchingAgent() ? "Launching…" : undefined;
 }
 
 export function useAgentLaunchError(): string | null {

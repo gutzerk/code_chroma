@@ -29,7 +29,7 @@ function agentRecord(id: string): AgentRecord {
 function client(create: AgentClient["create"]): AgentClient {
   return {
     ...PR_CLIENT_STUB,
-    list: async () => ({ agents: [], active_workspace: "main", max_agents: 5 }),
+    list: async () => ({ agents: [], active_workspace: "main" }),
     create,
     start: async (id) => ({ ...agentRecord(id), status: "idle" }),
     stop: async () => {
@@ -162,13 +162,13 @@ describe("attachAgent", () => {
     expect(saveWindow).toHaveBeenCalledWith("helper", { minimized: false, z: expect.any(Number) });
   });
 
-  it("does nothing once the agent limit is reached", async () => {
+  it("starts a sixth agent: there is no cap", async () => {
     for (let index = 0; index < 5; index += 1) agentStore.upsert(agentRecord(`agent-${index}`));
     const create = vi.fn(async (title: string) => agentRecord(title || "helper"));
 
     await attachAgent(client(create));
 
-    expect(create).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledTimes(1);
   });
 
   it("stops and publishes the preflight when the repo isn't ready", async () => {

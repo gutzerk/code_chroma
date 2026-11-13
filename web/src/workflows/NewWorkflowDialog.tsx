@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import "./workflows.css";
 import { ModalDialog } from "../agents/ModalDialog";
 import { useOptionalAgentClient } from "../agents/AgentClientContext";
-import { agentStore, useAgentCapacityReason, useIsLaunchingAgent } from "../agents/agentStore";
+import { agentStore, useIsLaunchingAgent } from "../agents/agentStore";
 import { launchWorkflowAgent } from "../agents/launchAgent";
 import { useActiveWorktreeId } from "../agents/worktreeStore";
 import { Icon } from "./icons";
@@ -14,7 +14,6 @@ const MAX_REQUEST_CHARS = 2000;
 /** The New workflow chooser: describe it and let an agent design and save it, or open the editor and build it by hand. */
 export function NewWorkflowDialog({ onClose }: { onClose: () => void }) {
   const agentClient = useOptionalAgentClient();
-  const capacityReason = useAgentCapacityReason();
   const isLaunching = useIsLaunchingAgent();
   const activeTab = useActiveWorktreeId();
   const requestId = useId();
@@ -26,7 +25,7 @@ export function NewWorkflowDialog({ onClose }: { onClose: () => void }) {
     ? "Agents are not available here"
     : !activeTab
       ? "Open a worktree tab first: the agent works in it"
-      : capacityReason;
+      : undefined;
   const canStart = !agentBlocked && !isLaunching && request.trim().length > 0;
 
   const start = async () => {

@@ -197,8 +197,7 @@ canonical id first via `self._canonical`; `unregister` only tears the shared `Wo
 🔴 **Branch workspaces (`bridge/branches/manager.py`, `routes/branches.py`)** are what a second window
 on an already-open project shows: one existing or newly created *branch* in its own `git worktree`,
 registered as an ordinary writable workspace under `br_<slug>` (the underscore can't appear in an
-agent slug, so the two id spaces never collide). Not an agent — no `claude`, no autostart, not counted
-against `max_agents` — and not a PR (writable, on a real branch). Persisted in
+agent slug, so the two id spaces never collide). Not an agent — no `claude`, no autostart — and not a PR (writable, on a real branch). Persisted in
 `<main_root>/.codechroma/branches.json` (`BranchManager`, reconciled and re-registered by
 `BridgeServices.create`), created like an agent's worktree (`ensure_excluded`, skills installed,
 main's diagrams seeded). Routes (worktree tabs, see `parallel-agents.md`): `GET /branches` (`{branches, active}`, each record with `name`, `dirty` count, `worktree_lost`), `POST /branches/ensure` (creates `wt-1` only when no record exists), `POST /branches/new` (next free `wt-N` off `origin/<default>` after a fetch, falling back to local `<default>` then HEAD; `{branch, fetched, warning}`), `PATCH /branches/{id}` (renames name and git branch, id and path stay), `PUT /branches/active`, `DELETE /branches/{id}?worktree_too=` (force; also removes the tab's agents). `GET /branches/choices` and the open-existing-branch mode of `POST /branches` are gone. A duplicate or held branch name is a 409. Tests: `tests/unit/test_bridge_branches_route.py`.

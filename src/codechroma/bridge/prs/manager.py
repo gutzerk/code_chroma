@@ -5,8 +5,8 @@ A sibling of agents.json rather than more rows in it. Three reasons, worst first
 reading a shared file would keep a `kind: "pr"` row and silently discard its ten PR fields — a
 broken agent card with a Start button. Every consumer of `AgentManager.list()` assumes a startable
 agent (the session registry, the PR-publish preflight, one window and one LED per
-record), so sharing means an `if kind == "pr": continue` at eight sites. And MAX_AGENTS is
-subscription spend while a PR is only memory, so the two caps need different messages.
+record), so sharing means an `if kind == "pr": continue` at eight sites. And open reviews are capped
+while agents are not, so the two registries answer a full house differently.
 
 What that split does *not* cost is most of reconciliation: a PR needs none of the id-renaming,
 legacy-path migration or pid clearing agents do -- just the `worktree_lost` flag, plus the same
@@ -34,7 +34,7 @@ from codechroma.io import load_json, write_json
 
 logger = logging.getLogger("uvicorn.error")
 
-# Each open review is a full GraphEngine in memory; the same argument as MAX_AGENTS, smaller number.
+# Each open review is a full GraphEngine in memory, so open reviews stay capped.
 REGISTRY_VERSION = 1
 
 

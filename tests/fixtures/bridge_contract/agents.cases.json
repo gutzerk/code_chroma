@@ -21,8 +21,7 @@
             "status": 200,
             "json": {
               "agents": [],
-              "active_workspace": "main",
-              "max_agents": 5
+              "active_workspace": "main"
             }
           }
         }
@@ -719,7 +718,7 @@
       ]
     },
     {
-      "id": "the_agent_limit_is_a_409",
+      "id": "a_sixth_agent_starts_with_no_limit",
       "steps": [
         {
           "http": {
@@ -815,10 +814,7 @@
             }
           },
           "expect": {
-            "status": 409,
-            "json": {
-              "detail": "the limit of 5 concurrent agents is reached"
-            }
+            "status": 200
           }
         }
       ]

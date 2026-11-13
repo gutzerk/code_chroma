@@ -1,4 +1,5 @@
 import type { IDecoration, Terminal } from "@xterm/xterm";
+import { isAtBottom, pinTerminal, unpinTerminal } from "../../terminal/stickToBottom";
 import { findPromptLines, promptBlockHeight } from "./promptNav";
 import { promptNavStore } from "./promptNavStore";
 
@@ -50,7 +51,7 @@ export function attachXtermPromptViewport(
     if (frame) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
-      promptNavStore.onViewport(agentId, term.buffer.active.viewportY);
+      promptNavStore.onViewport(agentId, term.buffer.active.viewportY, isAtBottom(term));
     });
   };
 
@@ -68,8 +69,14 @@ export function attachXtermPromptViewport(
   };
 
   const detach = promptNavStore.attach(agentId, {
-    scrollToLine: (line) => term.scrollToLine(Math.max(0, line - JUMP_TOP_ROWS)),
-    scrollToBottom: () => term.scrollToBottom(),
+    scrollToLine: (line) => {
+      unpinTerminal(term);
+      term.scrollToLine(Math.max(0, line - JUMP_TOP_ROWS));
+    },
+    scrollToBottom: () => {
+      pinTerminal(term);
+      term.scrollToBottom();
+    },
     highlight,
   });
   let knownPrompts = promptNavStore.get(agentId).prompts;

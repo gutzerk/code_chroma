@@ -173,14 +173,14 @@ public class AgentJourneyTests
     }
 
     [AvaloniaFact]
-    public void The_sixth_agent_is_refused_Run_agent_goes_disabled_and_its_tooltip_gives_the_limit()
+    public void A_sixth_agent_launches_and_Run_agent_stays_enabled_with_no_limit_tooltip()
     {
         var (window, view, store, _, _, _) = Open();
-        for (var i = 0; i < 5; i++) Press(window, view.RunButton);
+        for (var i = 0; i < 6; i++) Press(window, view.RunButton);
 
-        Assert.False(view.RunButton.IsEnabled);
-        Assert.Equal("5 agents is the limit — close one to start another", ToolTip.GetTip(view.RunButton));
-        Assert.Equal(5, store.Agents.Count);
+        Assert.True(view.RunButton.IsEnabled);
+        Assert.Null(ToolTip.GetTip(view.RunButton));
+        Assert.Equal(6, store.Agents.Count);
     }
 
     [AvaloniaFact]

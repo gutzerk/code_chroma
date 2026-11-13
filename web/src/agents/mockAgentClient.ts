@@ -23,8 +23,6 @@ import { MockBridgeEngineClient } from "../engine-client/mockBridge";
 import { parsePrNumber } from "../pr/prUrl";
 import type { AgentClient, DiagramTaskHint, PermissionDecision } from "./agentClient";
 
-const MAX_AGENTS = 5;
-
 const MAX_PRS = 3;
 
 /** What GET /diagram-kinds serves (src/codechroma/diagrams/kinds.json), for the mock bridge. */
@@ -118,7 +116,7 @@ export class MockAgentClient implements AgentClient {
 
   async list(workspace?: string): Promise<AgentList> {
     const agents = workspace ? this.agents.filter((agent) => agent.workspace === workspace) : this.agents;
-    return { agents: [...agents], active_workspace: this.active, max_agents: MAX_AGENTS };
+    return { agents: [...agents], active_workspace: this.active };
   }
 
   async create(
@@ -132,9 +130,6 @@ export class MockAgentClient implements AgentClient {
     workflowRequest?: string,
   ): Promise<AgentRecord> {
     if (attachTo === "main") throw new Error("attach_to=main is not allowed; agents work in a worktree tab");
-    if (this.agents.length >= MAX_AGENTS) {
-      throw new Error(`the limit of ${MAX_AGENTS} concurrent agents is reached`);
-    }
     // Not committed to `this.counter` until every step below succeeds — attachTarget() can still
     // throw on an unknown attachTo, and a failed create() must not burn a counter value.
     const nextCounter = this.counter + 1;

@@ -57,7 +57,8 @@ class PromptNavStore extends Store {
     const prev = this.get(agentId);
     const prompts = toPrompts(raw);
     if (samePrompts(prev.prompts, prompts)) return;
-    const current = prev.current === 0 ? prompts.length : clampIndex(prev.current, prompts.length);
+    const onLatest = prev.current === 0 || prev.current === prev.prompts.length;
+    const current = onLatest ? prompts.length : clampIndex(prev.current, prompts.length);
     this.set(agentId, { prompts, current });
   };
 
@@ -68,12 +69,12 @@ class PromptNavStore extends Store {
     if (!same) this.set(agentId, { lines, totalLines });
   };
 
-  /** A user scroll: the active prompt follows the viewport, except during a jump's own scroll. */
-  onViewport = (agentId: string, viewportTop: number): void => {
+  /** A scroll: the active prompt follows the viewport (the latest one at the bottom), except during a jump's own scroll. */
+  onViewport = (agentId: string, viewportTop: number, atBottom = false): void => {
     if (Date.now() < (this.lockUntil.get(agentId) ?? 0)) return;
-    const { lines, current } = this.get(agentId);
+    const { lines, current, prompts } = this.get(agentId);
     if (lines.length === 0) return;
-    const next = activeIndexAt(lines, viewportTop);
+    const next = atBottom ? prompts.length : activeIndexAt(lines, viewportTop);
     if (next !== current) this.set(agentId, { current: next });
   };
 

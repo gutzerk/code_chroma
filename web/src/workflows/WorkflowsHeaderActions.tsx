@@ -4,7 +4,7 @@ import { PlusIcon } from "../agents/activity/icons";
 import { Icon } from "./icons";
 import { useWorkflows, useWorkflowView, workflowStore } from "./workflowStore";
 
-/** The activity header's right side on the Workflows tab: New workflow, Run workflow (once one is saved), the list, full screen and collapse; never gated by the agent limit. */
+/** The activity header's right side on the Workflows tab: New workflow, Run workflow (once one is saved), the list, full screen and collapse; never gated by an agent launch. */
 export function WorkflowsHeaderActions({ agentsMode }: { agentsMode: AgentsMode }) {
   const view = useWorkflowView();
   const hasWorkflows = useWorkflows().length > 0;

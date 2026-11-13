@@ -42,16 +42,14 @@ public static class AgentStatusLabels
 public sealed record AgentRailEntry(string Id, string Title, string StatusText, string Status, bool Pressed, bool OffBranch);
 
 /// <summary>
-/// The agent list and window layout (port of agentStore.ts, windowActions.ts, branchScope.ts and the rail's rules): launch
-/// refuses past the limit, a window is clamped so its title bar stays reachable, minimize and restore keep the agent (and its
+/// The agent list and window layout (port of agentStore.ts, windowActions.ts, branchScope.ts and the rail's rules): any
+/// number of agents can run, a window is clamped so its title bar stays reachable, minimize and restore keep the agent (and its
 /// terminal) alive, closing needs no confirmation, and an agent whose base branch is not the one main has checked out is dimmed
 /// and labelled "on &lt;branch&gt;" rather than hidden or torn down.
 /// </summary>
 public sealed class AgentWindowStore
 {
-    public const int MaxAgents = 5;
     public const double MinVisible = 120;
-    public static readonly string LimitLabel = $"{MaxAgents} agents is the limit — close one to start another";
 
     private readonly IAgentClient _client;
     private List<AgentRecord> _agents = new();
@@ -73,11 +71,8 @@ public sealed class AgentWindowStore
     public bool IsLaunching { get; private set; }
     public string? LaunchError { get; private set; }
 
-    public bool IsAtCapacity => _agents.Count >= MaxAgents;
-
-    /// <summary>The Run agent button is disabled at the limit (or mid-launch) and explains why.</summary>
-    public bool CanRun => !IsAtCapacity && !IsLaunching;
-    public string? RunDisabledReason => IsAtCapacity ? LimitLabel : null;
+    /// <summary>The Run agent button is disabled only mid-launch.</summary>
+    public bool CanRun => !IsLaunching;
 
     public AgentRecord? Get(string id) => _agents.FirstOrDefault(a => a.Id == id);
 
@@ -108,7 +103,7 @@ public sealed class AgentWindowStore
         Changed?.Invoke();
     }
 
-    /// <summary>"Run agent": creates and starts an agent attached to the active workspace at once; a double click cannot slip past the limit.</summary>
+    /// <summary>"Run agent": creates and starts an agent attached to the active workspace at once; a double click cannot start two.</summary>
     public async Task<AgentRecord?> LaunchAsync()
     {
         if (!CanRun) return null;

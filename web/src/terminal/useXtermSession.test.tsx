@@ -42,6 +42,14 @@ vi.mock("@xterm/xterm", () => {
     refresh(start: number, end: number): void {
       this.refreshed.push([start, end]);
     }
+    buffer = { active: { viewportY: 0, baseY: 0 } };
+    onScroll(): { dispose(): void } {
+      return { dispose() {} };
+    }
+    onWriteParsed(): { dispose(): void } {
+      return { dispose() {} };
+    }
+    scrollToBottom(): void {}
     onData(): void {}
     onBinary(): void {}
     onSelectionChange(): void {}

@@ -604,11 +604,10 @@ export interface AgentQuestionsPayload {
   edges: Record<string, CanvasEdge>;
 }
 
-/** GET /agents — the cards plus which workspace the canvas is drawing and the hard agent cap. */
+/** GET /agents — the cards plus which workspace the canvas is drawing. */
 export interface AgentList {
   agents: AgentRecord[];
   active_workspace: string;
-  max_agents: number;
 }
 
 /** One worktree tab (a `BranchRecord`, id `br_*`): GET /branches. `dirty` is the uncommitted-change count. */

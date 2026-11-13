@@ -46,7 +46,7 @@ describe("ActivityPanel", () => {
     expect(screen.getByRole("tab", { name: /Workflows/ })).toHaveAttribute("aria-selected", "true");
   });
 
-  it("keeps New and Run workflow enabled when the agent limit disables Run agent", () => {
+  it("keeps New and Run workflow enabled while Run agent is disabled", () => {
     act(() => workflowStore.setWorkflows([{ id: "ship", name: "Ship", inputs: [], steps: [] }] as never));
     setup(new MockBridgeEngineClient(), true);
 

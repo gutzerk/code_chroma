@@ -52,7 +52,6 @@ public static class AgentRoutes
         {
             ["agents"] = new JsonArray(agents.List().Select(r => (JsonNode?)WithOpenQuestions(Payload(sessions, r), registry, r.Id)).ToArray()),
             ["active_workspace"] = agents.ActiveWorkspace,
-            ["max_agents"] = AgentManager.MaxAgents,
         })));
 
         app.MapPost("/agents", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections, WorkflowRunners runners) => Reply.GuardAsync(async () =>

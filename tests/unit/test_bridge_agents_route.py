@@ -15,7 +15,7 @@ import pytest
 from codechroma.bridge.agents import publish, worktree
 from codechroma.bridge.agents import session_ownership as ownership
 from codechroma.bridge.agents.live_status import StatusSnapshot
-from codechroma.bridge.agents.manager import AgentManager, max_agents
+from codechroma.bridge.agents.manager import AgentManager
 from codechroma.io import utc_now
 from codechroma.terminal import server as terminal_server
 from tests.conftest import TabClient as TestClient
@@ -39,7 +39,7 @@ def test_agents_list_starts_empty_on_main(client):
 
     body = response.json()
     assert response.status_code == 200
-    assert body == {"agents": [], "active_workspace": "main", "max_agents": max_agents()}
+    assert body == {"agents": [], "active_workspace": "main"}
 
 
 def test_post_agents_joins_its_tabs_worktree_without_a_branch_of_its_own(client):
@@ -245,15 +245,15 @@ def test_post_agents_falls_back_to_a_generated_title_when_none_is_given(client):
     assert response.json()["title"] == response.json()["id"]
 
 
-def test_a_sixth_agent_is_refused_with_409(client):
+def test_there_is_no_cap_on_live_agents(client):
     test_client, _repo, _server = client
-    for index in range(max_agents()):
+    for index in range(6):
         test_client.post("/agents", json={"title": f"task {index}"})
 
-    response = test_client.post("/agents", json={"title": "one too many"})
+    response = test_client.post("/agents", json={"title": "the seventh"})
 
-    assert response.status_code == 409
-    assert len(test_client.get("/agents").json()["agents"]) == max_agents()
+    assert response.status_code == 200
+    assert len(test_client.get("/agents").json()["agents"]) == 7
 
 
 def test_delete_keeps_the_worktree_and_branch_by_default(client):

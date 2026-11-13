@@ -17,7 +17,7 @@ describe("RailButton", () => {
 
   it("swaps in the reason on a disabled button, whose greyed-out icon cannot explain itself", () => {
     render(
-      <RailButton label="Run agent" tooltip="At the agent limit" disabled onClick={vi.fn()}>
+      <RailButton label="Run agent" tooltip="Launching…" disabled onClick={vi.fn()}>
         ▶
       </RailButton>,
     );
@@ -25,7 +25,7 @@ describe("RailButton", () => {
     const button = screen.getByRole("button", { name: "Run agent" });
 
     expect(button).toBeDisabled();
-    expect(button.querySelector(".rail-tooltip")?.textContent).toBe("At the agent limit");
+    expect(button.querySelector(".rail-tooltip")?.textContent).toBe("Launching…");
   });
 
   it("hides the label from screen readers, which already have the accessible name", () => {

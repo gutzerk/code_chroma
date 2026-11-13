@@ -116,7 +116,6 @@ public sealed class AgentWorkspaceView : Grid
             AutomationProperties.SetName(item, $"{entry.Title} — {entry.StatusText}");
         }
         RunButton.IsEnabled = _store.CanRun;
-        ToolTip.SetTip(RunButton, _store.RunDisabledReason);
     }
 }
 

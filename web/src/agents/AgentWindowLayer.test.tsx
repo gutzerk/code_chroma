@@ -90,7 +90,7 @@ function agentClient(agents: AgentRecord[]): AgentClient {
     ...PR_CLIENT_STUB,
     ensureWorktrees: async () => ({ branches: [TAB], active: "br_1" }),
     listWorktrees: async () => ({ branches: [TAB, { ...TAB, id: "br_2", name: "wt-2" }], active: "br_1" }),
-    list: async () => ({ agents, active_workspace: "main", max_agents: 5 }),
+    list: async () => ({ agents, active_workspace: "main" }),
     create: async () => record(),
     start: async () => record(),
     stop: async () => record({ status: "stopped" }),

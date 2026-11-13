@@ -57,7 +57,6 @@ public static class Publish
     /// <summary>Uncommitted paths a push would leave behind; the UI must not let these go unnoticed.</summary>
     public static List<string> DirtyFiles(string worktree)
     {
-        WorktreeOps.AwaitIndexWarm(worktree);
         var raw = GitRunner.Run(worktree, "status", "--porcelain", "--untracked-files=all");
         return GitRunner.PorcelainPaths(raw ?? "").Order(StringComparer.Ordinal).ToList();
     }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -14,6 +15,30 @@ def _git_timeout() -> int:
     return settings.git.short_timeout_seconds
 
 
+_index_warmups: dict[Path, threading.Thread] = {}
+
+
+def warm_index(worktree: Path) -> None:
+    """Rehashes a fresh checkout's racily-clean files in the background (fast first status)."""
+    key = worktree.resolve()
+
+    def refresh() -> None:
+        _spawn_git(worktree, "update-index", "-q", "--refresh")
+        if _index_warmups.get(key) is threading.current_thread():
+            _index_warmups.pop(key, None)
+
+    warmup = threading.Thread(target=refresh, daemon=True)
+    _index_warmups[key] = warmup
+    warmup.start()
+
+
+def await_index_warm(cwd: Path) -> None:
+    """Waits out a warm-up of `cwd`: it holds index.lock, so a `git add` beside it would fail."""
+    warmup = _index_warmups.get(Path(cwd).resolve()) if _index_warmups else None
+    if warmup is not None:
+        warmup.join()
+
+
 def run_git_raw(
     cwd: Path,
     *args: str,
@@ -22,6 +47,17 @@ def run_git_raw(
     timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str] | None:
     """The one place a git subprocess is spawned; None when git couldn't be run at all."""
+    await_index_warm(cwd)
+    return _spawn_git(cwd, *args, env=env, input_text=input_text, timeout=timeout)
+
+
+def _spawn_git(
+    cwd: Path,
+    *args: str,
+    env: dict[str, str] | None = None,
+    input_text: str | None = None,
+    timeout: float | None = None,
+) -> subprocess.CompletedProcess[str] | None:
     try:
         runtime = resolve_runtime_cli("git", env)
         # Bytes in/out keeps Windows from translating newlines or using the ANSI code page.

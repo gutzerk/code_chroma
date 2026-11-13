@@ -15,11 +15,10 @@ from __future__ import annotations
 import os
 import re
 import shutil
-import threading
 import unicodedata
 from pathlib import Path
 
-from codechroma.bridge.git_cmd import run_git, run_git_or_raise, run_git_raw
+from codechroma.bridge.git_cmd import run_git, run_git_or_raise, run_git_raw, warm_index
 from codechroma.bridge.git_long import GitLongError, run_git_long
 from codechroma.config import settings
 from codechroma.errors import codechromaError
@@ -95,7 +94,7 @@ def add(
     if start_point is not None:
         args.append(start_point)
     _run_git_or_raise(repo_root, *args, description="git worktree add")
-    _warm_index(path)
+    warm_index(path)
     return path
 
 
@@ -105,7 +104,7 @@ def attach(repo_root: Path, branch: str, path: Path) -> Path:
     _run_git_or_raise(
         repo_root, "worktree", "add", str(path), branch, description="git worktree add"
     )
-    _warm_index(path)
+    warm_index(path)
     return path
 
 
@@ -116,29 +115,8 @@ def add_detached(repo_root: Path, path: Path, commit: str) -> Path:
     _run_git_or_raise(
         repo_root, "worktree", "add", "--detach", str(path), commit, description="git worktree add"
     )
-    _warm_index(path)
+    warm_index(path)
     return path
-
-
-_index_warmups: dict[Path, threading.Thread] = {}
-
-
-def _warm_index(path: Path) -> None:
-    """Rehashes a fresh checkout's racily-clean files in the background (fast first status)."""
-    key = path.resolve()
-    warmup = threading.Thread(
-        target=run_git, args=(path, "update-index", "-q", "--refresh"), daemon=True
-    )
-    _index_warmups[key] = warmup
-    warmup.start()
-
-
-def await_index_warm(path: Path) -> None:
-    """Waits out a fresh checkout's index warm-up, so a status does not rehash every file twice."""
-    warmup = _index_warmups.get(path.resolve())
-    if warmup is not None:
-        warmup.join()
-        _index_warmups.pop(path.resolve(), None)
 
 
 def checkout_detached(worktree_path: Path, commit: str) -> None:

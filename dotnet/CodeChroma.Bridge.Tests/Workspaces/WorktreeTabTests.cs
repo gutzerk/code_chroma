@@ -189,13 +189,24 @@ public class WorktreeTabManagerTests : IDisposable
         var manager = new BranchManager(_repo.Root);
         var record = manager.CreateNext(null).Record;
 
-        WorktreeOps.AwaitIndexWarm(record.Worktree);
+        GitRunner.AwaitIndexWarm(record.Worktree);
         var clean = manager.Payload(record);
         File.WriteAllText(Path.Combine(record.Worktree, "app.py"), "dirty = 1\n");
         var dirty = manager.Payload(record);
 
         Assert.Equal(0, clean["dirty"]!.GetValue<int>());
         Assert.Equal(1, dirty["dirty"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void A_commit_right_after_a_fresh_tab_waits_for_the_index_warm_up_instead_of_failing_on_its_lock()
+    {
+        var manager = new BranchManager(_repo.Root);
+        var record = manager.CreateNext(null).Record;
+
+        var commit = WorktreeOps.CommitAll(record.Worktree, "checkpoint");
+
+        Assert.NotNull(commit);
     }
 
     [Fact]

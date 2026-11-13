@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 
@@ -6,7 +7,31 @@ namespace CodeChroma.Bridge.Workspaces;
 /// <summary>The one place a git subprocess is spawned; null when git could not run or exited non-zero.</summary>
 public static class GitRunner
 {
+    private static readonly ConcurrentDictionary<string, Task> IndexWarmups = new();
+
+    /// <summary>Rehashes a fresh checkout's racily-clean files in the background, so its first `git status` takes ms, not seconds.</summary>
+    public static void WarmIndex(string worktree)
+    {
+        var key = Path.GetFullPath(worktree);
+        var warmup = new Task(() => Spawn(worktree, null, "update-index", "-q", "--refresh"));
+        IndexWarmups[key] = warmup;
+        warmup.ContinueWith(_ => IndexWarmups.TryRemove(new KeyValuePair<string, Task>(key, warmup)));
+        warmup.Start();
+    }
+
+    /// <summary>Waits out a warm-up of `cwd`: it holds index.lock, so a `git add` beside it would fail and a status would rehash twice.</summary>
+    public static void AwaitIndexWarm(string cwd)
+    {
+        if (!IndexWarmups.IsEmpty && IndexWarmups.TryGetValue(Path.GetFullPath(cwd), out var warmup)) warmup.Wait();
+    }
+
     public static string? Run(string cwd, TimeSpan? timeout, params string[] args)
+    {
+        AwaitIndexWarm(cwd);
+        return Spawn(cwd, timeout, args);
+    }
+
+    private static string? Spawn(string cwd, TimeSpan? timeout, params string[] args)
     {
         var info = new ProcessStartInfo("git")
         {
@@ -44,6 +69,7 @@ public static class GitRunner
     /// <summary>RunRaw with its own timeout and extra environment variables; stdin is closed so git can never wait on input.</summary>
     public static (int ExitCode, string Stdout, string Stderr)? RunRaw(string cwd, TimeSpan timeout, IReadOnlyDictionary<string, string>? env, params string[] args)
     {
+        AwaitIndexWarm(cwd);
         var info = new ProcessStartInfo("git")
         {
             WorkingDirectory = cwd,

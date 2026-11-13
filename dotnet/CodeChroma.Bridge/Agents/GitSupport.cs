@@ -61,6 +61,7 @@ public static class GitLong
     /// <summary>stdout of a network-touching git command; throws <see cref="GitLongException"/> with a reason on failure.</summary>
     public static string Run(string cwd, params string[] args)
     {
+        GitRunner.AwaitIndexWarm(cwd);
         var limit = TimeoutSeconds();
         var info = new ProcessStartInfo("git")
         {

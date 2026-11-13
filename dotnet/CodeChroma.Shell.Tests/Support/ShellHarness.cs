@@ -35,14 +35,17 @@ internal sealed class ShellHarness : IDisposable
     public TabModel Tabs { get; } = new(() => new object());
     public ShellController Controller { get; }
     public string RecentsPath => RecentRepos.StorePath(data.Path);
+    public string SessionPath => TabSession.StorePath(data.Path);
 
     public ShellHarness(bool startWithEmptyTab = true)
     {
         Launcher.OnStart = p => p.Say($"[codechroma-live] bridge ready at http://127.0.0.1:{p.Spec.Port}");
         var manager = new BridgeManager(Launcher, new SequencePorts(), new ScriptedHealth(_ => false), TimeSpan.FromMilliseconds(5));
-        Controller = new ShellController(Tabs, new BridgeRegistry(manager, "bridge.exe"), Ui, RecentsPath, Version);
+        Controller = new ShellController(Tabs, new BridgeRegistry(manager, "bridge.exe"), Ui, RecentsPath, Version, sessionPath: SessionPath);
         if (startWithEmptyTab) Controller.NewTab();
     }
+
+    public string Repo(string name) => data.Dir("repos", name);
 
     public static async Task Eventually(Func<bool> condition, int milliseconds = 5000)
     {

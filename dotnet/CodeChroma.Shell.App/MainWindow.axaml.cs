@@ -38,7 +38,7 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         RecentsPath = RecentRepos.StorePath(UserDataDir);
         tabs = new TabModel(CreateView);
         var manager = new BridgeManager(new ProcessBridgeLauncher(), new TcpPortFinder(), new HttpHealthProbe(new HttpClient()));
-        controller = new ShellController(tabs, new BridgeRegistry(manager, ResolveBridge()), this, RecentsPath, version, action => Dispatcher.UIThread.Post(action));
+        controller = new ShellController(tabs, new BridgeRegistry(manager, ResolveBridge()), this, RecentsPath, version, action => Dispatcher.UIThread.Post(action), TabSession.StorePath(UserDataDir));
 
         updates = new UpdateHost(this, UserDataDir, version, () => tabs.Tabs.Select(t => (TabView)t.View).Where(v => IsBridgeOrigin(v, v.Web.Url)), Close);
         Opened += (_, _) => updates.Start();
@@ -57,7 +57,13 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
 
         controller.NewTab();
         WindowState = WindowState.Maximized;
-        if (AppPaths.RepoFromArgs(args) is { } repo) Opened += async (_, _) => await controller.OpenRepoAsync(Path.GetFullPath(repo), tabs.ActiveTab?.Id);
+        var repo = AppPaths.RepoFromArgs(args);
+        Opened += async (_, _) =>
+        {
+            var restore = controller.RestoreSessionAsync();
+            if (repo is not null) await controller.OpenRepoAsync(Path.GetFullPath(repo), tabs.ActiveTab?.Id);
+            await restore;
+        };
     }
 
     /// <summary>The one command list: a flyout behind "…" on Windows/Linux, the native menu bar on macOS where one is expected.</summary>

@@ -18,6 +18,7 @@ import logging
 import subprocess
 from pathlib import Path
 
+from codechroma.bridge.agents import worktree as worktree_ops
 from codechroma.bridge.git_cmd import porcelain_paths, run_git, run_git_raw
 from codechroma.bridge.git_long import GitLongError, kill_process_group, run_git_long
 from codechroma.config import settings
@@ -102,6 +103,7 @@ def preflight(worktree: Path, branch: str, main_branch: str, source_pr: str | No
 
 def dirty_files(worktree: Path) -> list[str]:
     """Uncommitted paths a push would leave behind — the UI must not let these go unnoticed."""
+    worktree_ops.await_index_warm(worktree)
     raw = run_git(worktree, "status", "--porcelain", "--untracked-files=all")
     return sorted(porcelain_paths(raw or ""))
 

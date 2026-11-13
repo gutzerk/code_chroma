@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CodeChroma.Bridge.Workspaces;
 
 namespace CodeChroma.Bridge.Agents;
@@ -42,6 +43,7 @@ public static class WorktreeOps
         args.AddRange(["-b", branch, path]);
         if (startPoint is not null) args.Add(startPoint);
         RunOrThrow(repoRoot, "git worktree add", [.. args]);
+        WarmIndex(path);
         return path;
     }
 
@@ -50,6 +52,7 @@ public static class WorktreeOps
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         RunOrThrow(repoRoot, "git worktree add", "worktree", "add", path, branch);
+        WarmIndex(path);
         return path;
     }
 
@@ -58,7 +61,26 @@ public static class WorktreeOps
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         RunOrThrow(repoRoot, "git worktree add", "worktree", "add", "--detach", path, commit);
+        WarmIndex(path);
         return path;
+    }
+
+    private static readonly ConcurrentDictionary<string, Task> IndexWarmups = new();
+
+    /// <summary>Rehashes a fresh checkout's racily-clean files in the background, so its first `git status` takes ms, not seconds.</summary>
+    private static void WarmIndex(string path)
+    {
+        var key = Path.GetFullPath(path);
+        var warmup = new Task(() => GitRunner.Run(path, "update-index", "-q", "--refresh"));
+        IndexWarmups[key] = warmup;
+        warmup.ContinueWith(_ => IndexWarmups.TryRemove(new KeyValuePair<string, Task>(key, warmup)));
+        warmup.Start();
+    }
+
+    /// <summary>Waits out a fresh checkout's index warm-up, so a status right after it does not rehash every file a second time.</summary>
+    public static void AwaitIndexWarm(string path)
+    {
+        if (IndexWarmups.TryGetValue(Path.GetFullPath(path), out var warmup)) warmup.Wait();
     }
 
     /// <summary>Moves an existing detached worktree onto another commit; no --force, so git refusing over a local edit is information.</summary>

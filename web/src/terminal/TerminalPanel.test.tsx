@@ -246,6 +246,41 @@ describe("TerminalPanel", () => {
     expect(writeText).not.toHaveBeenCalled();
   });
 
+  it("copies a selection whose debounce ends after the pointer is released", () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(writeText);
+    const { session } = createFakeSession();
+    renderPanel(() => session);
+    const container = screen.getByTestId("terminal-panel-container");
+    fireEvent.pointerDown(container);
+    fireEvent.pointerUp(window);
+    fireEvent.pointerDown(container);
+    vi.advanceTimersByTime(120);
+    fakeTerminals[0].emitSelectionChange("word");
+    fireEvent.pointerUp(window);
+
+    vi.advanceTimersByTime(150);
+
+    expect(writeText).toHaveBeenCalledWith("word");
+  });
+
+  it("does not copy a selection that changes after the pointer is released", () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard(writeText);
+    const { session } = createFakeSession();
+    renderPanel(() => session);
+    fireEvent.pointerDown(screen.getByTestId("terminal-panel-container"));
+    fireEvent.pointerUp(window);
+    vi.advanceTimersByTime(10);
+
+    fakeTerminals[0].emitSelectionChange("programmatic");
+    vi.advanceTimersByTime(150);
+
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
   it("debounces repeated selection changes into a single clipboard write", () => {
     vi.useFakeTimers();
     const writeText = vi.fn().mockResolvedValue(undefined);

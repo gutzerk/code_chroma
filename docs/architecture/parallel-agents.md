@@ -248,6 +248,14 @@ a tab and never hosts an agent. Artifacts are not shared between tabs.
   (no remote, fetch failed, empty remote). Always `--no-track`; the main checkout is never touched. Reply
   `{branch, fetched, warning}`: `warning` is set whenever `fetched` is false, never an error. The new tab
   becomes `active`.
+- ⚠ The reply's `branch.dirty` is always 0 and runs no `git status`: a fresh checkout's first status
+  rehashes every file ("racy git", 1–5 s on this repo). Every `WorktreeOps.Add`/`Attach`/`AddDetached`
+  (Python `worktree.add`/`attach`/`add_detached`) starts `git update-index -q --refresh` in the
+  background, and `Publish.DirtyFiles` / `publish.dirty_files` waits for that path's warm-up
+  (`WorktreeOps.AwaitIndexWarm` / `worktree.await_index_warm`) instead of rehashing a second time. This
+  covers tabs, agent, PR and workflow worktrees. Tests: `WorktreeTabTests`
+  `A_fresh_tab_refreshes_its_index_in_the_background_and_still_counts_later_edits`, contract case
+  `new_twice_gives_wt_1_then_wt_2_without_a_remote`.
 - `PATCH /branches/{id} {name}` renames the display name and the git branch (`git branch -m`); `id` and
   worktree path stay; 409 on an invalid, duplicate or held branch name. Attached agents' `branch` follows.
 - Boot: `Program.cs` reconciles and registers every tab before main is analyzed and passes the active tab

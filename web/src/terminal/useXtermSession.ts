@@ -258,19 +258,27 @@ export function useXtermSession(
     // Copy-on-select, like a native terminal: a selection is a copy, no explicit Cmd/Ctrl+C needed.
     // Debounced the same way scheduleRefit is: a drag fires this on every extended cell, and copying
     // a still-growing multi-thousand-line selection on every tick is pure waste.
+    // Whether a change was user-made is recorded when it fires, not when the debounce ends: checking a
+    // timed-out pointer flag then lost double-click and quick-drag copies whenever the timers raced.
     let userSelecting = false;
-    const markSelecting = () => { userSelecting = true; };
+    let userSelectionPending = false;
+    let unmarkTimeout: ReturnType<typeof setTimeout> | undefined;
+    const markSelecting = () => { clearTimeout(unmarkTimeout); userSelecting = true; };
+    // A tick later, so the mouseup that xterm finalizes the selection on still counts as the user's.
     const unmarkSelecting = () => {
-      setTimeout(() => { userSelecting = false; }, SELECTION_COPY_DEBOUNCE_MS + 50);
+      clearTimeout(unmarkTimeout);
+      unmarkTimeout = setTimeout(() => { userSelecting = false; }, 0);
     };
     container.addEventListener("pointerdown", markSelecting);
     window.addEventListener("pointerup", unmarkSelecting);
     term.onSelectionChange(() => {
+      if (userSelecting) userSelectionPending = true;
       if (selectionCopyTimeoutRef.current !== null) clearTimeout(selectionCopyTimeoutRef.current);
       selectionCopyTimeoutRef.current = setTimeout(() => {
         selectionCopyTimeoutRef.current = null;
         const selection = term.getSelection();
-        if (selection && userSelecting) copySelection(selection);
+        if (selection && userSelectionPending) copySelection(selection);
+        userSelectionPending = false;
       }, SELECTION_COPY_DEBOUNCE_MS);
     });
     lastSizeRef.current = null;
@@ -295,6 +303,7 @@ export function useXtermSession(
       window.removeEventListener("pointerup", unmarkSelecting);
       if (refitTimeoutRef.current !== null) clearTimeout(refitTimeoutRef.current);
       if (selectionCopyTimeoutRef.current !== null) clearTimeout(selectionCopyTimeoutRef.current);
+      clearTimeout(unmarkTimeout);
       session.close();
       term.dispose();
       termRef.current = null;

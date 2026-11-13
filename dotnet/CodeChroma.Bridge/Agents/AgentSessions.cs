@@ -10,6 +10,9 @@ public sealed class AgentConsumer
     internal Channel<string> Channel { get; } = System.Threading.Channels.Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
 
     public ChannelReader<string> Output => Channel.Reader;
+
+    /// <summary>The size this window last reported, kept so it can take the PTY over later; null until it reports one.</summary>
+    internal (int Rows, int Cols)? Size { get; set; }
 }
 
 /// <summary>A long-lived PTY session a terminal window can attach to and follow live.</summary>
@@ -20,7 +23,9 @@ public interface IAgentSessionPort
     void Detach(AgentConsumer consumer);
     void Write(string data);
     void WriteBytes(byte[] data);
-    void Resize(int rows, int cols);
+    void Resize(AgentConsumer consumer, int rows, int cols);
+    void Input(AgentConsumer consumer, string data);
+    void InputBytes(AgentConsumer consumer, byte[] data);
 }
 
 /// <summary>
@@ -36,6 +41,8 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     private readonly object _injectGate = new();
     private Task _injectChain = Task.CompletedTask;
     private readonly List<AgentConsumer> _consumers = [];
+    // the one window whose size the PTY follows; two windows resizing in turn would make the CLI redraw at each width
+    private AgentConsumer? _sizeOwner;
     private readonly ScreenTap _tap = new(PtyLaunch.DefaultRows, PtyLaunch.DefaultCols);
     private readonly StatusDetector _detector;
     private PtyHost _pty;
@@ -230,7 +237,55 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     /// <summary>Drops one consumer; the process keeps running with nobody watching.</summary>
     public void Detach(AgentConsumer consumer)
     {
-        lock (_gate) _consumers.Remove(consumer);
+        lock (_gate)
+        {
+            _consumers.Remove(consumer);
+            if (_sizeOwner != consumer) return;
+            _sizeOwner = _consumers.LastOrDefault(other => other.Size is not null);
+            if (_sizeOwner?.Size is { } size) ResizeLocked(size.Rows, size.Cols);
+        }
+    }
+
+    /// <summary>A window reports its size: its first report or the size owner's resizes the PTY, any other is kept for a later take-over; the first also redraws that window at its own geometry.</summary>
+    public void Resize(AgentConsumer consumer, int rows, int cols)
+    {
+        bool first;
+        lock (_gate)
+        {
+            first = consumer.Size is null;
+            consumer.Size = (rows, cols);
+            if (first || _sizeOwner is null || _sizeOwner == consumer)
+            {
+                _sizeOwner = consumer;
+                ResizeLocked(rows, cols);
+            }
+        }
+        if (first) Resync(consumer);
+    }
+
+    /// <summary>Typing from a window: it takes the PTY size over first, so two open windows never fight over the width.</summary>
+    public void Input(AgentConsumer consumer, string data)
+    {
+        Claim(consumer);
+        Write(data);
+    }
+
+    /// <summary>Raw bytes (mouse reports) from a window, which take the PTY size over like typing does.</summary>
+    public void InputBytes(AgentConsumer consumer, byte[] data)
+    {
+        Claim(consumer);
+        WriteBytes(data);
+    }
+
+    /// <summary>The window the user works in takes the PTY size over, at the size it last reported.</summary>
+    private void Claim(AgentConsumer consumer)
+    {
+        lock (_gate)
+        {
+            if (_sizeOwner == consumer || consumer.Size is not { } size || !_consumers.Contains(consumer)) return;
+            _sizeOwner = consumer;
+            ResizeLocked(size.Rows, size.Cols);
+        }
     }
 
     /// <summary>Types into the agent; a submitted clear command of a CLI without a clear hook also clears the window's history.</summary>
@@ -277,13 +332,17 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
 
     public void Resize(int rows, int cols)
     {
-        lock (_gate)
-        {
-            _pty.Resize(rows, cols);
-            _tap.Resize(rows, cols);
-            _cols = cols;
-            _resizedAt = DateTimeOffset.UtcNow;
-        }
+        lock (_gate) ResizeLocked(rows, cols);
+    }
+
+    /// <summary>Resizes the PTY and the screen tap; a size it already has is no change, so the CLI is not made to redraw; the caller holds _gate.</summary>
+    private void ResizeLocked(int rows, int cols)
+    {
+        if (rows == _tap.Rows && cols == _tap.Cols) return;
+        _pty.Resize(rows, cols);
+        _tap.Resize(rows, cols);
+        _cols = cols;
+        _resizedAt = DateTimeOffset.UtcNow;
     }
 
     /// <summary>A drawing window's drawer subagent and lead instruction, passed again when the window restarts on its own session.</summary>

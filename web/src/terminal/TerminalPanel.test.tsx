@@ -96,14 +96,6 @@ vi.mock("@xterm/addon-fit", () => {
 
 vi.mock("@xterm/addon-unicode11", () => ({ Unicode11Addon: class {} }));
 
-vi.mock("@xterm/addon-webgl", () => ({
-  WebglAddon: class {
-    onContextLoss(): void {}
-    clearTextureAtlas(): void {}
-    dispose(): void {}
-  },
-}));
-
 function createFakeSession() {
   let dataCallback: ((data: string) => void) | null = null;
   let closeCallback: (() => void) | null = null;

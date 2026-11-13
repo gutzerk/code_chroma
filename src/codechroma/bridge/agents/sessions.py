@@ -119,7 +119,11 @@ class AgentSessionPort(Protocol):
 
     def write_bytes(self, data: bytes) -> None: ...
 
-    def resize(self, rows: int, cols: int) -> None: ...
+    def resize_from(self, queue: asyncio.Queue, rows: int, cols: int) -> None: ...
+
+    def input(self, queue: asyncio.Queue, data: str) -> None: ...
+
+    def input_bytes(self, queue: asyncio.Queue, data: bytes) -> None: ...
 
     def inject_when_idle(
         self, text: InjectText, attempts: int | None = None
@@ -163,6 +167,9 @@ class AgentSession(AgentSessionPort):
         self._prompt_context: str | None = None
         self._prompt_context_lock = threading.Lock()
         self._consumers: set[asyncio.Queue] = set()
+        # The one window whose size the PTY follows; two windows resizing in turn redraw the CLI.
+        self._size_owner: asyncio.Queue | None = None
+        self._sizes: dict[asyncio.Queue, tuple[int, int]] = {}
         self._inject_lock = asyncio.Lock()
         # Seeded with the PTY's own geometry, so the tap renders the screen the agent actually drew.
         self._tap = ScreenTap(rows=default_rows(), cols=default_cols())
@@ -301,7 +308,41 @@ class AgentSession(AgentSessionPort):
     def detach(self, queue: asyncio.Queue) -> None:
         """Drops one consumer; the process keeps running with nobody watching."""
         self._consumers.discard(queue)
+        self._sizes.pop(queue, None)
         self._pty.client_attached = bool(self._consumers)
+        if self._size_owner is not queue:
+            return
+        self._size_owner = next(reversed(self._sizes), None)
+        if self._size_owner is not None:
+            self.resize(*self._sizes[self._size_owner])
+
+    def resize_from(self, queue: asyncio.Queue, rows: int, cols: int) -> None:
+        """A window's first size report or the owner's resizes the PTY; a first one also redraws."""
+        first = queue not in self._sizes
+        self._sizes[queue] = (rows, cols)
+        if first or self._size_owner in (None, queue):
+            self._size_owner = queue
+            self.resize(rows, cols)
+        if first:
+            self.resync(queue)
+
+    def input(self, queue: asyncio.Queue, data: str) -> None:
+        """Typing from a window: it takes the PTY size over first, so two windows never fight."""
+        self._claim(queue)
+        self.write(data)
+
+    def input_bytes(self, queue: asyncio.Queue, data: bytes) -> None:
+        """Raw bytes (mouse reports) from a window, which take the PTY size over like typing."""
+        self._claim(queue)
+        self.write_bytes(data)
+
+    def _claim(self, queue: asyncio.Queue) -> None:
+        """The window the user types into takes the PTY size over, at the size it last reported."""
+        size = self._sizes.get(queue)
+        if self._size_owner is queue or size is None or queue not in self._consumers:
+            return
+        self._size_owner = queue
+        self.resize(*size)
 
     def write(self, data: str) -> None:
         """Types into the agent; a submitted clear command of a CLI without a clear hook clears."""
@@ -465,6 +506,8 @@ class AgentSession(AgentSessionPort):
             return None
 
     def resize(self, rows: int, cols: int) -> None:
+        if (rows, cols) == (self._rows, self._cols):
+            return
         self._pty.resize(rows, cols)
         self._tap.resize(rows, cols)
         self._rows = rows

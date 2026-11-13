@@ -109,17 +109,10 @@ public static class TerminalRoutes
     {
         var consumer = session.Attach();
         var pump = PumpOutput(socket, consumer.Output, closeOnEnd: false);
-        var resynced = false;
         try
         {
-            await ConsumeInput(socket, session.Write, (rows, cols) =>
-            {
-                // the first resize is this window reporting its own geometry; redraw once at that size
-                session.Resize(rows, cols);
-                if (resynced) return;
-                resynced = true;
-                session.Resync(consumer);
-            }, session.WriteBytes, aborted);
+            await ConsumeInput(socket, data => session.Input(consumer, data), (rows, cols) => session.Resize(consumer, rows, cols),
+                bytes => session.InputBytes(consumer, bytes), aborted);
         }
         finally
         {

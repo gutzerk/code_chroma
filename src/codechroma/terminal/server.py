@@ -107,18 +107,13 @@ async def _bridge_managed_session(websocket: WebSocket, session: AgentSessionPor
     """Attaches to an agent's long-lived PTY: redraw its current screen, then follow it live."""
     queue = session.attach()
     pump_task = asyncio.create_task(_pump_output(websocket, queue, close_on_end=False))
-    resynced = False
-
-    def resize(rows: int, cols: int) -> None:
-        # The first resize is this window reporting its own geometry; redraw once at that size.
-        nonlocal resynced
-        session.resize(rows, cols)
-        if not resynced:
-            resynced = True
-            session.resync(queue)
-
     try:
-        await _consume_input(websocket, session.write, resize, session.write_bytes)
+        await _consume_input(
+            websocket,
+            lambda data: session.input(queue, data),
+            lambda rows, cols: session.resize_from(queue, rows, cols),
+            lambda data: session.input_bytes(queue, data),
+        )
     finally:
         # Deliberately not session.close(): closing a window must never kill the agent.
         session.detach(queue)

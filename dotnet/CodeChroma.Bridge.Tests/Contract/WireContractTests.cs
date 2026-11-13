@@ -187,8 +187,7 @@ public class WireContractTests
                 failures = [$"frame tag '{value[..Math.Min(1, value.Length)]}' != '{tag}'"];
                 continue;
             }
-            if (step["raw"]?.GetValue<bool>() == true) return failures;
-            var body = JsonNode.Parse(tag is null ? value : value[tag.Length..]);
+            var body = step["raw"]?.GetValue<bool>() == true ? JsonValue.Create(value) : JsonNode.Parse(tag is null ? value : value[tag.Length..]);
             failures = ContractMatchers.ExpectationFailures(step["expect"]?.AsObject() ?? [], body, host.Root);
             if (failures.Count == 0 || step["skip_until_match"]?.GetValue<bool>() != true) return failures;
         }

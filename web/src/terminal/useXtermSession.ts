@@ -3,7 +3,6 @@ import { getDesktopWorkspaceApi } from "../agents/desktopWorkspaceApi";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import { useTerminalClient } from "./TerminalClientContext";
 import type { TerminalSession } from "./TerminalClient";
@@ -16,60 +15,6 @@ const MIN_COLS = 2;
 const MIN_ROWS = 1;
 
 let clipboardTail: Promise<unknown> | null = null;
-
-interface LiveTerminal {
-  term: Terminal;
-  webgl: WebglAddon | null;
-  hidden: RefObject<boolean>;
-  scheduleRefit: () => void;
-}
-
-// xterm shares one WebGL glyph atlas between terminals with the same font/theme/DPR, so clearing it is global.
-const liveTerminals = new Set<LiveTerminal>();
-
-/** Clears the shared glyph atlas and rebuilds every visible terminal's render model in the same tick. */
-function repaintVisibleTerminals(): void {
-  for (const live of liveTerminals) {
-    if (live.hidden.current) continue;
-    // clearTextureAtlas already requests a full redraw; only the DOM renderer needs an explicit refresh.
-    if (live.webgl) live.webgl.clearTextureAtlas();
-    else live.term.refresh(0, live.term.rows - 1);
-  }
-}
-
-// Moving the window between a Retina and an external display changes nothing about the box, so
-// only a DPR listener catches it; the atlas is rasterized at the old ratio until it is cleared.
-let dprQuery: MediaQueryList | null = null;
-
-function onDprChange(): void {
-  repaintVisibleTerminals();
-  for (const live of liveTerminals) live.scheduleRefit();
-  watchDpr();
-}
-
-function watchDpr(): void {
-  dprQuery?.removeEventListener("change", onDprChange);
-  dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-  dprQuery.addEventListener("change", onDprChange);
-}
-
-/** Adds a terminal; the first one attaches the page-wide font and DPR listeners, so one event is one sweep. */
-function addLiveTerminal(live: LiveTerminal): void {
-  liveTerminals.add(live);
-  if (liveTerminals.size > 1) return;
-  if (typeof window.matchMedia === "function") watchDpr();
-  // A font that lands after open() leaves the atlas holding fallback-font glyph metrics.
-  document.fonts?.addEventListener("loadingdone", repaintVisibleTerminals);
-}
-
-/** Removes a terminal; the last one detaches the page-wide listeners. */
-function removeLiveTerminal(live: LiveTerminal): void {
-  liveTerminals.delete(live);
-  if (liveTerminals.size > 0) return;
-  dprQuery?.removeEventListener("change", onDprChange);
-  dprQuery = null;
-  document.fonts?.removeEventListener("loadingdone", repaintVisibleTerminals);
-}
 
 /** Writes a terminal selection to the native (desktop) or browser clipboard, one write at a time and in order. */
 function copySelection(text: string): void {
@@ -176,13 +121,6 @@ export function useXtermSession(
     session.resize(term.rows, term.cols);
   }, []);
 
-  // Re-rasterize every glyph and redraw every visible terminal: a stale WebGL atlas drops glyphs and no resize fixes it.
-  // A hidden terminal skips it; the un-hide effect repaints it then.
-  const repaint = useCallback(() => {
-    if (!termRef.current || hiddenRef.current) return;
-    repaintVisibleTerminals();
-  }, []);
-
   // Debounce it: during a drag the ResizeObserver fires on every pointermove (~60-120x/sec).
   // Flooding the PTY with that many SIGWINCHes races the TUI's async redraws and leaves the screen
   // smeared until the next keypress. A short trailing timeout collapses the burst into one refit.
@@ -224,21 +162,8 @@ export function useXtermSession(
       (event) => !(event.type === "keydown" && isPasteChord(event)),
     );
 
-    // WebGL is the difference between a repaint and a smear on a dense TUI, but a lost context
-    // renders nothing at all — dispose on loss and let xterm fall back to the DOM renderer.
-    const live: LiveTerminal = { term, webgl: null, hidden: hiddenRef, scheduleRefit };
-    try {
-      live.webgl = new WebglAddon();
-      live.webgl.onContextLoss(() => {
-        live.webgl?.dispose();
-        live.webgl = null;
-        repaint();
-      });
-      term.loadAddon(live.webgl);
-    } catch {
-      live.webgl = null;
-    }
-    addLiveTerminal(live);
+    // No WebglAddon on purpose: its glyph atlas is shared by every terminal and, once pages merge, drops glyphs.
+    // The default DOM renderer has no atlas, so that whole class of blank cells cannot happen.
 
     fitAddon.fit();
     termRef.current = term;
@@ -288,7 +213,6 @@ export function useXtermSession(
       disposed = true;
       sticky.detach();
       stickyRef.current = null;
-      removeLiveTerminal(live);
       detachConsumer?.();
       resizeObserver.disconnect();
       container.removeEventListener("pointerdown", markSelecting);
@@ -301,16 +225,17 @@ export function useXtermSession(
       fitAddonRef.current = null;
       sessionRef.current = null;
     };
-  }, [containerRef, terminalClient, agent, workspace, enabled, closedNotice, refit, scheduleRefit, repaint]);
+  }, [containerRef, terminalClient, agent, workspace, enabled, closedNotice, refit, scheduleRefit]);
 
-  // On reopen the box goes 0 -> real size; refit to it and focus so the shell is usable immediately.
+  // On reopen the box goes 0 -> real size; redraw, refit to it and focus so the shell is usable immediately.
   useEffect(() => {
     if (hidden || !enabled) return;
-    repaint();
+    const term = termRef.current;
+    term?.refresh(0, term.rows - 1);
     scheduleRefit();
     stickyRef.current?.shown();
-    termRef.current?.focus();
-  }, [hidden, enabled, scheduleRefit, repaint]);
+    term?.focus();
+  }, [hidden, enabled, scheduleRefit]);
 
   return { scheduleRefit, focus };
 }

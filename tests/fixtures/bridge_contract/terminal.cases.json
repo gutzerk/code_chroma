@@ -1,6 +1,6 @@
 {
   "group": "terminal",
-  "sources": ["src/codechroma/terminal/server.py", "src/codechroma/terminal/pty_session.py"],
+  "sources": ["src/codechroma/terminal/server.py", "src/codechroma/terminal/pty_session.py", "src/codechroma/bridge/agents/sessions.py"],
   "repo": {"base": "sample_repo"},
   "cases": [
     {
@@ -23,6 +23,27 @@
         {"ws": "send", "name": "term", "json": {"type": "resize", "rows": 30, "cols": 100}},
         {"ws": "send", "name": "term", "json": {"type": "input", "data": "echo contract-marker-77\r"}},
         {"ws": "receive", "name": "term", "tag": "o", "raw": true, "timeout_ms": 15000}
+      ]
+    },
+    {
+      "id": "two_windows_on_one_agent_size_its_pty_by_the_one_the_user_types_in",
+      "requires": ["pty"],
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches/ensure"}, "capture": {"ws": "$.active"}, "expect": {"status": 200}},
+        {"http": {"method": "POST", "path": "/agents", "json": {"title": "Sized", "kind": "shell", "workspace": "{{ws}}"}}, "expect": {"status": 200}},
+        {"http": {"method": "POST", "path": "/agents/sized/start", "json": {}}, "expect": {"status": 200}},
+        {"ws": "connect", "name": "a", "path": "/ws/terminal?agent=shell&workspace=sized", "expect": "accepted"},
+        {"ws": "receive", "name": "a", "tag": "o", "raw": true, "timeout_ms": 15000},
+        {"ws": "send", "name": "a", "json": {"type": "resize", "rows": 30, "cols": 100}},
+        {"ws": "connect", "name": "b", "path": "/ws/terminal?agent=shell&workspace=sized", "expect": "accepted"},
+        {"ws": "receive", "name": "b", "tag": "o", "raw": true, "timeout_ms": 15000},
+        {"ws": "send", "name": "b", "json": {"type": "resize", "rows": 30, "cols": 60}},
+        {"ws": "send", "name": "a", "json": {"type": "resize", "rows": 30, "cols": 120}},
+        {"ws": "send", "name": "b", "json": {"type": "input", "data": "stty size\r"}},
+        {"ws": "receive", "name": "b", "tag": "o", "raw": true, "timeout_ms": 15000, "skip_until_match": true, "expect": {"checks": [{"path": "$", "contains": "30 60"}]}},
+        {"ws": "send", "name": "a", "json": {"type": "input", "data": "stty size\r"}},
+        {"ws": "receive", "name": "a", "tag": "o", "raw": true, "timeout_ms": 15000, "skip_until_match": true, "expect": {"checks": [{"path": "$", "contains": "30 120"}]}},
+        {"http": {"method": "POST", "path": "/agents/sized/stop"}, "expect": {"status": 200}}
       ]
     }
   ]

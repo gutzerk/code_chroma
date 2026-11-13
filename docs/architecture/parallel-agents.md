@@ -447,6 +447,16 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   works in its own worktree — a change the canvas never reads, and the agent's own workspace can't
   either.
 - **Provider-routed windows (`agent` kind, 061).** A record created as `kind="agent"` resolves its
+  🔴 **One size owner per PTY** (C# `AgentSession.Resize(consumer, …)`, Python
+  `resize_from`, which also does the first-report `Resync`): several windows can attach to one agent (two desktop tabs, a browser plus
+  the app, a reload's old socket), and each used to resize the PTY, so the width flipped between
+  them and claude redrew at each width (narrow rows, repeated blocks). Now a window's first size
+  report or the owner's resizes the PTY; other reports are only remembered. Input or mouse bytes
+  from a window (`AgentSession.Input`/`InputBytes`, Python `input`/`input_bytes`) claim it at
+  that window's last size, and detaching the owner hands it to the newest remaining window that
+  reported one. A resize to the size the PTY already has is a no-op. Tests: `Agents/SizeOwnerTests.cs`,
+  `tests/unit/test_agent_sessions.py`, contract case
+  `two_windows_on_one_agent_size_its_pty_by_the_one_the_user_types_in`.
   CLI at launch through the LLM provider mechanism instead of the fixed `effective_cli`. `launchAgent.ts`
   (and `attachAgent.ts`, which forwards into it) always requests this kind now — the one-click "Run
   agent" button, PR-review attach, and the diagram task flow all go through it; there is no UI path

@@ -19,7 +19,7 @@ string (path, json, expect) with the first selected value. Machine-local stores 
 and LLM settings) start empty for every case on both backends.
 `expect.json` is an exact deep compare in which {"$any": true} matches anything; a string containing
 "$REPO" is the workspace root. `checks` entries are {"path", "equals" | "contains" | "count" |
-"absent" | "type"} over a tiny JSONPath: $ .key ['key'] ..key [*] [key=value] [index]. `matrix` expands a case once
+"absent" | "type"} over a tiny JSONPath (a "raw" receive matches against the whole frame text as "$"): $ .key ['key'] ..key [*] [key=value] [index]. `matrix` expands a case once
 per entry, replacing "${name}" in every string. `requires` lists capabilities a backend may lack.
 """
 

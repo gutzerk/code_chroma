@@ -5,11 +5,10 @@ import { TerminalClientProvider } from "./TerminalClientContext";
 import type { TerminalClient, TerminalSession } from "./TerminalClient";
 import { useXtermSession, type XtermSessionOptions } from "./useXtermSession";
 
-const { terminals, fit, MEASURED, atlas } = vi.hoisted(() => {
+const { terminals, fit, MEASURED } = vi.hoisted(() => {
   const MEASURED = { rows: 24, cols: 80 };
   return {
     MEASURED,
-    atlas: { cleared: 0, perAddon: [] as number[], unavailable: false },
     terminals: [] as {
       rows: number;
       cols: number;
@@ -73,21 +72,6 @@ vi.mock("@xterm/addon-fit", () => ({
   },
 }));
 vi.mock("@xterm/addon-unicode11", () => ({ Unicode11Addon: class {} }));
-vi.mock("@xterm/addon-webgl", () => ({
-  WebglAddon: class {
-    constructor() {
-      if (atlas.unavailable) throw new Error("no WebGL");
-    }
-    index = atlas.perAddon.push(0) - 1;
-    onContextLoss(): void {}
-    clearTextureAtlas(): void {
-      atlas.cleared += 1;
-      atlas.perAddon[this.index] += 1;
-    }
-    dispose(): void {}
-  },
-}));
-
 function fakeSession() {
   let onClose: (() => void) | null = null;
   const session = {
@@ -126,37 +110,12 @@ afterEach(() => {
   terminals.length = 0;
   fit.count = 0;
   fit.proposed = MEASURED;
-  atlas.cleared = 0;
-  atlas.perAddon.length = 0;
-  atlas.unavailable = false;
-  Reflect.deleteProperty(document, "fonts");
   handle = null;
   vi.useRealTimers();
 });
 
 describe("useXtermSession", () => {
-  it("clears the glyph atlas, which redraws by itself, when the terminal is shown again", () => {
-    const { session } = fakeSession();
-    const client = { connect: () => session };
-    const view = render(
-      <TerminalClientProvider client={client}>
-        <Host options={{ agent: "shell", closedNotice: "[closed]", hidden: true }} />
-      </TerminalClientProvider>,
-    );
-    atlas.cleared = 0;
-
-    view.rerender(
-      <TerminalClientProvider client={client}>
-        <Host options={{ agent: "shell", closedNotice: "[closed]", hidden: false }} />
-      </TerminalClientProvider>,
-    );
-
-    expect(atlas.cleared).toBe(1);
-    expect(terminals[0].refreshed).toEqual([]);
-  });
-
-  it("redraws every row of a terminal without WebGL when it is shown again", () => {
-    atlas.unavailable = true;
+  it("redraws every row when the terminal is shown again", () => {
     const client = { connect: () => fakeSession().session };
     const host = (hidden: boolean) => (
       <TerminalClientProvider client={client}>
@@ -168,57 +127,6 @@ describe("useXtermSession", () => {
     view.rerender(host(false));
 
     expect(terminals[0].refreshed).toContainEqual([0, 23]);
-  });
-
-  it("clears each visible terminal's atlas once per font load, however many terminals listen", () => {
-    const fonts = new EventTarget();
-    Object.defineProperty(document, "fonts", { value: fonts, configurable: true });
-    const client = { connect: () => fakeSession().session };
-    render(
-      <TerminalClientProvider client={client}>
-        <Host options={{ agent: "shell", closedNotice: "[closed]" }} />
-        <Host options={{ agent: "claude", closedNotice: "[closed]" }} />
-      </TerminalClientProvider>,
-    );
-    atlas.perAddon.fill(0);
-
-    fonts.dispatchEvent(new Event("loadingdone"));
-
-    expect(atlas.perAddon).toEqual([1, 1]);
-  });
-
-  it("repaints every other visible terminal when one clears the shared glyph atlas", () => {
-    const client = { connect: () => fakeSession().session };
-    const hosts = (firstHidden: boolean) => (
-      <TerminalClientProvider client={client}>
-        <Host options={{ agent: "shell", closedNotice: "[closed]", hidden: firstHidden }} />
-        <Host options={{ agent: "claude", closedNotice: "[closed]" }} />
-        <Host options={{ agent: "codex", closedNotice: "[closed]", hidden: true }} />
-      </TerminalClientProvider>
-    );
-    const view = render(hosts(true));
-    atlas.perAddon.fill(0);
-
-    view.rerender(hosts(false));
-
-    expect(atlas.perAddon).toEqual([1, 1, 0]);
-  });
-
-  it("drops an unmounted terminal from the shared repaint", () => {
-    const client = { connect: () => fakeSession().session };
-    const hosts = (firstHidden: boolean, withSecond: boolean) => (
-      <TerminalClientProvider client={client}>
-        <Host options={{ agent: "shell", closedNotice: "[closed]", hidden: firstHidden }} />
-        {withSecond && <Host options={{ agent: "claude", closedNotice: "[closed]" }} />}
-      </TerminalClientProvider>
-    );
-    const view = render(hosts(true, true));
-    view.rerender(hosts(true, false));
-    atlas.perAddon.fill(0);
-
-    view.rerender(hosts(false, false));
-
-    expect(atlas.perAddon).toEqual([1, 0]);
   });
 
   it("connects with the agent and workspace and sends the initial size", () => {

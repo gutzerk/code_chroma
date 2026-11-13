@@ -55,14 +55,6 @@ vi.mock("@xterm/addon-fit", () => {
 
 vi.mock("@xterm/addon-unicode11", () => ({ Unicode11Addon: class {} }));
 
-vi.mock("@xterm/addon-webgl", () => ({
-  WebglAddon: class {
-    onContextLoss(): void {}
-    clearTextureAtlas(): void {}
-    dispose(): void {}
-  },
-}));
-
 function record(overrides: Partial<AgentRecord> = {}): AgentRecord {
   return {
     id: "refund-flow",

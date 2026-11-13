@@ -203,3 +203,43 @@ def test_inject_attempts_argument_outlasts_the_context_default(monkeypatch):
     asyncio.run(run())
 
     assert written == ["answer", "\r"]
+
+
+
+def _pty_cols_after(steps) -> int:
+    """The PTY width after window A reports 100 columns, then `steps(session, a, b)` runs."""
+
+    async def run() -> int:
+        session = AgentSession("runner", ECHO, cwd=".")
+        first, second = session.attach(), session.attach()
+        session.resize_from(first, 30, 100)
+        steps(session, first, second)
+        cols = session._cols
+        session.close()
+        return cols
+
+    return asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    ("steps", "cols"),
+    [
+        (lambda s, a, b: (s.resize_from(b, 30, 60), s.resize_from(a, 30, 120)), 60),
+        (
+            lambda s, a, b: (s.resize_from(b, 30, 60), s.resize_from(a, 30, 120), s.input(a, "x")),
+            120,
+        ),
+        (lambda s, a, b: (s.resize_from(b, 30, 60), s.detach(b)), 100),
+        (lambda s, a, b: s.input(b, "x"), 100),
+    ],
+    ids=[
+        "a non-owner's resize is ignored",
+        "typing claims that window's last size",
+        "closing the owner hands the size over",
+        "a window with no size cannot claim",
+    ],
+)
+def test_the_pty_follows_only_the_window_that_owns_the_size(steps, cols):
+    result = _pty_cols_after(steps)
+
+    assert result == cols

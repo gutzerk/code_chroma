@@ -151,9 +151,7 @@ def _run_ws(
         if tag and not value.startswith(tag):
             failures = [f"frame tag {value[:1]!r} != {tag!r}"]
             continue
-        if spec.get("raw"):
-            return failures
-        body = json.loads(value[len(tag) :] if tag else value)
+        body = value if spec.get("raw") else json.loads(value[len(tag) :] if tag else value)
         failures = expectation_failures(spec.get("expect", {}), body, repo)
         if not failures or not spec.get("skip_until_match"):
             return failures

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { EngineClient } from "../../engine-client/EngineClient";
 import { EngineClientProvider } from "../../engine-client/EngineClientContext";
@@ -8,6 +8,7 @@ import { AgentClientProvider } from "../../agents/AgentClientContext";
 import type { AgentClient } from "../../agents/agentClient";
 import { PR_CLIENT_STUB } from "../../agents/stubAgentClient";
 import type { CanvasElement, HierarchyNodeRef } from "../../state/types";
+import { CanvasDiagramFocusContext } from "../CanvasFocusContext";
 import { canvasDocStore } from "../doc/canvasDocStore";
 import { collapsedLayersStore } from "../doc/collapsedLayersStore";
 import { layoutStore } from "../layout/layoutStore";
@@ -30,11 +31,17 @@ function el(id: string, layer: string): CanvasElement {
   };
 }
 
-function renderPanel(arrange?: ReactNode, rootNode: HierarchyNodeRef | null = null) {
+function renderPanel(
+  arrange?: ReactNode,
+  rootNode: HierarchyNodeRef | null = null,
+  focusDiagram: (layer: string) => void = () => {},
+) {
   return render(
     <EngineClientProvider repoId="main" client={IMPACT_CHANGES_STUB as unknown as EngineClient}>
       <AgentClientProvider client={PR_CLIENT_STUB as unknown as AgentClient}>
-        <LeftPanel rootNode={rootNode} onActivate={() => {}} arrange={arrange} />
+        <CanvasDiagramFocusContext.Provider value={focusDiagram}>
+          <LeftPanel rootNode={rootNode} onActivate={() => {}} arrange={arrange} />
+        </CanvasDiagramFocusContext.Provider>
       </AgentClientProvider>
     </EngineClientProvider>,
   );
@@ -77,6 +84,23 @@ describe("LeftPanel", () => {
 
     expect(collapsedLayersStore.getCollapsed().size).toBe(1);
     expect(screen.getAllByRole("button", { name: /^Show / })).toHaveLength(1);
+  });
+
+  it("focuses a diagram when its row is clicked", () => {
+    const focusDiagram = vi.fn();
+    renderPanel(undefined, null, focusDiagram);
+
+    fireEvent.click(screen.getByTestId("left-panel-row-focus-patterns"));
+
+    expect(focusDiagram).toHaveBeenCalledWith("patterns");
+  });
+
+  it("names the focus button by the row's visible text, element count included", () => {
+    renderPanel();
+
+    const focus = screen.getByTestId("left-panel-row-focus-patterns");
+
+    expect(focus).toHaveAccessibleName(/1 element$/);
   });
 
   it("switches to the Files tab", () => {

@@ -149,14 +149,14 @@ Expand/collapse itself isn't a separate button — click anywhere on the block's
 ### Floating "Fit All" button
 
 Sits over the canvas; fits the camera to every currently expanded block, in whichever view is
-active.
+active. It shows only while the canvas has something visible to fit.
 
 ## 4a. Diagrams (C1, Patterns, Impact, Epics, Sequence, custom)
 
 There is no dedicated per-diagram button anymore — every diagram is a **layer** of the one canvas,
 created with the rail's **Draw…** button and managed from the agent panel's **Diagrams** tab (see
 [Section 4](#4-explore)). That tab lists each on-canvas diagram as a row with a visibility toggle and
-a delete button.
+a delete button. Click a row's name to move the camera to that diagram (a hidden one is shown first).
 
 The built-in types the Draw… agent can produce:
 

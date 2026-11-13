@@ -13,6 +13,7 @@ import { readSavedCameraView } from "./canvasCameraStore";
 import { CanvasDiagramFocusContext, CanvasFocusContext } from "./CanvasFocusContext";
 import { CanvasDocView } from "./doc/CanvasDocView";
 import { DiagramHealthNote } from "./doc/DiagramHealthNote";
+import { useHasVisibleCanvasContent } from "./doc/diagramCatalog";
 import { SidecarSummaryCard } from "./doc/SidecarSummaryCard";
 import { WikiGeneralNotice } from "./WikiGeneralNotice";
 import { EpicBriefPanel } from "./doc/EpicBriefPanel";
@@ -22,6 +23,7 @@ import { useDiagramReadinessWatcher } from "./doc/useDiagramReadinessWatcher";
 import { GamesMenu } from "../games/GamesMenu";
 import { useHasCanvasLayer } from "./doc/canvasDocStore";
 import { useCollapsedLayers } from "./doc/collapsedLayersStore";
+import { focusDiagramLayer } from "./focusDiagramLayer";
 import { CodePopupContext } from "./CodePopupContext";
 import { CodePopup } from "./CodePopup";
 import { InspectorPanel } from "./InspectorPanel";
@@ -146,6 +148,8 @@ export function RootCanvas() {
   const hasImpactLayer = useHasCanvasLayer("impact");
   // The legend/review board is part of the Impact diagram, so the Diagrams tab's collapse hides it too.
   const isImpactCollapsed = useCollapsedLayers().has("impact");
+  // Fit All has nothing to frame on an empty (or fully hidden) canvas, so it only shows with visible content.
+  const hasVisibleContent = useHasVisibleCanvasContent();
   // Always-on diff + status data for the Impact layer: its blocks show diffs and color their
   // file/function lists by status even with the global Diff toggle off (see useSidecar.ts). Gated
   // on the impact layer's presence, like useImpactChangesSidecar's review fetch below — with no
@@ -445,10 +449,16 @@ export function RootCanvas() {
 
   const focusOnNode = useCallback((nodeId: string) => viewportRef.current?.focusOnNode(nodeId), []);
 
-  const focusDiagram = useCallback(
-    (layer: string) => viewportRef.current?.fitToSelector(`[data-diagram-layer="${CSS.escape(layer)}"]`) ?? false,
-    [],
-  );
+  // Bumped per focus so a second click supersedes a still-retrying earlier one instead of fighting it.
+  const focusGenerationRef = useRef(0);
+  const focusDiagram = useCallback((layer: string) => {
+    const generation = ++focusGenerationRef.current;
+    focusDiagramLayer(
+      layer,
+      (selector) => viewportRef.current?.fitToSelector(selector) ?? false,
+      () => focusGenerationRef.current !== generation,
+    );
+  }, []);
 
   return (
     <CanvasFocusContext.Provider value={focusOnNode}>
@@ -546,14 +556,16 @@ export function RootCanvas() {
                   />
                 )}
               </CanvasViewport>
-              <button
-                type="button"
-                className="fit-all-button"
-                aria-label="Fit all open blocks"
-                onClick={fitAll}
-              >
-                Fit All
-              </button>
+              {hasVisibleContent && (
+                <button
+                  type="button"
+                  className="fit-all-button"
+                  aria-label="Fit all open blocks"
+                  onClick={fitAll}
+                >
+                  Fit All
+                </button>
+              )}
               {rootNode && <RouteProbeTrigger />}
               <SidecarSummaryCard />
               <DiagramHealthNote />

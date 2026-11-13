@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { DiagramEventKind, EngineClient } from "../../engine-client/EngineClient";
 import { diagramHealthStore } from "../../state/diagramHealthStore";
 import type {
@@ -16,6 +16,7 @@ import { layoutOps } from "./pileLayout";
 import { isEpicsLayerName, parentEpicKey } from "./epicsLayout";
 import { BLOCK_RULES } from "./elementRules";
 import { canvasDocStore, collectActiveLayers } from "./canvasDocStore";
+import { useCollapsedLayers } from "./collapsedLayersStore";
 import { patchCanvasDoc } from "./canvasDocSync";
 import { captureLayerPositions, forgetLayerPositions, takeCachedPosition } from "./layerPositionCache";
 import { agentStore } from "../../agents/agentStore";
@@ -59,7 +60,22 @@ const SYNTHESIZED_LAYER_PREFIXES = ["custom/", "feature-plan/", "epics/"];
  * kind of diagram, even though it was really on the canvas.) See `isRecipeBackedLayer` below for the
  * separate question of whether a given layer's row can be refreshed. */
 export function listActiveDiagramLayers(doc: CanvasDoc): string[] {
-  return [...collectActiveLayers(doc)].filter((layer) => isDiagramLayer(layer) && !isDecisionLayer(layer));
+  return [...collectActiveLayers(doc)].filter(isListedDiagramLayer);
+}
+
+/** Whether `layer` gets a Diagrams-tab row: a real diagram that the canvas (not only the agent window) shows. */
+function isListedDiagramLayer(layer: string): boolean {
+  return isDiagramLayer(layer) && !isDecisionLayer(layer);
+}
+
+/** Whether the canvas draws anything Fit All can frame: an element on a shown layer that is not a question, a decision diagram or a legacy hierarchy box; a boolean subscription, not the whole doc. */
+export function useHasVisibleCanvasContent(): boolean {
+  const collapsed = useCollapsedLayers();
+  return useSyncExternalStore(canvasDocStore.subscribe, () =>
+    Object.values(canvasDocStore.getDoc().elements).some(
+      (element) => element.layer !== "hierarchy" && !isAgentWindowOnly(element) && !collapsed.has(element.layer),
+    ),
+  );
 }
 
 /** Whether `layer` names a real diagram rather than the seeded hierarchy tree or `apply_batch`'s

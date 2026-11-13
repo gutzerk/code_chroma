@@ -19,6 +19,15 @@ export async function gotoApp(page: Page, opts: { files?: boolean } = {}): Promi
   if (opts.files ?? true) await page.getByRole("tab", { name: "Files", exact: true }).click();
 }
 
+/** A minimal 100x70 canvas-doc box on `layer` at (x, y), for seeding specs with `seedCanvasDoc`. */
+export function diagramBox(id: string, layer: string, x = 400, y = 300) {
+  const render = layer === "patterns" ? "pattern" : layer === "system-context" ? "c1" : "custom";
+  return {
+    id, render, layer, label: id, description: "", node_id: null,
+    position: { x, y }, size: { w: 100, h: 70 }, group_id: null, meta: {}, created_by: "ai",
+  };
+}
+
 /** Replaces the canvas doc with `seed` in the page's store and in the mock bridge, so a re-read (a window focus, a canvas ping) keeps it. */
 export async function seedCanvasDoc(
   page: Page,

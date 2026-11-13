@@ -97,8 +97,8 @@ to revive if it comes back, it would be rebuilt from scratch.
 
 ## Guided tutorial (`web/src/tutorial/`)
 
-When `RootCanvas`'s root node is named `codechroma-tutorial` (the project the desktop launcher's
-Tutorial button writes — `TUTORIAL_ROOT_NAME`), `useStartTutorial` resets the layout (left panel open on
+When `RootCanvas`'s root node is named `codechroma-tutorial` (the project `TutorialProject.Create` writes —
+`TUTORIAL_ROOT_NAME`; the launcher's Tutorial button was removed, so only a manually opened tutorial folder starts it), `useStartTutorial` resets the layout (left panel open on
 Diagrams) and starts `tutorialStore`. `TutorialChat` (mounted in `RootCanvas`) types out the current step's English
 text in a floating chat, glides to the step's `target` CSS selector with an arrow and a pulsing
 highlight, and installs capture-phase guards on pointer/click events so only the target (or the chat)

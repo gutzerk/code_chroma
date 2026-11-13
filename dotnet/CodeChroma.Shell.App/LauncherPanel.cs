@@ -18,7 +18,7 @@ public interface ILauncherHost
     Task<string?> PickFolderAsync(string title);
 }
 
-/// <summary>The empty-tab launcher: tutorial, recent projects, and options to open, create, or clone a project.</summary>
+/// <summary>The empty-tab launcher: recent projects, and options to open, create, or clone a project.</summary>
 public sealed class LauncherPanel : UserControl
 {
     private static readonly IBrush Muted = new SolidColorBrush(Color.Parse("#8b93a7"));
@@ -31,7 +31,6 @@ public sealed class LauncherPanel : UserControl
     private readonly StackPanel recents = new();
     private readonly Border recentsPanel;
     private readonly Button openButton = new() { Content = "Open folder…", Classes = { "primary" } };
-    private readonly Button tutorialButton = new() { Content = "Tutorial", Classes = { "primary", "tutorial" }, Width = 240, HorizontalContentAlignment = HorizontalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Button newToggle = new() { Content = "New project…" };
     private readonly StackPanel newForm = new() { Spacing = 8, IsVisible = false };
     private readonly TextBox newName = new() { Watermark = "Project name" };
@@ -56,7 +55,6 @@ public sealed class LauncherPanel : UserControl
     {
         this.host = host;
         openButton.Click += async (_, _) => { if (!busy && await host.PickFolderAsync("Open repository") is { } path) await OpenAsync(path, null); };
-        tutorialButton.Click += async (_, _) => await GuardAsync(async () => await OpenAsync(TutorialProject.Create(host.UserDataDir), null));
         newToggle.Click += (_, _) => { newForm.IsVisible = !newForm.IsVisible; cloneForm.IsVisible = false; };
         cloneToggle.Click += (_, _) => { cloneForm.IsVisible = !cloneForm.IsVisible; newForm.IsVisible = false; };
         cloneUrl.TextChanged += (_, _) =>
@@ -127,7 +125,6 @@ public sealed class LauncherPanel : UserControl
             Margin = new Thickness(0, 32),
             Children =
             {
-                tutorialButton,
                 new StackPanel
                 {
                     Spacing = 2,
@@ -215,7 +212,7 @@ public sealed class LauncherPanel : UserControl
     private void SetBusy(bool value)
     {
         busy = value;
-        foreach (var button in new[] { openButton, tutorialButton, newToggle, newCreate, newBrowse, cloneToggle, cloneBrowse, cloneOpen }) button.IsEnabled = !value;
+        foreach (var button in new[] { openButton, newToggle, newCreate, newBrowse, cloneToggle, cloneBrowse, cloneOpen }) button.IsEnabled = !value;
         cloneUrl.IsEnabled = !value;
         cloneName.IsEnabled = !value;
         recents.IsEnabled = !value;

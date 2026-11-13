@@ -75,12 +75,6 @@
       <Setter Property="Background" Value="#6c8cff" />
       <Setter Property="TextElement.Foreground" Value="#0b0e16" />
     </Style>
-    <Style Selector="Button.tutorial">
-      <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="FontSize" Value="15" />
-      <Setter Property="FontWeight" Value="Bold" />
-      <Setter Property="Padding" Value="20,11" />
-    </Style>
     <Style Selector="Button.flat">
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="0" />

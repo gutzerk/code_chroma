@@ -58,9 +58,10 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   The temp file is per process (`session.json.<pid>.tmp`), so two running instances never write the same temp file.
   A `--repo` argument opens alongside the restored tabs. PR tabs are appended after all projects, so a mixed order is not kept.
   Tests: `CodeChroma.Shell.Tests/TabSessionTests.cs`.
-- `Projects/ProjectStores` (recents, with missing folders kept but flagged), `Projects/TutorialProject` (+
-  `tutorial-project.json`: the bundled todo-app tutorial restored into `<userData>/codechroma-tutorial`) and
-  new-project creation (`git init`, no commit) feed the launcher panel (`LauncherPanel`).
+- `Projects/ProjectStores` (recents, with missing folders kept but flagged) and new-project creation
+  (`git init`, no commit) feed the launcher panel (`LauncherPanel`). `Projects/TutorialProject` (+
+  `tutorial-project.json`: the bundled todo-app tutorial restored into `<userData>/codechroma-tutorial`) still
+  exists, but the launcher no longer has a Tutorial button, so nothing in the app opens it.
 - The launcher also offers **Clone repository…**: enter an HTTPS/SSH Git URL, choose a parent destination
   and a local project name (suggested from the URL), then **Clone and open**. `Projects/RepositoryClone`
   separates validation and destination setup (`CloneAsync`), Git process supervision (`RunGitCloneAsync`),

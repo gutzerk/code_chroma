@@ -47,9 +47,21 @@ Logic is UI-free in `CodeChroma.Shell`; `CodeChroma.Shell.App` only renders.
   and open PRs (`prs.json`) via `WorkspaceSummaries`; no per-agent shortcuts. Clicking one calls
   `OpenRepoAsync(repo, tab, workspaceId)`, which loads `/?workspace=<id>`; if the project is already open its tab is focused
   and navigated (reloaded) to that URL, since there is no page-side switch message. A plain project open sends no param.
-- `Projects/ProjectStores` (recents, with missing folders kept but flagged), `Projects/TutorialProject` (+
-  `tutorial-project.json`: the bundled todo-app tutorial restored into `<userData>/codechroma-tutorial`) and
-  new-project creation (`git init`, no commit) feed the launcher panel (`LauncherPanel`).
+- Session restore (`Tabs/TabSession`): every tab change (`ShellController.Changed()`, not agent-pill
+  `Redraw()`) writes the open project and PR workspace tabs (in order, plus the active index) to
+  `<userData>/session.json` via temp-file-then-rename, only when the JSON differs; launcher tabs are not saved. On window `Opened`,
+  `RestoreSessionAsync` reopens the saved projects (first one reuses the empty launcher tab, bridges start in parallel),
+  then each project's PR tabs once its bridge is up, and re-activates the saved tab (a saved active PR tab takes focus only
+  if the user has not switched tabs meanwhile). Missing repo folders are skipped. A project whose bridge fails to start keeps
+  its saved entries (and its PR tabs) on its error tab until that tab is closed or reused, so one failed launch never forgets it.
+  Saves are paused while restoring and after `ShutdownAsync`, so a partial restore or app quit never overwrites the file.
+  The temp file is per process (`session.json.<pid>.tmp`), so two running instances never write the same temp file.
+  A `--repo` argument opens alongside the restored tabs. PR tabs are appended after all projects, so a mixed order is not kept.
+  Tests: `CodeChroma.Shell.Tests/TabSessionTests.cs`.
+- `Projects/ProjectStores` (recents, with missing folders kept but flagged) and new-project creation
+  (`git init`, no commit) feed the launcher panel (`LauncherPanel`). `Projects/TutorialProject` (+
+  `tutorial-project.json`: the bundled todo-app tutorial restored into `<userData>/codechroma-tutorial`) still
+  exists, but the launcher no longer has a Tutorial button, so nothing in the app opens it.
 - The launcher also offers **Clone repository…**: enter an HTTPS/SSH Git URL, choose a parent destination
   and a local project name (suggested from the URL), then **Clone and open**. `Projects/RepositoryClone`
   separates validation and destination setup (`CloneAsync`), Git process supervision (`RunGitCloneAsync`),

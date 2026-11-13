@@ -1760,7 +1760,7 @@ export class MockBridgeEngineClient implements EngineClient {
   async getOpenQuestions(): Promise<OpenQuestionsPayload> {
     return {
       questions: Object.values(this.canvasDoc.elements)
-        .filter((el) => el.render === "question" && el.meta.state !== "answered" && el.meta.state !== "skipped")
+        .filter((el) => el.render === "question" && (el.meta.state ?? "open") === "open")
         .map((el) => ({ question_id: el.id, state: "open" as const })),
     };
   }
@@ -1781,6 +1781,10 @@ export class MockBridgeEngineClient implements EngineClient {
 
   async skipQuestion(questionId: string): Promise<QuestionAck> {
     return this.setQuestionMeta(questionId, { state: "skipped", answer: null });
+  }
+
+  async chatQuestion(questionId: string): Promise<QuestionAck> {
+    return this.setQuestionMeta(questionId, { state: "chat", answer: null });
   }
 
   async reviseQuestion(questionId: string): Promise<QuestionAck> {

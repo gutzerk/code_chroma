@@ -24,7 +24,7 @@ export function DecisionHistory({ items, disabled, onRevise }: DecisionHistoryPr
                 {n}. {item.title}
               </b>
               <br />
-              {item.state === "skipped" ? S.skipped : item.answer}{" "}
+              {S.outcome(item.state, item.answer)}{" "}
               <button
                 type="button"
                 className="question-quiet"

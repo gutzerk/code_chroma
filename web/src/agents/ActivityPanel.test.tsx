@@ -14,12 +14,12 @@ vi.mock("./AgentTerminal", () => ({
     <div data-testid={`terminal-${workspace}`} />
   ),
 }));
-function setup(client = new MockBridgeEngineClient()) {
+function setup(client = new MockBridgeEngineClient(), disabled = false) {
   client.workflowEngine.stepMs = 0;
   render(
     <AgentClientProvider client={new MockAgentClient()}>
       <EngineClientProvider repoId="main" client={client}>
-        <ActivityPanel onRunAgent={() => {}} />
+        <ActivityPanel onRunAgent={() => {}} disabled={disabled} />
       </EngineClientProvider>
     </AgentClientProvider>,
   );
@@ -44,6 +44,16 @@ describe("ActivityPanel", () => {
 
     expect(layoutStore.getState().agentsMode).toBe("normal");
     expect(screen.getByRole("tab", { name: /Workflows/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps New and Run workflow enabled while Run agent is disabled", () => {
+    act(() => workflowStore.setWorkflows([{ id: "ship", name: "Ship", inputs: [], steps: [] }] as never));
+    setup(new MockBridgeEngineClient(), true);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Workflows/ }));
+
+    expect(screen.getByRole("button", { name: "New workflow" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Run workflow" })).toBeEnabled();
   });
 
   it.each(["ctrlKey", "metaKey"])("cycles agents in both directions with %s+Alt+arrows", async (modifier) => {

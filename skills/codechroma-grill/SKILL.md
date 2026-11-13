@@ -32,13 +32,16 @@ text, and do not use `AskUserQuestion` when `ask_user` is available.
   terminal, for example: "I asked in the agent window above: <question>".
 - **Then stop and end your turn right away.** Do not poll, do not wait, and never repeat the question in
   chat. CodeChroma types the answers into this terminal as your next message once the user has
-  answered or skipped every question you have open, so you resume without the user typing anything.
+  answered or skipped every question you have open, or right away when the user presses "Chat about it" on one (then only the questions settled so far arrive, and the rest stay open), so you resume without the user typing anything.
 - That message holds one part per question, in the order you asked. Each part starts with
   `[CodeChroma answer · Q1/3 · <question_id>]` and ends with `<question> → <outcome>`:
   - `→ <text>`: take it as the user's decision (the chosen option's title, or the text they typed)
     and move on.
   - `→ skipped by the user, decide yourself`: pick your recommended option, say so in one line, and
     continue.
+  - `→ the user wants to talk this question through in chat ...`: the user pressed "Chat about it"
+    and closed the card. Discuss the question with them in chat; when a decision is needed, call
+    `ask_user` again with the same `session_id`.
   - `→ changed answer: <text>`: the user revised an earlier answer; adjust what you did since.
 - A message starting `[CodeChroma request ...]` means the user wants a diagram per option on that
   question: draw one per option with `codechroma-decision-diagram`, then call `ask_user` again with

@@ -12,14 +12,9 @@ from codechroma.bridge.workspaces import Workspace
 from codechroma.canvas.document import Element
 from codechroma.config import settings
 from codechroma.questions import agent_view, store
+from codechroma.questions.models import CHAT, DIAGRAM_REQUEST, SKIPPED
 
 logger = logging.getLogger(__name__)
-
-SKIPPED = "skipped by the user, decide yourself"
-DIAGRAM_REQUEST = (
-    "the user wants a diagram for each option: draw them with draw_option_diagram, "
-    "then call ask_user again with the same session_id and question"
-)
 
 
 def _one_line(value: object) -> str:
@@ -35,9 +30,11 @@ def _header(kind: str, element: Element) -> str:
 
 
 def answer_message(element: Element) -> str:
-    """The line typed into the agent for a settled question (answer, skip or changed answer)."""
+    """The line typed into the agent for a settled question (answer, skip, chat, changed answer)."""
     if element.meta.get("state") == "skipped":
         outcome = SKIPPED
+    elif element.meta.get("state") == "chat":
+        outcome = CHAT
     elif element.meta.get("revised"):
         outcome = f"changed answer: {element.meta.get('answer')}"
     else:

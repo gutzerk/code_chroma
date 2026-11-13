@@ -10,6 +10,7 @@ public static class QuestionDelivery
 {
     public const int IdleAttempts = 86400;
     public const string Skipped = "skipped by the user, decide yourself";
+    public const string Chat = "the user wants to talk this question through in chat before deciding: discuss it with them, and call ask_user again with the same session_id once a decision is needed";
     public const string DiagramRequest = "the user wants a diagram for each option: draw them with draw_option_diagram, then call ask_user again with the same session_id and question";
 
     /// <summary>Control characters would be keystrokes in the PTY, so they collapse into single spaces.</summary>
@@ -29,11 +30,13 @@ public static class QuestionDelivery
         return $"{HeaderPrefix} {kind} · Q{step}{total} · {Json.Str(element.Meta["question_id"])}]";
     }
 
-    /// <summary>The line typed into the agent for a settled question: answer, skip or a changed answer after a revise.</summary>
+    /// <summary>The line typed into the agent for a settled question: answer, skip, a chat request or a changed answer after a revise.</summary>
     public static string AnswerMessage(CanvasElement element)
     {
         var answer = Json.Str(element.Meta["answer"]);
-        var outcome = Json.Str(element.Meta["state"]) == "skipped" ? Skipped
+        var state = Json.Str(element.Meta["state"]);
+        var outcome = state == "skipped" ? Skipped
+            : state == "chat" ? Chat
             : Json.Truthy(element.Meta["revised"]) ? "changed answer: " + answer
             : answer;
         return OneLine($"{Header("answer", element)} {element.Label} → {outcome}");

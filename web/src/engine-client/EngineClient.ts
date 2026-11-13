@@ -159,6 +159,8 @@ export interface EngineClient {
   answerQuestion(questionId: string, body: QuestionAnswerBody): Promise<QuestionAck>;
   /** Skips one question (POST /repos/{id}/questions/{qid}/skip). */
   skipQuestion(questionId: string): Promise<QuestionAck>;
+  /** "Chat about it": closes the question and tells the agent the user wants to discuss it (POST .../{qid}/chat). */
+  chatQuestion(questionId: string): Promise<QuestionAck>;
   /** Reopens an answered question and restarts later steps (POST .../{qid}/revise -- assumed route). */
   reviseQuestion(questionId: string): Promise<QuestionAck>;
   /** Asks the blocked agent to add a diagram per option (POST .../{qid}/request-diagram). */
@@ -619,6 +621,10 @@ export class HttpEngineClient implements EngineClient {
 
   skipQuestion(questionId: string): Promise<QuestionAck> {
     return this.postJson<QuestionAck>(`/questions/${encodeURIComponent(questionId)}/skip`);
+  }
+
+  chatQuestion(questionId: string): Promise<QuestionAck> {
+    return this.postJson<QuestionAck>(`/questions/${encodeURIComponent(questionId)}/chat`);
   }
 
   reviseQuestion(questionId: string): Promise<QuestionAck> {

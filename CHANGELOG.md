@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.19.0](https://github.com/gutzerk/code_chroma/compare/v1.18.1...v1.19.0) (2026-11-14)
+
+
+### Features
+
+* **canvas:** focus a diagram from the Diagrams tab and hide Fit All without diagrams ([1ba9c6c](https://github.com/gutzerk/code_chroma/commit/1ba9c6cae5aff84338904848cad58c7176474bb7))
+* **canvas:** focus a diagram from the Diagrams tab and hide Fit All without diagrams ([1de1da5](https://github.com/gutzerk/code_chroma/commit/1de1da5bea93eb740f55d813abef70530d3fd05d))
+* **shell:** restore previous session tabs on launch ([23dec03](https://github.com/gutzerk/code_chroma/commit/23dec034dfed22085767b181ce32d465f73f78f8))
+
+
+### Bug Fixes
+
+* **agents:** follow new prompts, keep chat at bottom on agent switch, remove agent cap ([81ced68](https://github.com/gutzerk/code_chroma/commit/81ced68dd96edceec54610246fb88bd3cbccee08))
+* **agents:** follow new prompts, keep chat at bottom on agent switch, remove agent cap ([77a2fa8](https://github.com/gutzerk/code_chroma/commit/77a2fa840cd75dd32c53d159c56e4a2e3dc4e1de))
+* **agents:** stop agent windows dropping glyphs and fighting over the PTY width ([c84e7ca](https://github.com/gutzerk/code_chroma/commit/c84e7ca088ce8a6438fa0252119fae207e961750))
+* **canvas:** frame a focused diagram after its size settles ([7ed95b5](https://github.com/gutzerk/code_chroma/commit/7ed95b5bd7a665a5ae3c57abfed91075e7784e94))
+* **canvas:** show Fit All for any visible canvas content and name the diagram focus button ([47be823](https://github.com/gutzerk/code_chroma/commit/47be82363e4664dda355188ba1cddd557155dea5))
+* Chat about it tells the agent; workflow buttons ignore the agent limit ([824b897](https://github.com/gutzerk/code_chroma/commit/824b89780a8ffa9e1c0adf72c872bdd80dd8b245))
+* keep copy-on-select reliable and open new worktree tabs faster ([01a40d3](https://github.com/gutzerk/code_chroma/commit/01a40d3b47d8e8b3fb95f46f4d34f4186c1a3230))
+* keep copy-on-select reliable and open new worktree tabs faster ([c94560e](https://github.com/gutzerk/code_chroma/commit/c94560e74d25f804dbb22754fd902da5bf8d7198))
+* make bridge git calls wait for a fresh worktree's index warm-up ([38465bf](https://github.com/gutzerk/code_chroma/commit/38465bf3d02bd96f790aadf3ceb4223faf2c3543))
+* **questions:** make Chat about it close the question and tell the agent ([47b0f46](https://github.com/gutzerk/code_chroma/commit/47b0f46fbc0288da7aa2d8b3a4b01c693f301853))
+* **questions:** pin outcome texts across bridges and focus the terminal only after a chat succeeds ([4376f1a](https://github.com/gutzerk/code_chroma/commit/4376f1a738c146f10974f737207dea273ba35a0e))
+* **shell:** keep a project in the saved session when its bridge fails on restore ([776eead](https://github.com/gutzerk/code_chroma/commit/776eead6f07deeda0f32ba91cfb883ce990b9a66))
+* **terminal:** keep stick-to-bottom pinned on typing and cancelled pointers ([f6b98b2](https://github.com/gutzerk/code_chroma/commit/f6b98b25b3d0ec438a77ca3ae5396b04e312c270))
+* **workflows:** keep New and Run workflow enabled at the agent limit ([1f18f70](https://github.com/gutzerk/code_chroma/commit/1f18f70519b6cb68e6ebb0349e7724d635af70f3))
+
 ## [1.18.1](https://github.com/gutzerk/code_chroma/compare/v1.18.0...v1.18.1) (2026-11-11)
 
 

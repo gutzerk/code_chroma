@@ -52,6 +52,9 @@ to revive if it comes back, it would be rebuilt from scratch.
     A missing/denied Clipboard API fails silently (`.catch(() => {})`) rather than throwing.
     Debounced (`SELECTION_COPY_DEBOUNCE_MS`, 150ms) same as `scheduleRefit` above — a drag-select
     fires `onSelectionChange` on every extended cell, so only the settled end state is copied.
+    ⚠ "Made by the pointer" is recorded when each change fires (pointer held, or within one tick of
+    `pointerup`), not checked when the debounce ends: the old timed check raced the debounce and
+    dropped double-click and quick-drag copies.
 - **`src/games/`** (026-snake-game-panel) — a control in `.canvas-chrome`'s right side, now first in
   the group (before a `.canvas-chrome-separator` rule, then `PrRailButton`/`SettingsRailButton`; not
   in `.app-rail`): `GamesMenu.tsx` opens a dropdown (`GAMES`, currently just

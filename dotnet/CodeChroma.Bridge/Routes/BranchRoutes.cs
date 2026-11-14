@@ -29,7 +29,8 @@ public static class BranchRoutes
             registry.Register(record.Id, record.Worktree);
             return Reply.Json(new JsonObject
             {
-                ["branch"] = branches.Payload(record),
+                // A fresh checkout is clean; its first `git status` would rehash every file (racy git) inside the request.
+                ["branch"] = record.ToPayload(),
                 ["fetched"] = fetched,
                 ["warning"] = warning,
             });

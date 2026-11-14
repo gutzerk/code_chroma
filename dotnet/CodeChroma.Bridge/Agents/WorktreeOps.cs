@@ -42,6 +42,7 @@ public static class WorktreeOps
         args.AddRange(["-b", branch, path]);
         if (startPoint is not null) args.Add(startPoint);
         RunOrThrow(repoRoot, "git worktree add", [.. args]);
+        GitRunner.WarmIndex(path);
         return path;
     }
 
@@ -50,6 +51,7 @@ public static class WorktreeOps
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         RunOrThrow(repoRoot, "git worktree add", "worktree", "add", path, branch);
+        GitRunner.WarmIndex(path);
         return path;
     }
 
@@ -58,6 +60,7 @@ public static class WorktreeOps
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         RunOrThrow(repoRoot, "git worktree add", "worktree", "add", "--detach", path, commit);
+        GitRunner.WarmIndex(path);
         return path;
     }
 

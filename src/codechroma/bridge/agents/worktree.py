@@ -18,7 +18,7 @@ import shutil
 import unicodedata
 from pathlib import Path
 
-from codechroma.bridge.git_cmd import run_git, run_git_or_raise, run_git_raw
+from codechroma.bridge.git_cmd import run_git, run_git_or_raise, run_git_raw, warm_index
 from codechroma.bridge.git_long import GitLongError, run_git_long
 from codechroma.config import settings
 from codechroma.errors import codechromaError
@@ -94,6 +94,7 @@ def add(
     if start_point is not None:
         args.append(start_point)
     _run_git_or_raise(repo_root, *args, description="git worktree add")
+    warm_index(path)
     return path
 
 
@@ -103,6 +104,7 @@ def attach(repo_root: Path, branch: str, path: Path) -> Path:
     _run_git_or_raise(
         repo_root, "worktree", "add", str(path), branch, description="git worktree add"
     )
+    warm_index(path)
     return path
 
 
@@ -113,6 +115,7 @@ def add_detached(repo_root: Path, path: Path, commit: str) -> Path:
     _run_git_or_raise(
         repo_root, "worktree", "add", "--detach", str(path), commit, description="git worktree add"
     )
+    warm_index(path)
     return path
 
 

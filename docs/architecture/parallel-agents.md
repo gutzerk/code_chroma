@@ -248,6 +248,17 @@ a tab and never hosts an agent. Artifacts are not shared between tabs.
   (no remote, fetch failed, empty remote). Always `--no-track`; the main checkout is never touched. Reply
   `{branch, fetched, warning}`: `warning` is set whenever `fetched` is false, never an error. The new tab
   becomes `active`.
+- ⚠ The reply's `branch.dirty` is always 0 and runs no `git status`: a fresh checkout's first status
+  rehashes every file ("racy git", 1–5 s on this repo). Every `WorktreeOps.Add`/`Attach`/`AddDetached`
+  (Python `worktree.add`/`attach`/`add_detached`) starts `git update-index -q --refresh` in the
+  background (`GitRunner.WarmIndex` / `git_cmd.warm_index`). 🔴 It holds that checkout's `index.lock`,
+  so every bridge git call in it (`GitRunner.Run`/`RunRaw`, `GitLong.Run`; Python `run_git_raw`,
+  `run_git_long`) first waits for it (`AwaitIndexWarm` / `await_index_warm`): without that, a workflow's
+  checkpoint `git add -A` right after the worktree was made failed and the step had no checkpoint, and a
+  status would rehash every file a second time. Covers tabs, agent, PR and workflow worktrees. Tests:
+  `WorktreeTabTests` `A_fresh_tab_refreshes_its_index_in_the_background_and_still_counts_later_edits` and
+  `A_commit_right_after_a_fresh_tab_waits_for_the_index_warm_up_instead_of_failing_on_its_lock`,
+  `test_agent_worktree.py`, contract case `new_twice_gives_wt_1_then_wt_2_without_a_remote`.
 - `PATCH /branches/{id} {name}` renames the display name and the git branch (`git branch -m`); `id` and
   worktree path stay; 409 on an invalid, duplicate or held branch name. Attached agents' `branch` follows.
 - Boot: `Program.cs` reconciles and registers every tab before main is analyzed and passes the active tab

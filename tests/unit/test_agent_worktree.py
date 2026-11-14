@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from codechroma.bridge.agents import worktree
+from codechroma.bridge.git_cmd import run_git
 
 
 def _init_repo(root: Path) -> None:
@@ -49,6 +50,16 @@ def test_add_creates_a_branch_and_a_populated_directory(repo):
     ).stdout
     assert "agent/refund-flow" in branches
     assert (path / "app.py").read_text(encoding="utf-8") == "value = 1\n"
+
+
+def test_git_right_after_add_waits_for_the_index_warm_up_instead_of_failing_on_its_lock(repo):
+    path = worktree.worktree_path(repo, "warm")
+    worktree.add(repo, "agent/warm", path)
+    (path / "new.py").write_text("x = 1\n", encoding="utf-8")
+
+    staged = run_git(path, "add", "-A")
+
+    assert staged is not None
 
 
 def test_add_surfaces_git_stderr_on_failure(repo):

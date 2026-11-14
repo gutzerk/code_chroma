@@ -43,6 +43,7 @@
             {"path": "$.branch.id", "equals": "br_wt-1"},
             {"path": "$.branch.branch", "equals": "wt-1"},
             {"path": "$.branch.worktree", "type": "string"},
+            {"path": "$.branch.dirty", "equals": 0},
             {"path": "$.fetched", "equals": false}
           ]}
         },

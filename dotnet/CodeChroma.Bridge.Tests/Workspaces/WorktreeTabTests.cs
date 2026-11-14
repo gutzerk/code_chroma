@@ -184,6 +184,32 @@ public class WorktreeTabManagerTests : IDisposable
     }
 
     [Fact]
+    public void A_fresh_tab_refreshes_its_index_in_the_background_and_still_counts_later_edits()
+    {
+        var manager = new BranchManager(_repo.Root);
+        var record = manager.CreateNext(null).Record;
+
+        GitRunner.AwaitIndexWarm(record.Worktree);
+        var clean = manager.Payload(record);
+        File.WriteAllText(Path.Combine(record.Worktree, "app.py"), "dirty = 1\n");
+        var dirty = manager.Payload(record);
+
+        Assert.Equal(0, clean["dirty"]!.GetValue<int>());
+        Assert.Equal(1, dirty["dirty"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void A_commit_right_after_a_fresh_tab_waits_for_the_index_warm_up_instead_of_failing_on_its_lock()
+    {
+        var manager = new BranchManager(_repo.Root);
+        var record = manager.CreateNext(null).Record;
+
+        var commit = WorktreeOps.CommitAll(record.Worktree, "checkpoint");
+
+        Assert.NotNull(commit);
+    }
+
+    [Fact]
     public void Agents_default_to_their_tab_worktree_and_base_branch()
     {
         var branches = new BranchManager(_repo.Root);

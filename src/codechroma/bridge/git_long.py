@@ -21,6 +21,7 @@ import signal
 import subprocess
 from pathlib import Path
 
+from codechroma.bridge.git_cmd import await_index_warm
 from codechroma.config import settings
 from codechroma.errors import codechromaError
 from codechroma.llm.runtime_env import (
@@ -72,6 +73,7 @@ def non_interactive_env() -> dict[str, str]:
 
 def run_git_long(cwd: Path, *args: str, timeout: int | None = None) -> str:
     """stdout of a network-touching git command; raises GitLongError with a reason on failure."""
+    await_index_warm(cwd)
     limit = timeout if timeout is not None else timeout_seconds()
     # Own process group: killing git alone orphans its credential helper, ssh and pager.
     try:

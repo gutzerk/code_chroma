@@ -573,9 +573,9 @@ export function RootCanvas() {
               {activeModes.map(({ id, Controls }) => Controls && <Controls key={id} />)}
               <DrawDialog />
             </div>
-            <ActivityPanel disabled={isLaunchingAgent} onRunAgent={() => {
+            <ActivityPanel disabled={isLaunchingAgent} onRunAgent={(model?: string) => {
               if (tutorialStore.isActive()) tutorialSimStore.startAgent2();
-              else void attachAgent(agentClient, viewContext);
+              else void attachAgent(agentClient, viewContext, undefined, undefined, model);
             }} />
           </div>
           {/* Docked under the canvas, inside .canvas-area, so the inspector to the right of it stays

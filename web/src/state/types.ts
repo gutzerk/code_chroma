@@ -541,6 +541,24 @@ export interface RawPrompt {
 }
 
 /** One parallel agent session: its own branch, its own git worktree, its own window (GET /agents). */
+/** One model the "Run new agent" long-press menu offers. */
+export interface AgentModelOption {
+  id: string;
+  label: string | null;
+}
+
+/** GET /agents/models: the models of the connection new agents run on; `source` says where the list came from. */
+export interface AgentModelChoices {
+  provider_id: string | null;
+  provider_name: string | null;
+  adapter: string | null;
+  /** The model a launch without a pick uses; null when the CLI picks its own. */
+  current: string | null;
+  models: AgentModelOption[];
+  source: "cache" | "catalog" | "static";
+  error: string | null;
+}
+
 export interface AgentRecord extends AgentStatusFields {
   id: string;
   title: string;
@@ -588,6 +606,8 @@ export interface AgentRecord extends AgentStatusFields {
   diagram_request?: string | null;
   /** What the user described for a new workflow ("New workflow → With an agent"). */
   workflow_request?: string | null;
+  /** The model picked for this agent from the "Run new agent" long-press menu; null keeps the configured one. */
+  model?: string | null;
   /** How many ask_user questions the agent has open, counted by the bridge in the workspace it asks
    * into; on GET /agents rows and `agent-questions` events, absent from other agent payloads. */
   open_questions?: number;

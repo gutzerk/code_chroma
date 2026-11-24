@@ -22,6 +22,22 @@ public static class ClaudeModelCatalog
     public static long? MaxInputTokens(string baseId, string catalogDir) =>
         Windows(catalogDir).TryGetValue(baseId, out var window) ? window : null;
 
+    /// <summary>The newest cached catalog's models as {id, label} (label: its display name, else null); empty when no cache lists any.</summary>
+    public static JsonArray Models(string catalogDir)
+    {
+        List<string> files;
+        try { files = Directory.Exists(catalogDir) ? Directory.EnumerateFiles(catalogDir, "*.json").ToList() : []; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return []; }
+        var newest = files.Select(JsonFile.Load).OfType<JsonObject>().Where(r => r["catalog"]?["config"]?["models"] is JsonArray)
+            .OrderByDescending(r => r["fetchedAt"] is JsonValue f && f.TryGetValue<long>(out var at) ? at : 0).FirstOrDefault();
+        var models = new JsonArray();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var model in (newest?["catalog"]?["config"]?["models"] as JsonArray ?? []).OfType<JsonObject>())
+            if (Json.Str(model["id"]) is { Length: > 0 } id && seen.Add(id))
+                models.Add(new JsonObject { ["id"] = id, ["label"] = Json.Str(model["display_name"]) ?? Json.Str(model["displayName"]) ?? Json.Str(model["name"]) });
+        return models;
+    }
+
     private static IReadOnlyDictionary<string, long> Windows(string dir)
     {
         List<(string Path, DateTime Stamp)> files;

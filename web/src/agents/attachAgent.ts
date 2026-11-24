@@ -14,9 +14,10 @@ export async function attachAgent(
   context?: ViewContext | null,
   task?: string,
   diagram?: DiagramTaskHint,
+  model?: string,
 ): Promise<void> {
   const active = agentStore.getActiveWorkspace();
   // A worktree tab (or the pre-boot "main" placeholder) is passed as `workspace`, never as attach_to.
   const attachTo = active === "main" || worktreeStore.has(active) ? undefined : active;
-  await launchAgent(client, attachTo, context, task, diagram);
+  await launchAgent(client, attachTo, context, task, diagram, model);
 }

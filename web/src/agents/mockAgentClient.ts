@@ -1,4 +1,5 @@
 import type {
+  AgentModelChoices,
   AgentList,
   AgentQuestionsPayload,
   AgentRecord,
@@ -26,6 +27,17 @@ import type { AgentClient, DiagramTaskHint, PermissionDecision } from "./agentCl
 const MAX_PRS = 3;
 
 /** What GET /diagram-kinds serves (src/codechroma/diagrams/kinds.json), for the mock bridge. */
+/** What the mock's long-press model menu lists: the claude CLI's built-in aliases. */
+const MOCK_AGENT_MODELS: AgentModelChoices = {
+  provider_id: null,
+  provider_name: null,
+  adapter: "claude",
+  current: null,
+  models: ["opus", "sonnet", "haiku", "fable"].map((id) => ({ id, label: null })),
+  source: "static",
+  error: null,
+};
+
 const MOCK_DIAGRAM_KINDS: BuiltinDiagramKind[] = [
   { id: "any", name: "Let the agent pick", purpose: "Say what you want to see and the agent chooses the diagram type." },
   { id: "system-context", name: "System context", purpose: "The system, its users and the external services around it." },
@@ -110,6 +122,10 @@ export class MockAgentClient implements AgentClient {
     this.preflightState = preflight;
   }
 
+  async agentModels(): Promise<AgentModelChoices> {
+    return { ...MOCK_AGENT_MODELS, models: [...MOCK_AGENT_MODELS.models] };
+  }
+
   async diagramKinds(): Promise<BuiltinDiagramKind[]> {
     return MOCK_DIAGRAM_KINDS;
   }
@@ -128,6 +144,7 @@ export class MockAgentClient implements AgentClient {
     diagram?: DiagramTaskHint,
     workspace?: string,
     workflowRequest?: string,
+    model?: string,
   ): Promise<AgentRecord> {
     if (attachTo === "main") throw new Error("attach_to=main is not allowed; agents work in a worktree tab");
     // Not committed to `this.counter` until every step below succeeds — attachTarget() can still
@@ -199,6 +216,7 @@ export class MockAgentClient implements AgentClient {
       diagram_type: diagram?.type ?? null,
       diagram_request: diagram?.request ?? null,
       workflow_request: workflowRequest?.trim() || null,
+      model: model?.trim() || null,
     };
     this.agents.push(agent);
     return agent;

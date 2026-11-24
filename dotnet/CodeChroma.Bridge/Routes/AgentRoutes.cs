@@ -54,6 +54,9 @@ public static class AgentRoutes
             ["active_workspace"] = agents.ActiveWorkspace,
         })));
 
+        app.MapGet("/agents/models", (CallSiteStore sites, ProviderStore providers, UserPaths paths, RuntimeEnvironment runtime) =>
+            Reply.GuardAsync(async () => Reply.Json(await AgentModelChoices.For(sites, providers, paths, runtime))));
+
         app.MapPost("/agents", (HttpRequest request, AgentManager agents, AgentSessionRegistry sessions, WorkspaceRegistry registry, ConnectionManager connections, WorkflowRunners runners) => Reply.GuardAsync(async () =>
         {
             var body = await Reply.LenientBody(request);
@@ -79,8 +82,10 @@ public static class AgentRoutes
             if (hint.WorkflowRequest is not null && (contextKind != "task" || AgentRecord.CleanContext(context) is null))
                 return Reply.Error(400, "workflow_request needs context_kind 'task' and a context");
             var drawing = contextKind == "task" && hint.Type is not null;
+            var model = Json.Str(body["model"]);
+            if (body["model"] is not null && AgentRecord.CleanModel(model) is null) return Reply.Error(400, "model must be a model id");
             AgentRecord record;
-            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, drawing ? hint.Type : null, drawing ? hint.Request : null, workspace, hint.WorkflowRequest)); }
+            try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, drawing ? hint.Type : null, drawing ? hint.Request : null, workspace, hint.WorkflowRequest, model)); }
             catch (UnknownAgentException) { return Reply.Error(404, attachTo is null ? $"unknown workspace: {workspace}" : $"unknown attach_to: {attachTo}"); }
             catch (WorktreeException error) { return Reply.Error(400, error.Message); }
             registry.Register(record.Id, record.Worktree, sharesWorkspaceWith: record.SharesWorkspaceWith);
@@ -126,7 +131,7 @@ public static class AgentRoutes
             }
             var trackingFile = AgentSessionOwnership.FileFor(agents.MainRoot, Guid.NewGuid().ToString());
             var launch = terminalAgents.Resolve(record.Kind, sessionId, taskText, bare, visible, forkSession: fork, agentId: agentId, bridgeUrl: BareSkill.BridgeUrl,
-                newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile, workdir: record.Worktree, delegation: delegation);
+                newSessionId: Guid.NewGuid().ToString(), sessionTrackingFile: trackingFile, workdir: record.Worktree, delegation: delegation, model: record.Model);
             if (launch is null) return Reply.Error(400, $"unknown agent kind: {record.Kind}");
             var env = new Dictionary<string, string>(launch.Env);
             BridgeAddress.ExportIdentity(env, agentId, BareSkill.BridgeUrl);

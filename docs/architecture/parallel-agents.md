@@ -823,6 +823,10 @@ Claude agent windows launch with the CodeChroma MCP server (`ask_user`) register
 Being in a non-`normal` mode (also on mount) closes an open code popup and inspector (`RootCanvas` effect). Tests:
 `AgentRail.test.tsx`, `AgentsCollapsedBar.test.tsx`, `AgentFullScreen.test.tsx`, `e2e/layout-panels.spec.ts`.
 
+## Model pick on launch (long press, C# bridge)
+
+A click on "Run new agent" (`web/src/agents/activity/RunAgentButton.tsx`) runs the configured model as before. Holding it for `LONG_PRESS_MS` (1 s), or ArrowDown / right-click on it, drops a menu under the button: "Default" (the configured model, shown beside it) plus the models of the connection new agent windows run on. Picking one calls `onRunAgent(model)` → `attachAgent`/`launchAgent(..., model)` → `POST /agents {model}`. The list comes from `GET /agents/models` (`Agents/AgentModelChoices.cs`): the `parallel_agents` call site's effective connection (LLM settings → Agents group, else the assistant's claude) with `current` = its model; for a claude CLI without a `base_url` it reads Claude Code's cached catalog (`<config>/cache/model-catalog/*.json`, `ClaudeModelCatalog.Models`, `source: "cache"`), otherwise the same `ModelCatalog.Fetch` the LLM settings' model pickers use (`source: "catalog"` or `"static"`). The web keeps the last answer per client (`agents/agentModels.ts`) and shows it at once while re-asking on every press (the fetch starts on pointer-down). The pick is persisted as `model` on the agent record (`AgentRecord.CleanModel`: `[A-Za-z0-9._:@/\[\]-]`, ≤128 chars, no leading `-`; anything else is a 400) and passed to every `TerminalAgents.Resolve` (start, auto-start, widen-resume): an `agent` window applies it with `CliResolver.WithModel` (so an `ANTHROPIC_MODEL` provider gets it there), a `claude` window gets `--model`. Tests: `Agents/AgentModelChoicesTests.cs`, `RunAgentButton.test.tsx`, `attachAgent.test.ts`. Python gap: see `docs/planning/012-csharp-bridge.md`.
+
 ## Session usage (019 Stage 7)
 
 `GET /agents/{id}/usage` (`Routes/AgentRoutes.cs`, C# bridge only) returns `{contextTokens, contextWindow,

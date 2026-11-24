@@ -3,27 +3,38 @@ import type { AgentModelChoices } from "../state/types";
 import { messageOf } from "../util/reportError";
 import type { AgentClient } from "./agentClient";
 
-const lastKnown = new WeakMap<AgentClient, AgentModelChoices>();
-const inFlight = new WeakMap<AgentClient, Promise<AgentModelChoices>>();
+/** How long a listed answer is reused before a press asks the bridge again. */
+const FRESH_MS = 60_000;
 
-/** The long-press model menu's list: the last answer is shown at once (cache) while `refresh` asks the bridge again. */
+interface Cached {
+  at: number;
+  request: Promise<AgentModelChoices>;
+  choices?: AgentModelChoices;
+}
+
+const cache = new WeakMap<AgentClient, Cached>();
+
+/** The long-press model menu's list: the last answer shows at once; `refresh` asks the bridge only when it is older than a minute. */
 export function useAgentModels(client: AgentClient) {
-  const [choices, setChoices] = useState<AgentModelChoices | null>(() => lastKnown.get(client) ?? null);
+  const [choices, setChoices] = useState<AgentModelChoices | null>(() => cache.get(client)?.choices ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     if (!client.agentModels) return;
-    let request = inFlight.get(client);
-    if (!request) {
-      request = client.agentModels().finally(() => inFlight.delete(client));
-      inFlight.set(client, request);
+    let entry = cache.get(client);
+    if (!entry || Date.now() - entry.at > FRESH_MS) {
+      const request = client.agentModels();
+      const next: Cached = { at: Date.now(), request, choices: entry?.choices };
+      // A failed listing is dropped, so the next press retries it.
+      request.then((answer) => (next.choices = answer), () => cache.delete(client));
+      cache.set(client, next);
+      entry = next;
     }
     setLoading(true);
-    request
-      .then((next) => {
-        lastKnown.set(client, next);
-        setChoices(next);
+    entry.request
+      .then((answer) => {
+        setChoices(answer);
         setError(null);
       })
       .catch((err) => setError(messageOf(err)))

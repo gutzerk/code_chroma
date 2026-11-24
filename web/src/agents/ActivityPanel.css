@@ -197,17 +197,14 @@
 .activity-panel[data-size="default"] .activity-header[data-tab] > .activity-spacer {
   display: none;
 }
-.activity-panel[data-size="default"] .activity-header[data-tab] > .activity-primary {
+.activity-panel[data-size="default"] .activity-header[data-tab] > .activity-primary,
+.activity-panel[data-size="default"] .activity-header[data-tab] > .activity-run-wrap,
+.activity-panel[data-size="default"] .activity-run-wrap > .activity-primary {
   flex: 1;
   justify-content: center;
 }
 .activity-panel[data-size="default"] .activity-header[data-tab] > .activity-run-wrap {
   display: flex;
-  flex: 1;
-}
-.activity-panel[data-size="default"] .activity-run-wrap > .activity-primary {
-  flex: 1;
-  justify-content: center;
 }
 /* "Run new agent" and the model menu a one-second hold drops under it. */
 .activity-run-wrap {

@@ -95,7 +95,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         {
             var binary = AssistantRoutes.EffectiveCli(paths);
             var mcp = McpFor(binary == DefaultCli ? CliAdapters.All["claude"] : null, agentId, bridgeUrl, bare, workdir);
-            var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, model is { Length: > 0 } ? ["--model", model] : null, delegation);
+            var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, ModelArgs(model ?? "", new Dictionary<string, string>()), delegation);
             var hooks = binary == DefaultCli ? HookEndpointFor(agentId, bridgeUrl) : null;
             var launch = OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, hooks);
             return launch with { Clear = ClearWatch.For(binary == DefaultCli ? CliAdapters.All["claude"] : null, launch.StatusHooks) };
@@ -181,8 +181,10 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
     private sealed record CliResolution(string AdapterKey, string Binary, string Model, Dictionary<string, string> Env, bool ProviderAssigned);
 
     /// <summary>`--model` for the chosen model; omitted when none is set or ANTHROPIC_MODEL already carries it.</summary>
-    private static string[] ModelArgs(CliResolution cli) =>
-        cli.Model.Length == 0 || cli.Env.ContainsKey("ANTHROPIC_MODEL") ? [] : ["--model", cli.Model];
+    private static string[] ModelArgs(CliResolution cli) => ModelArgs(cli.Model, cli.Env);
+
+    private static string[] ModelArgs(string model, IReadOnlyDictionary<string, string> env) =>
+        model.Length == 0 || env.ContainsKey("ANTHROPIC_MODEL") ? [] : ["--model", model];
 
     /// <summary>The shared CliResolver, as the Python agent window shares resolve_cli: overrides, the default, and anthropic API providers.</summary>
     private CliResolution ResolveProviderCli(string callSiteId, string? model = null)

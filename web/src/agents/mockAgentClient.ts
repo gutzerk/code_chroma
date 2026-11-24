@@ -26,18 +26,16 @@ import type { AgentClient, DiagramTaskHint, PermissionDecision } from "./agentCl
 
 const MAX_PRS = 3;
 
-/** What GET /diagram-kinds serves (src/codechroma/diagrams/kinds.json), for the mock bridge. */
 /** What the mock's long-press model menu lists: the claude CLI's built-in aliases. */
 const MOCK_AGENT_MODELS: AgentModelChoices = {
-  provider_id: null,
   provider_name: null,
-  adapter: "claude",
   current: null,
   models: ["opus", "sonnet", "haiku", "fable"].map((id) => ({ id, label: null })),
   source: "static",
   error: null,
 };
 
+/** What GET /diagram-kinds serves (src/codechroma/diagrams/kinds.json), for the mock bridge. */
 const MOCK_DIAGRAM_KINDS: BuiltinDiagramKind[] = [
   { id: "any", name: "Let the agent pick", purpose: "Say what you want to see and the agent chooses the diagram type." },
   { id: "system-context", name: "System context", purpose: "The system, its users and the external services around it." },
@@ -123,7 +121,7 @@ export class MockAgentClient implements AgentClient {
   }
 
   async agentModels(): Promise<AgentModelChoices> {
-    return { ...MOCK_AGENT_MODELS, models: [...MOCK_AGENT_MODELS.models] };
+    return MOCK_AGENT_MODELS;
   }
 
   async diagramKinds(): Promise<BuiltinDiagramKind[]> {

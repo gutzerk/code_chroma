@@ -73,7 +73,7 @@ describe("RunAgentButton", () => {
     const { button } = setup();
     await hold(button, LONG_PRESS_MS);
 
-    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.keyDown(button, { key: "Escape" });
 
     expect(screen.queryByRole("menu")).toBeNull();
   });

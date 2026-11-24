@@ -82,8 +82,8 @@ public static class AgentRoutes
             if (hint.WorkflowRequest is not null && (contextKind != "task" || AgentRecord.CleanContext(context) is null))
                 return Reply.Error(400, "workflow_request needs context_kind 'task' and a context");
             var drawing = contextKind == "task" && hint.Type is not null;
-            var model = Json.Str(body["model"]);
-            if (body["model"] is not null && AgentRecord.CleanModel(model) is null) return Reply.Error(400, "model must be a model id");
+            var model = AgentRecord.CleanModel(Json.Str(body["model"]));
+            if (body["model"] is not null && model is null) return Reply.Error(400, "model must be a model id");
             AgentRecord record;
             try { record = await Task.Run(() => agents.Create(title, kind, attachTo, context, contextKind, drawing ? hint.Type : null, drawing ? hint.Request : null, workspace, hint.WorkflowRequest, model)); }
             catch (UnknownAgentException) { return Reply.Error(404, attachTo is null ? $"unknown workspace: {workspace}" : $"unknown attach_to: {attachTo}"); }

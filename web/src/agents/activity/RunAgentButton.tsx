@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
+import { useDisclosureMenu } from "../../util/useDisclosureMenu";
 import { useAgentClient } from "../AgentClientContext";
 import { useAgentModels } from "../agentModels";
 import { PlusIcon } from "./icons";
@@ -14,8 +15,9 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
   const timer = useRef<number | null>(null);
   const swallowClick = useRef(false);
   const focusFirst = useRef(false);
-  const wrapRef = useRef<HTMLSpanElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const { containerRef, triggerRef, onListKeyDown } = useDisclosureMenu(open, close);
 
   const cancelPress = () => {
     if (timer.current !== null) window.clearTimeout(timer.current);
@@ -26,25 +28,10 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
     if (disabled) setOpen(false);
   }, [disabled]);
   useEffect(() => {
-    if (!open) return;
-    const outside = (e: PointerEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const escape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open]);
-  useEffect(() => {
     if (!open || !focusFirst.current) return;
     focusFirst.current = false;
     menuRef.current?.querySelector<HTMLButtonElement>("[role='menuitem']")?.focus();
-  }, [open, choices]);
+  }, [open]);
 
   const openMenu = (withFocus: boolean) => {
     if (disabled || !supported) return;
@@ -53,7 +40,7 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
     setOpen(true);
   };
 
-  const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
+  const onPointerDown = (e: PointerEvent<HTMLButtonElement>) => {
     if (disabled || !supported || e.button !== 0) return;
     swallowClick.current = false;
     cancelPress();
@@ -76,13 +63,22 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
     onRunAgent();
   };
 
-  const onButtonKeyDown = (e: ReactKeyboardEvent<HTMLButtonElement>) => {
+  const onButtonKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "Escape") close();
     if (e.key !== "ArrowDown") return;
     e.preventDefault();
     openMenu(true);
   };
 
-  const onMenuKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+  const onContextMenu = (e: MouseEvent<HTMLButtonElement>) => {
+    if (!supported) return;
+    e.preventDefault();
+    cancelPress();
+    openMenu(false);
+  };
+
+  const onMenuKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    onListKeyDown(e);
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
     const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role='menuitem']") ?? []);
@@ -99,8 +95,9 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
   const current = choices?.current ?? null;
   const models = choices?.models ?? [];
   return (
-    <span className="activity-run-wrap" ref={wrapRef}>
+    <div className="activity-run-wrap" ref={containerRef}>
       <button
+        ref={triggerRef}
         type="button"
         className="activity-primary"
         aria-label="Run agent"
@@ -112,12 +109,7 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
         onPointerUp={cancelPress}
         onPointerLeave={cancelPress}
         onPointerCancel={cancelPress}
-        onContextMenu={(e) => {
-          if (!supported) return;
-          e.preventDefault();
-          cancelPress();
-          openMenu(false);
-        }}
+        onContextMenu={onContextMenu}
         onKeyDown={onButtonKeyDown}
         onClick={onClick}
       >
@@ -146,11 +138,16 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
               {model.label && <span className="run-agent-menu-id">{model.id}</span>}
             </button>
           ))}
-          {models.length === 0 && loading && <p className="run-agent-menu-note">Loading models…</p>}
-          {models.length === 0 && !loading && error && <p className="run-agent-menu-note" role="alert">Could not list models: {error}</p>}
-          {models.length === 0 && !loading && !error && choices && <p className="run-agent-menu-note">This connection does not list its models.</p>}
+          {models.length === 0 && <EmptyNote loading={loading} error={error ?? choices?.error ?? null} answered={choices !== null} />}
         </div>
       )}
-    </span>
+    </div>
   );
+}
+
+/** Why the menu lists no model yet: still loading, the listing failed, or the connection cannot list them. */
+function EmptyNote({ loading, error, answered }: { loading: boolean; error: string | null; answered: boolean }) {
+  if (loading) return <p className="run-agent-menu-note">Loading models…</p>;
+  if (error) return <p className="run-agent-menu-note" role="alert">Could not list models: {error}</p>;
+  return answered ? <p className="run-agent-menu-note">This connection does not list its models.</p> : null;
 }

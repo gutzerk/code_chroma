@@ -7,7 +7,12 @@ namespace CodeChroma.Bridge.Agents;
 public static class ClaudeModelCatalog
 {
     private static readonly object Gate = new();
-    private static (string Key, IReadOnlyDictionary<string, long> Windows)? _cached;
+    private static (string Key, CachedCatalog Catalog)? _cached;
+
+    /// <summary>The newest catalog's context windows and the newest catalog's model list, parsed once per set of file stamps.</summary>
+    private sealed record CachedCatalog(IReadOnlyDictionary<string, long> Windows, JsonArray Models);
+
+    private static readonly CachedCatalog Empty = new(new Dictionary<string, long>(), []);
 
     public static string DefaultDir() => Path.Combine(Transcripts.ConfigDir(), "cache", "model-catalog");
 
@@ -20,48 +25,44 @@ public static class ClaudeModelCatalog
 
     /// <summary>The catalog's input-token limit for a base model id, or null when no cached catalog lists it.</summary>
     public static long? MaxInputTokens(string baseId, string catalogDir) =>
-        Windows(catalogDir).TryGetValue(baseId, out var window) ? window : null;
+        Load(catalogDir).Windows.TryGetValue(baseId, out var window) ? window : null;
 
-    /// <summary>The newest cached catalog's models as {id, label} (label: its display name, else null); empty when no cache lists any.</summary>
-    public static JsonArray Models(string catalogDir)
-    {
-        List<string> files;
-        try { files = Directory.Exists(catalogDir) ? Directory.EnumerateFiles(catalogDir, "*.json").ToList() : []; }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return []; }
-        var newest = files.Select(JsonFile.Load).OfType<JsonObject>().Where(r => r["catalog"]?["config"]?["models"] is JsonArray)
-            .OrderByDescending(r => r["fetchedAt"] is JsonValue f && f.TryGetValue<long>(out var at) ? at : 0).FirstOrDefault();
-        var models = new JsonArray();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var model in (newest?["catalog"]?["config"]?["models"] as JsonArray ?? []).OfType<JsonObject>())
-            if (Json.Str(model["id"]) is { Length: > 0 } id && seen.Add(id))
-                models.Add(new JsonObject { ["id"] = id, ["label"] = Json.Str(model["display_name"]) ?? Json.Str(model["displayName"]) ?? Json.Str(model["name"]) });
-        return models;
-    }
+    /// <summary>The newest cached catalog's models as {id, label} (label: its display name, else null); empty when no cache lists any. Each caller gets its own copy.</summary>
+    public static JsonArray Models(string catalogDir) => (JsonArray)Load(catalogDir).Models.DeepClone();
 
-    private static IReadOnlyDictionary<string, long> Windows(string dir)
+    private static CachedCatalog Load(string dir)
     {
         List<(string Path, DateTime Stamp)> files;
         try { files = Directory.Exists(dir) ? Directory.EnumerateFiles(dir, "*.json").Select(p => (p, File.GetLastWriteTimeUtc(p))).ToList() : []; }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return new Dictionary<string, long>(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return Empty; }
         var key = dir + "|" + string.Join("|", files.Select(f => f.Path + "@" + f.Stamp.Ticks));
         lock (Gate)
         {
-            if (_cached is { } hit && hit.Key == key) return hit.Windows;
-            var newest = files.Select(f => Read(f.Path)).Where(c => c is not null).OrderByDescending(c => c!.Value.FetchedAt).FirstOrDefault();
-            IReadOnlyDictionary<string, long> windows = newest?.Windows ?? new Dictionary<string, long>();
-            _cached = (key, windows);
-            return windows;
+            if (_cached is { } hit && hit.Key == key) return hit.Catalog;
+            var parsed = files.Select(f => Read(f.Path)).OfType<Parsed>().ToList();
+            var catalog = new CachedCatalog(
+                parsed.Where(c => c.Windows.Count > 0).MaxBy(c => c.FetchedAt)?.Windows ?? new Dictionary<string, long>(),
+                parsed.Where(c => c.Models.Count > 0).MaxBy(c => c.FetchedAt)?.Models ?? []);
+            _cached = (key, catalog);
+            return catalog;
         }
     }
 
-    private static (long FetchedAt, Dictionary<string, long> Windows)? Read(string path)
+    private sealed record Parsed(long FetchedAt, Dictionary<string, long> Windows, JsonArray Models);
+
+    private static Parsed? Read(string path)
     {
         if (JsonFile.Load(path) is not JsonObject root || root["catalog"]?["config"]?["models"] is not JsonArray models) return null;
         var windows = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var listed = new JsonArray();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var model in models.OfType<JsonObject>())
-            if (Json.Str(model["id"]) is { Length: > 0 } id && model["runtime"]?["max_input_tokens"] is JsonValue v && v.TryGetValue<long>(out var window) && window > 0)
-                windows[BaseId(id)] = window;
+        {
+            if (Json.Str(model["id"]) is not { Length: > 0 } id) continue;
+            if (model["runtime"]?["max_input_tokens"] is JsonValue v && v.TryGetValue<long>(out var window) && window > 0) windows[BaseId(id)] = window;
+            if (seen.Add(id)) listed.Add(new JsonObject { ["id"] = id, ["label"] = Json.Str(model["display_name"]) ?? Json.Str(model["displayName"]) ?? Json.Str(model["name"]) });
+        }
         var fetchedAt = root["fetchedAt"] is JsonValue f && f.TryGetValue<long>(out var at) ? at : 0;
-        return windows.Count > 0 ? (fetchedAt, windows) : null;
+        return new Parsed(fetchedAt, windows, listed);
     }
 }

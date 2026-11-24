@@ -117,7 +117,7 @@ public sealed partial class AgentManager
 
     // --- writes ---
 
-    /// <summary>Slug, record, persist: the agent shares attach_to's worktree, or its tab's (workspace) when attach_to is absent; main is never a target.</summary>
+    /// <summary>Slug, record, persist: the agent shares attach_to's worktree, or its tab's (workspace) when attach_to is absent; main is never a target; `model` is stored as given (the route cleans it).</summary>
     public AgentRecord Create(string title, string kind = AgentRecord.DefaultKind, string? attachTo = null, string? context = null, string contextKind = "view", string? diagramType = null, string? diagramRequest = null, string? workspace = null, string? workflowRequest = null, string? model = null)
     {
         if (attachTo == Workspace.MainId) throw new WorktreeException("agents cannot attach to main");
@@ -162,7 +162,7 @@ public sealed partial class AgentManager
                 DiagramType = diagramType,
                 DiagramRequest = diagramRequest,
                 WorkflowRequest = workflowRequest,
-                Model = AgentRecord.CleanModel(model),
+                Model = model,
             };
         });
     }

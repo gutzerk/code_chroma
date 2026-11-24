@@ -1,3 +1,5 @@
+import type { ProviderModel } from "../llm-settings/llmSettingsClient";
+
 export type HierarchyLevel = "folder" | "file" | "class" | "function" | "code";
 
 /** Architectural role a C1 diagram box/sub-block can be authored or inferred as — drives which
@@ -540,25 +542,18 @@ export interface RawPrompt {
   runs: number;
 }
 
-/** One parallel agent session: its own branch, its own git worktree, its own window (GET /agents). */
-/** One model the "Run new agent" long-press menu offers. */
-export interface AgentModelOption {
-  id: string;
-  label: string | null;
-}
-
 /** GET /agents/models: the models of the connection new agents run on; `source` says where the list came from. */
 export interface AgentModelChoices {
-  provider_id: string | null;
   provider_name: string | null;
-  adapter: string | null;
   /** The model a launch without a pick uses; null when the CLI picks its own. */
   current: string | null;
-  models: AgentModelOption[];
+  models: ProviderModel[];
   source: "cache" | "catalog" | "static";
+  /** Why the provider's listing failed, when it did. */
   error: string | null;
 }
 
+/** One parallel agent session: its own branch, its own git worktree, its own window (GET /agents). */
 export interface AgentRecord extends AgentStatusFields {
   id: string;
   title: string;

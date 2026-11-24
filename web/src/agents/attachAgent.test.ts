@@ -72,6 +72,14 @@ describe("attachAgent", () => {
     expect(create).toHaveBeenCalledWith("", "agent", "refund-flow", null, undefined, undefined, undefined);
   });
 
+  it("passes the model picked from the long-press menu through to create", async () => {
+    const create = vi.fn(async (title: string) => agentRecord(title || "helper"));
+
+    await attachAgent(client(create), null, undefined, undefined, "haiku");
+
+    expect(create).toHaveBeenCalledWith("", "agent", undefined, null, undefined, undefined, undefined, undefined, "haiku");
+  });
+
   it("sends no attach_to for the pre-boot main placeholder", async () => {
     const create = vi.fn(async (title: string) => agentRecord(title || "helper"));
 

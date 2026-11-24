@@ -74,12 +74,12 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         ["agent"] = [],
     };
 
-    /// <summary>An allow-listed agent's argv and provider environment, or null for an unknown kind; `forkSession` (claude only) resumes into a new session; `workdir` is where the window runs; `delegation` (claude only) adds a drawing window's drawer subagent and lead instruction.</summary>
-    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null, bool bare = false, string? visiblePrompt = null, bool forkSession = false, string? agentId = null, string? bridgeUrl = null, string? newSessionId = null, string? sessionTrackingFile = null, string? workdir = null, DrawDelegation? delegation = null)
+    /// <summary>An allow-listed agent's argv and provider environment, or null for an unknown kind; `forkSession` (claude only) resumes into a new session; `workdir` is where the window runs; `delegation` (claude only) adds a drawing window's drawer subagent and lead instruction; `model` overrides the configured model for this window.</summary>
+    public AgentLaunch? Resolve(string agent, string? resumeSessionId = null, string? initialPrompt = null, bool bare = false, string? visiblePrompt = null, bool forkSession = false, string? agentId = null, string? bridgeUrl = null, string? newSessionId = null, string? sessionTrackingFile = null, string? workdir = null, DrawDelegation? delegation = null, string? model = null)
     {
         if (agent == "agent")
         {
-            var resolution = ResolveProviderCli(AgentCallSite);
+            var resolution = ResolveProviderCli(AgentCallSite, model);
             var isClaude = IsRealClaude(resolution);
             // The claude adapter behind a stand-in binary is not the real CLI, so it gets no MCP server.
             var standIn = resolution.AdapterKey == "claude" && !isClaude;
@@ -95,7 +95,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         {
             var binary = AssistantRoutes.EffectiveCli(paths);
             var mcp = McpFor(binary == DefaultCli ? CliAdapters.All["claude"] : null, agentId, bridgeUrl, bare, workdir);
-            var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, delegation: delegation);
+            var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, binary == DefaultCli ? ModelArgs(model ?? "", new Dictionary<string, string>()) : [], delegation);
             var hooks = binary == DefaultCli ? HookEndpointFor(agentId, bridgeUrl) : null;
             var launch = OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, hooks);
             return launch with { Clear = ClearWatch.For(binary == DefaultCli ? CliAdapters.All["claude"] : null, launch.StatusHooks) };
@@ -181,13 +181,16 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
     private sealed record CliResolution(string AdapterKey, string Binary, string Model, Dictionary<string, string> Env, bool ProviderAssigned);
 
     /// <summary>`--model` for the chosen model; omitted when none is set or ANTHROPIC_MODEL already carries it.</summary>
-    private static string[] ModelArgs(CliResolution cli) =>
-        cli.Model.Length == 0 || cli.Env.ContainsKey("ANTHROPIC_MODEL") ? [] : ["--model", cli.Model];
+    private static string[] ModelArgs(CliResolution cli) => ModelArgs(cli.Model, cli.Env);
+
+    private static string[] ModelArgs(string model, IReadOnlyDictionary<string, string> env) =>
+        model.Length == 0 || env.ContainsKey("ANTHROPIC_MODEL") ? [] : ["--model", model];
 
     /// <summary>The shared CliResolver, as the Python agent window shares resolve_cli: overrides, the default, and anthropic API providers.</summary>
-    private CliResolution ResolveProviderCli(string callSiteId)
+    private CliResolution ResolveProviderCli(string callSiteId, string? model = null)
     {
         var resolved = new Skills.CliResolver(paths, providers, callSites).Resolve(callSiteId, "");
+        if (model is { Length: > 0 }) resolved = Skills.CliResolver.WithModel(resolved, model);
         return new CliResolution(resolved.AdapterKey, resolved.Binary, resolved.Model, new Dictionary<string, string>(resolved.EnvOverrides), resolved.ProviderAssigned);
     }
 

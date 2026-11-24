@@ -1,4 +1,5 @@
 import type {
+  AgentModelChoices,
   AgentList,
   AgentQuestionsPayload,
   AgentRecord,
@@ -24,6 +25,15 @@ import { parsePrNumber } from "../pr/prUrl";
 import type { AgentClient, DiagramTaskHint, PermissionDecision } from "./agentClient";
 
 const MAX_PRS = 3;
+
+/** What the mock's long-press model menu lists: the claude CLI's built-in aliases. */
+const MOCK_AGENT_MODELS: AgentModelChoices = {
+  provider_name: null,
+  current: null,
+  models: ["opus", "sonnet", "haiku", "fable"].map((id) => ({ id, label: null })),
+  source: "static",
+  error: null,
+};
 
 /** What GET /diagram-kinds serves (src/codechroma/diagrams/kinds.json), for the mock bridge. */
 const MOCK_DIAGRAM_KINDS: BuiltinDiagramKind[] = [
@@ -110,6 +120,10 @@ export class MockAgentClient implements AgentClient {
     this.preflightState = preflight;
   }
 
+  async agentModels(): Promise<AgentModelChoices> {
+    return MOCK_AGENT_MODELS;
+  }
+
   async diagramKinds(): Promise<BuiltinDiagramKind[]> {
     return MOCK_DIAGRAM_KINDS;
   }
@@ -128,6 +142,7 @@ export class MockAgentClient implements AgentClient {
     diagram?: DiagramTaskHint,
     workspace?: string,
     workflowRequest?: string,
+    model?: string,
   ): Promise<AgentRecord> {
     if (attachTo === "main") throw new Error("attach_to=main is not allowed; agents work in a worktree tab");
     // Not committed to `this.counter` until every step below succeeds — attachTarget() can still
@@ -199,6 +214,7 @@ export class MockAgentClient implements AgentClient {
       diagram_type: diagram?.type ?? null,
       diagram_request: diagram?.request ?? null,
       workflow_request: workflowRequest?.trim() || null,
+      model: model?.trim() || null,
     };
     this.agents.push(agent);
     return agent;

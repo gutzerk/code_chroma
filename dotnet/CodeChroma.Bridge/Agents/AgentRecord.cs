@@ -60,6 +60,9 @@ public sealed class AgentRecord
     /// <summary>What the user described for a new workflow ("New workflow → With an agent"); such an agent starts bare with the workflow skill inlined (BareSkill.ComposeWorkflow).</summary>
     public string? WorkflowRequest { get; set; }
 
+    /// <summary>The model picked for this agent on launch (the long-press menu); null keeps the configured one.</summary>
+    public string? Model { get; set; }
+
     /// <summary>Binary that launched this window; empty for legacy claude records.</summary>
     public string ResolvedCli { get; set; } = "";
 
@@ -88,7 +91,7 @@ public sealed class AgentRecord
         ["shares_workspace_with"] = SharesWorkspaceWith, ["workspace"] = Workspace, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
         ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli, ["diagram_type"] = DiagramType,
-        ["diagram_request"] = DiagramRequest, ["workflow_request"] = WorkflowRequest,
+        ["diagram_request"] = DiagramRequest, ["workflow_request"] = WorkflowRequest, ["model"] = Model,
     };
 
     /// <summary>The record plus its last reported status and worktree health; AgentRoutes.Payload overlays the live status fields.</summary>
@@ -99,7 +102,7 @@ public sealed class AgentRecord
         ["shares_workspace_with"] = SharesWorkspaceWith, ["workspace"] = Workspace, ["base_branch"] = BaseBranch, ["source_pr"] = SourcePr,
         ["source_run"] = SourceRun, ["fork_session"] = ForkSession,
         ["context"] = Context, ["context_kind"] = ContextKind, ["resolved_cli"] = ResolvedCli,
-        ["diagram_type"] = DiagramType, ["diagram_request"] = DiagramRequest, ["workflow_request"] = WorkflowRequest,
+        ["diagram_type"] = DiagramType, ["diagram_request"] = DiagramRequest, ["workflow_request"] = WorkflowRequest, ["model"] = Model,
         ["status"] = Status, ["exit_code"] = ExitCode, ["worktree_lost"] = WorktreeLost,
         ["status_since"] = StatusSince is { } since ? Json.Iso(since) : null,
         ["activity"] = null, ["pending_permission"] = null, ["error"] = null,
@@ -139,8 +142,17 @@ public sealed class AgentRecord
             DiagramType = Json.Str(o["diagram_type"]),
             DiagramRequest = Json.Str(o["diagram_request"]),
             WorkflowRequest = Json.Str(o["workflow_request"]),
+            Model = CleanModel(Json.Str(o["model"])),
             ResolvedCli = Json.Str(o["resolved_cli"]) ?? "",
         };
+    }
+
+    /// <summary>A model id safe to pass as one CLI argument (letters, digits and `._:@/[]-`, at most 128 chars), else null.</summary>
+    public static string? CleanModel(string? value)
+    {
+        var model = value?.Trim();
+        if (string.IsNullOrEmpty(model) || model.Length > 128 || model.StartsWith('-')) return null;
+        return model.All(c => char.IsAsciiLetterOrDigit(c) || "._:@/[]-".Contains(c)) ? model : null;
     }
 
     public static string CoerceContextKind(string? value) => value is not null && ContextKinds.Contains(value) ? value : "view";

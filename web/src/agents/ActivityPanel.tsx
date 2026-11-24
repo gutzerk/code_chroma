@@ -36,7 +36,8 @@ export function ActivityPanel({
   onRunAgent,
   disabled = false,
 }: {
-  onRunAgent: () => void;
+  /** `model`: the pick from the long-press model menu; omitted runs the configured model. */
+  onRunAgent: (model?: string) => void;
   disabled?: boolean;
 }) {
   const allAgents = useAgents();

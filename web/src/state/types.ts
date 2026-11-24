@@ -1,3 +1,5 @@
+import type { ProviderModel } from "../llm-settings/llmSettingsClient";
+
 export type HierarchyLevel = "folder" | "file" | "class" | "function" | "code";
 
 /** Architectural role a C1 diagram box/sub-block can be authored or inferred as — drives which
@@ -540,6 +542,20 @@ export interface RawPrompt {
   runs: number;
 }
 
+/** GET /agents/models: the models of the connection new agents run on; `source` says where the list came from. */
+export interface AgentModelChoices {
+  provider_name: string | null;
+  /** The model a launch without a pick uses; null when the CLI picks its own. */
+  current: string | null;
+  /** The listed id `current` names (an alias like "opus" resolves to its catalog id); null when none is listed. */
+  current_id?: string | null;
+  models: ProviderModel[];
+  /** "unsupported": the connection cannot list its models. */
+  source: "cache" | "catalog" | "static" | "unsupported";
+  /** Why the provider's listing failed, when it did. */
+  error: string | null;
+}
+
 /** One parallel agent session: its own branch, its own git worktree, its own window (GET /agents). */
 export interface AgentRecord extends AgentStatusFields {
   id: string;
@@ -588,6 +604,8 @@ export interface AgentRecord extends AgentStatusFields {
   diagram_request?: string | null;
   /** What the user described for a new workflow ("New workflow → With an agent"). */
   workflow_request?: string | null;
+  /** The model picked for this agent from the "Run new agent" long-press menu; null keeps the configured one. */
+  model?: string | null;
   /** How many ask_user questions the agent has open, counted by the bridge in the workspace it asks
    * into; on GET /agents rows and `agent-questions` events, absent from other agent payloads. */
   open_questions?: number;

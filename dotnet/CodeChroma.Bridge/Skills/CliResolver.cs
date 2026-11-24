@@ -10,18 +10,21 @@ public sealed record CliResolution(string AdapterKey, string Binary, string Mode
 /// <summary>The call site to provider to adapter to binary/model/env algorithm, with the assistant settings as fallback.</summary>
 public sealed class CliResolver(UserPaths paths, ProviderStore providers, CallSiteStore sites)
 {
-    public CliResolution Resolve(string callSiteId, string defaultModel)
+    public CliResolution Resolve(string callSiteId, string defaultModel) => ResolveWithProvider(callSiteId, defaultModel).Cli;
+
+    /// <summary>Resolve, plus the provider that chose it (null: the assistant settings' claude).</summary>
+    public (CliResolution Cli, JsonObject? Provider) ResolveWithProvider(string callSiteId, string defaultModel)
     {
         var assignment = sites.EffectiveAssignment(callSiteId);
         if (assignment is not null && Json.Str(assignment["mode"]) == "cli"
             && CliProvider(Json.Str(assignment["provider_id"]) ?? "") is ({ } provider, { } adapter))
         {
             var model = Json.Str(assignment["model"])!;
-            return new CliResolution(adapter, adapter, model, EnvOverrides(provider, model), true);
+            return (new CliResolution(adapter, adapter, model, EnvOverrides(provider, model), true), provider);
         }
         var assistant = AssistantRoutes.Load(paths);
         var assistantModel = Json.Str(assistant["model"]) is { Length: > 0 } m ? m : defaultModel;
-        return new CliResolution("claude", AssistantRoutes.EffectiveCli(paths), assistantModel, new Dictionary<string, string>(), false);
+        return (new CliResolution("claude", AssistantRoutes.EffectiveCli(paths), assistantModel, new Dictionary<string, string>(), false), null);
     }
 
     /// <summary>One provider's CLI with an explicit model (null: the provider's test model); throws for an unknown or non-CLI provider.</summary>

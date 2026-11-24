@@ -147,9 +147,16 @@ public sealed class MacKeychainVault : ITokenVault
 
     public void Set(string key, string value)
     {
-        var result = VaultProcess.Run("security", ["add-generic-password", "-U", "-s", TokenVault.Service, "-a", key, "-w", value]);
-        if (result.Exit != 0) throw new IOException($"keychain write failed: {result.Stderr.Trim()}");
+        var result = VaultProcess.Run("security", ["-i"], InteractiveAdd(key, value));
+        if (result.Exit != 0 || Get(key) != value) throw new IOException($"keychain write failed: {result.Stderr.Trim()}");
     }
+
+    /// <summary>The add command for security's interactive mode, read from stdin so the secret never reaches argv (ps).</summary>
+    public static string InteractiveAdd(string key, string value) =>
+        $"add-generic-password -U -s {Quote(TokenVault.Service)} -a {Quote(key)} -w {Quote(value)}\n";
+
+    private static string Quote(string text) =>
+        "\"" + text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 
     public void Delete(string key) => VaultProcess.Run("security", ["delete-generic-password", "-s", TokenVault.Service, "-a", key]);
 }

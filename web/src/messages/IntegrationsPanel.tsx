@@ -13,6 +13,8 @@ import { messagesStore } from "./messagesStore";
 import "./messages.css";
 
 const OUTLOOK_POLL_MS = 2000;
+/** How long Settings waits for the browser sign-in before giving up on it. */
+export const OUTLOOK_WAIT_MS = 5 * 60 * 1000;
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -50,13 +52,24 @@ export function IntegrationsPanel({ onDismiss }: { onDismiss: () => void }) {
   useEffect(() => {
     if (!waitingForOutlook) return;
     const timer = setInterval(() => void reload(), OUTLOOK_POLL_MS);
-    return () => clearInterval(timer);
+    const giveUp = setTimeout(() => {
+      setWaitingForOutlook(false);
+      setActionError((current) => ({ ...current, outlook: "The Microsoft sign-in did not finish; try Connect Outlook again." }));
+    }, OUTLOOK_WAIT_MS);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(giveUp);
+    };
   }, [waitingForOutlook, reload]);
 
   useEffect(() => {
-    if (waitingForOutlook && status?.outlook.connected) {
+    if (!waitingForOutlook) return;
+    if (status?.outlook.connected) {
       setWaitingForOutlook(false);
       void messagesStore.load();
+    } else if (status?.outlook.state === "error") {
+      setWaitingForOutlook(false);
+      setActionError((current) => ({ ...current, outlook: status.outlook.error ?? "Outlook was not connected." }));
     }
   }, [waitingForOutlook, status]);
 
@@ -172,7 +185,7 @@ export function IntegrationsPanel({ onDismiss }: { onDismiss: () => void }) {
           <>
             <p className="integrations-hint">
               Signs in with Microsoft in your browser (Mail.Read). If your organization requires admin consent, use an
-              application (client) id your admin registered, with the redirect URI http://localhost.
+              application (client) id your admin registered, with the redirect URI http://127.0.0.1.
             </p>
             <label className="integrations-field">
               {needsOwnClient ? "Application (client) id" : "Own client id (optional)"}

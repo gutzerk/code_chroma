@@ -41,7 +41,7 @@ Done means: with Slack and Outlook connected, every unread message appears in th
 | Read elsewhere (risk 2) | Assumed: Socket Mode sends no user event when a channel is read in another client. So every 60 s the bridge re-reads only the conversations that still hold unread items (cheap: a handful of calls), and does a full re-check every 15 min on top of start/reconnect/focus. Writing in a conversation clears it at once (Slack marks it read). |
 | Slack cost (risk 1) | Full re-check = 2 calls per conversation (`conversations.info` + `conversations.history`), 4 in parallel, 429 honoured; capped at 1000 conversations and 20 messages per conversation. Not yet measured on a large workspace. |
 | Graph (risk 3) | One `GET /me/messages?$filter=isRead eq false` per poll, up to 500 items; Junk and Deleted Items dropped by `parentFolderId`. |
-| Entra client (risk 4) | Not registered yet. The default client id comes from `codechroma_OUTLOOK_CLIENT_ID`; with none, Settings asks for the user's own client id (redirect URI `http://localhost`). The redirect lands on the bridge's own `/integrations/outlook/callback`. |
+| Entra client (risk 4) | Not registered yet. The default client id comes from `codechroma_OUTLOOK_CLIENT_ID`; with none, Settings asks for the user's own client id (redirect URI `http://127.0.0.1`). The redirect lands on the bridge's own `/integrations/outlook/callback`. |
 | Slack fallback link | Items carry an extra `web_url` (the permalink) next to `open_url`; the panel shows it as "in browser". The desktop shell now lets `slack://` navigations out (`ExternalLinks.cs`). |
 | Focus | The web posts `POST /messages/refresh` on window focus; the bridge throttles it to one per 15 s. |
 

@@ -57,6 +57,35 @@ public class OutlookSourceTests
     }
 
     [Fact]
+    public async Task Subfolders_are_named_and_those_under_deleted_items_are_hidden()
+    {
+        var api = Mailbox()
+            .On("GET", "/v1.0/me/mailFolders", new JsonObject
+            {
+                ["value"] = new JsonArray(
+                    new JsonObject { ["id"] = "F-IN", ["displayName"] = "Inbox", ["childFolderCount"] = 1 },
+                    new JsonObject { ["id"] = "F-DEL", ["displayName"] = "Deleted Items", ["childFolderCount"] = 1 }),
+            })
+            .On("GET", "/v1.0/me/mailFolders/F-IN/childFolders", new JsonObject
+            {
+                ["value"] = new JsonArray(new JsonObject { ["id"] = "F-PROJ", ["displayName"] = "Projects" }),
+            })
+            .On("GET", "/v1.0/me/mailFolders/F-DEL/childFolders", new JsonObject
+            {
+                ["value"] = new JsonArray(new JsonObject { ["id"] = "F-OLD", ["displayName"] = "Old" }),
+            })
+            .On("GET", "/v1.0/me/messages", new JsonObject
+            {
+                ["value"] = new JsonArray(Message("s1", "F-PROJ", "Kickoff", "agenda"), Message("s2", "F-OLD", "Archived", "x")),
+            });
+        var (source, feed, _) = Create(api);
+
+        await source.RecheckAsync(feed, CancellationToken.None);
+
+        Assert.Equal([("outlook:s1", "Projects")], feed.Items("outlook").Select(i => (i.Id, i.Where)));
+    }
+
+    [Fact]
     public async Task The_graph_query_filters_on_unread()
     {
         var api = Mailbox();

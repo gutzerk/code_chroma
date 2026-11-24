@@ -30,6 +30,14 @@ public class TokenVaultTests
     }
 
     [Fact]
+    public void The_keychain_write_quotes_the_secret_for_stdin()
+    {
+        var command = MacKeychainVault.InteractiveAdd(VaultKeys.SlackUserToken, "a\"b\\c");
+
+        Assert.Equal("add-generic-password -U -s \"codechroma\" -a \"slack.user_token\" -w \"a\\\"b\\\\c\"\n", command);
+    }
+
+    [Fact]
     public void Deleting_the_last_key_removes_the_file()
     {
         var path = TempFile();

@@ -20,15 +20,32 @@ public static class MessageRoutes
 
     public static void Map(WebApplication app)
     {
-        app.MapGet("/messages/unread", (MessagesService messages) => Reply.Json(messages.Feed.Snapshot()));
+        var messagesRoutes = app.MapGroup("/messages").AddEndpointFilter(LoopbackOnly);
+        var integrationRoutes = app.MapGroup("/integrations").AddEndpointFilter(LoopbackOnly);
+        MapMessages(messagesRoutes);
+        MapIntegrations(integrationRoutes);
+    }
 
-        app.MapPost("/messages/refresh", (MessagesService messages) => Reply.Json(new JsonObject { ["started"] = messages.RefreshAll() }));
+    /// <summary>Refuses a request whose Host is not this machine's loopback, so a DNS-rebound page cannot read anyone's messages.</summary>
+    private static async ValueTask<object?> LoopbackOnly(EndpointFilterInvocationContext context, EndpointFilterDelegate next) =>
+        OriginGuard.IsLoopbackHost(context.HttpContext.Request.Host.Host)
+            ? await next(context)
+            : Reply.Error(StatusCodes.Status403Forbidden, "messages are only served to this machine's loopback address");
 
-        app.MapGet("/integrations", (MessagesService messages) => Reply.Json(messages.Status()));
+    private static void MapMessages(RouteGroupBuilder app)
+    {
+        app.MapGet("/unread", (MessagesService messages) => Reply.Json(messages.Feed.Snapshot()));
 
-        app.MapGet("/integrations/slack/manifest", () => Results.Text(Manifest.Value, "application/json; charset=utf-8"));
+        app.MapPost("/refresh", (MessagesService messages) => Reply.Json(new JsonObject { ["started"] = messages.RefreshAll() }));
+    }
 
-        app.MapPost("/integrations/slack", async (HttpRequest request, MessagesService messages) =>
+    private static void MapIntegrations(RouteGroupBuilder app)
+    {
+        app.MapGet("", (MessagesService messages) => Reply.Json(messages.Status()));
+
+        app.MapGet("/slack/manifest", () => Results.Text(Manifest.Value, "application/json; charset=utf-8"));
+
+        app.MapPost("/slack", async (HttpRequest request, MessagesService messages) =>
         {
             var body = await Reply.LenientBody(request);
             return await Guard(async () =>
@@ -38,7 +55,7 @@ public static class MessageRoutes
             });
         });
 
-        app.MapPost("/integrations/outlook/connect", async (HttpRequest request, MessagesService messages) =>
+        app.MapPost("/outlook/connect", async (HttpRequest request, MessagesService messages) =>
         {
             var body = await Reply.LenientBody(request);
             return await Guard(() =>
@@ -48,7 +65,7 @@ public static class MessageRoutes
             });
         });
 
-        app.MapGet(OutlookCallbackPath, async (HttpRequest request, MessagesService messages) =>
+        app.MapGet(OutlookCallbackPath["/integrations".Length..], async (HttpRequest request, MessagesService messages) =>
         {
             var query = request.Query;
             try
@@ -56,22 +73,31 @@ public static class MessageRoutes
                 await messages.CompleteOutlookAsync(query["state"], query["code"], query["error_description"].FirstOrDefault() ?? query["error"], request.HttpContext.RequestAborted);
                 return Page("Outlook is connected", "You can close this tab and return to CodeChroma.");
             }
-            catch (IntegrationException error) { return Page("Outlook was not connected", error.Message, error.Status); }
-            catch (HttpRequestException error) { return Page("Outlook was not connected", "Microsoft sign-in is unreachable: " + error.Message, 502); }
+            catch (IntegrationException error)
+            {
+                messages.ReportOutlookSignInFailure(error.Message);
+                return Page("Outlook was not connected", error.Message, error.Status);
+            }
+            catch (HttpRequestException error)
+            {
+                var message = "Microsoft sign-in is unreachable: " + error.Message;
+                messages.ReportOutlookSignInFailure(message);
+                return Page("Outlook was not connected", message, 502);
+            }
         });
 
-        app.MapDelete("/integrations/{source}", (string source, MessagesService messages) => Guard(async () =>
+        app.MapDelete("/{source}", (string source, MessagesService messages) => Guard(async () =>
         {
             await messages.DisconnectAsync(source);
             return Reply.Json(new JsonObject { ["source"] = source, ["connected"] = false });
         }));
     }
 
-    /// <summary>The loopback redirect back into this bridge: Entra matches http://localhost on any port for a public client.</summary>
-    private static string RedirectUri(HttpRequest request)
+    /// <summary>The loopback redirect back into this bridge: the IPv4 address it listens on, which Entra matches on any port for a public client.</summary>
+    public static string RedirectUri(HttpRequest request)
     {
         var port = request.Host.Port ?? (request.IsHttps ? 443 : 80);
-        return $"http://localhost:{port}{OutlookCallbackPath}";
+        return $"http://127.0.0.1:{port}{OutlookCallbackPath}";
     }
 
     private static async Task<IResult> Guard(Func<Task<IResult>> body)

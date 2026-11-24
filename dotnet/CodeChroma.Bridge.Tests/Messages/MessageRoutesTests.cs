@@ -92,7 +92,7 @@ public class MessageRoutesTests
 
         var query = System.Web.HttpUtility.ParseQueryString(url.Query);
         Assert.Equal(("/common/oauth2/v2.0/authorize", "default-client", "S256", true),
-            (url.AbsolutePath, query["client_id"], query["code_challenge_method"], query["redirect_uri"]!.EndsWith("/integrations/outlook/callback")));
+            (url.AbsolutePath, query["client_id"], query["code_challenge_method"], query["redirect_uri"]!.StartsWith("http://127.0.0.1:") && query["redirect_uri"]!.EndsWith("/integrations/outlook/callback")));
     }
 
     [Fact]
@@ -130,6 +130,48 @@ public class MessageRoutesTests
         var callback = await rig.Host.Client.GetAsync("/integrations/outlook/callback?code=abc&state=forged");
 
         Assert.Equal((HttpStatusCode.BadRequest, (string?)null), (callback.StatusCode, rig.Vault.Get(VaultKeys.OutlookRefreshToken)));
+    }
+
+    [Fact]
+    public async Task A_refused_sign_in_is_reported_in_the_integrations_status()
+    {
+        using var rig = new Rig();
+        var connect = await rig.Host.Client.PostAsJsonAsync("/integrations/outlook/connect", new { });
+        var url = new Uri((await connect.Content.ReadFromJsonAsync<JsonObject>())!["auth_url"]!.GetValue<string>());
+        var state = System.Web.HttpUtility.ParseQueryString(url.Query)["state"];
+
+        var callback = await rig.Host.Client.GetAsync($"/integrations/outlook/callback?error=access_denied&state={state}");
+
+        var outlook = (await rig.Get("/integrations"))["outlook"]!;
+        Assert.Equal((HttpStatusCode.BadRequest, "error", true),
+            (callback.StatusCode, outlook["state"]!.GetValue<string>(), outlook["error"]!.GetValue<string>().Contains("access_denied")));
+    }
+
+    [Fact]
+    public async Task A_request_for_another_host_name_is_refused()
+    {
+        using var rig = new Rig();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/messages/unread");
+        request.Headers.Host = "rebound.example:8000";
+
+        var response = await rig.Host.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Disconnecting_right_after_a_focus_refresh_leaves_the_source_empty()
+    {
+        using var rig = new Rig();
+        await rig.Host.Client.PostAsJsonAsync("/integrations/slack", new { user_token = "xoxp-1", app_token = "xapp-1" });
+        await SlackSourceTests.WaitUntil(() => rig.Get("/messages/unread").Result["items"]!.AsArray().Count == 2);
+        await rig.Host.Client.PostAsync("/messages/refresh", null);
+
+        await rig.Host.Client.DeleteAsync("/integrations/slack");
+        await Task.Delay(200);
+
+        var slack = (await rig.Get("/messages/unread"))["sources"]!["slack"]!;
+        Assert.Equal(("disconnected", 0), (slack["state"]!.GetValue<string>(), (await rig.Get("/messages/unread"))["items"]!.AsArray().Count));
     }
 
     [Fact]

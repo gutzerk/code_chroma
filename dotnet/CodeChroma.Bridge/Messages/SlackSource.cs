@@ -62,6 +62,8 @@ public sealed class SlackSource(SlackApi api, MessagesOptions options, TimeProvi
 
     private readonly ConcurrentDictionary<string, string> _userNames = new();
     private readonly ConcurrentDictionary<string, Conversation> _conversations = new();
+    private readonly ConcurrentDictionary<string, long> _socketChanges = new();
+    private readonly SemaphoreSlim _recheckGate = new(1, 1);
     private SlackIdentity? _identity;
 
     public string Name => SourceName;
@@ -79,33 +81,58 @@ public sealed class SlackSource(SlackApi api, MessagesOptions options, TimeProvi
 
     public async Task RecheckAsync(UnreadFeed feed, CancellationToken cancel)
     {
-        var me = await IdentifyAsync(cancel);
-        var conversations = await ListConversationsAsync(cancel);
-        var items = new ConcurrentBag<UnreadItem>();
-        using var gate = new SemaphoreSlim(options.SlackConcurrency);
-        await Task.WhenAll(conversations.Select(async conversation =>
+        await _recheckGate.WaitAsync(cancel);
+        try
         {
-            await gate.WaitAsync(cancel);
-            try { foreach (var item in await UnreadInAsync(conversation, me, cancel)) items.Add(item); }
-            catch (SlackApiException error) when (error.Error is "channel_not_found" or "not_in_channel" or "missing_scope") { }
-            finally { gate.Release(); }
-        }));
-        feed.Replace(SourceName, items, clock.GetUtcNow());
+            var me = await IdentifyAsync(cancel);
+            var conversations = await ListConversationsAsync(cancel);
+            var items = new ConcurrentBag<UnreadItem>();
+            var kept = new ConcurrentDictionary<string, bool>();
+            using var gate = new SemaphoreSlim(options.SlackConcurrency);
+            await Task.WhenAll(conversations.Select(async conversation =>
+            {
+                await gate.WaitAsync(cancel);
+                try
+                {
+                    if (await ReadAsync(conversation, me, cancel) is { } fresh) foreach (var item in fresh) items.Add(item);
+                    else kept[conversation.Id] = true;
+                }
+                finally { gate.Release(); }
+            }));
+            feed.ReplaceWhere(SourceName, i => !kept.ContainsKey(i.Group), items, clock.GetUtcNow());
+        }
+        finally { _recheckGate.Release(); }
     }
 
     /// <summary>Re-reads only the conversations that still have unread items, so a read elsewhere clears them.</summary>
     public async Task RecheckOpenAsync(UnreadFeed feed, CancellationToken cancel)
     {
-        var me = await IdentifyAsync(cancel);
-        foreach (var group in feed.Items(SourceName).Select(i => i.Group).Distinct().ToList())
+        await _recheckGate.WaitAsync(cancel);
+        try
         {
-            if (!_conversations.TryGetValue(group, out var conversation)) continue;
-            IReadOnlyList<UnreadItem> fresh;
-            try { fresh = await UnreadInAsync(conversation, me, cancel); }
-            catch (SlackApiException error) when (error.Error is "channel_not_found" or "not_in_channel") { fresh = []; }
-            feed.ReplaceWhere(SourceName, i => i.Group == group, fresh, clock.GetUtcNow());
+            var me = await IdentifyAsync(cancel);
+            foreach (var group in feed.Items(SourceName).Select(i => i.Group).Distinct().ToList())
+            {
+                if (!_conversations.TryGetValue(group, out var conversation)) continue;
+                if (await ReadAsync(conversation, me, cancel) is { } fresh) feed.ReplaceWhere(SourceName, i => i.Group == group, fresh, clock.GetUtcNow());
+            }
         }
+        finally { _recheckGate.Release(); }
     }
+
+    /// <summary>One conversation's unread items, or null to keep what the feed has (a socket event landed mid-read, or Slack refused this one call).</summary>
+    private async Task<IReadOnlyList<UnreadItem>?> ReadAsync(Conversation conversation, SlackIdentity me, CancellationToken cancel)
+    {
+        var before = _socketChanges.GetValueOrDefault(conversation.Id);
+        IReadOnlyList<UnreadItem> fresh;
+        try { fresh = await UnreadInAsync(conversation, me, cancel); }
+        catch (SlackApiException error) when (error.Error is "channel_not_found" or "not_in_channel") { fresh = []; }
+        catch (SlackApiException error) when (!IsAuthFailure(error)) { return null; }
+        return _socketChanges.GetValueOrDefault(conversation.Id) == before ? fresh : null;
+    }
+
+    private static bool IsAuthFailure(SlackApiException error) =>
+        error.Error is "invalid_auth" or "not_authed" or "token_revoked" or "token_expired" or "account_inactive";
 
     public async Task RunAsync(UnreadFeed feed, CancellationToken stop)
     {
@@ -190,15 +217,17 @@ public sealed class SlackSource(SlackApi api, MessagesOptions options, TimeProvi
         if (subtype == "message_deleted")
         {
             var deletedTs = Json.Str(message["deleted_ts"]);
+            _socketChanges.AddOrUpdate(channel, 1, (_, n) => n + 1);
             feed.RemoveWhere(SourceName, i => i.Group == channel && i.Id == ItemId(me, channel, deletedTs ?? ""));
             return;
         }
+        if (!Counts(message, me)) return;
+        _socketChanges.AddOrUpdate(channel, 1, (_, n) => n + 1);
         if (Json.Str(message["user"]) == me.UserId)
         {
             feed.RemoveWhere(SourceName, i => i.Group == channel);
             return;
         }
-        if (!Counts(message, me)) return;
         var conversation = await ConversationAsync(channel, message, cancel);
         feed.Upsert(SourceName, await ToItemAsync(conversation, message, me, cancel));
     }

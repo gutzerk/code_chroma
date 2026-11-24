@@ -86,8 +86,12 @@ public sealed class OutlookSource(
     private readonly SemaphoreSlim _tokenGate = new(1, 1);
     private OutlookTokens? _tokens;
     private string _refreshToken = refreshToken;
+    private static readonly TimeSpan FolderRefresh = TimeSpan.FromMinutes(15);
+    private const int MaxFolders = 2000;
+
     private HashSet<string>? _hiddenFolderIds;
     private Dictionary<string, string> _folderNames = [];
+    private DateTimeOffset _foldersLoadedAt;
 
     public string Name => SourceName;
 
@@ -101,7 +105,7 @@ public sealed class OutlookSource(
             var me = await GetAsync("me?$select=mail,userPrincipalName", cancel);
             Account = Json.NonEmptyStr(me["mail"]) ?? Json.Str(me["userPrincipalName"]);
         }
-        if (_hiddenFolderIds is null) await LoadFoldersAsync(cancel);
+        if (_hiddenFolderIds is null || clock.GetUtcNow() - _foldersLoadedAt >= FolderRefresh) await LoadFoldersAsync(cancel);
         var items = new List<UnreadItem>();
         string? next = "me/messages?$filter=isRead%20eq%20false&$select=id,subject,bodyPreview,from,receivedDateTime,webLink,parentFolderId&$top=100";
         while (next is not null && items.Count < options.OutlookMaxItems)
@@ -136,11 +140,30 @@ public sealed class OutlookSource(
             catch (GraphException error) when (error.Status == HttpStatusCode.NotFound) { }
         }
         var names = new Dictionary<string, string>();
-        var folders = await GetAsync("me/mailFolders?$select=id,displayName&$top=100", cancel);
-        foreach (var node in folders["value"]?.AsArray() ?? [])
-            if (Json.Str(node?["id"]) is { } id && Json.Str(node?["displayName"]) is { } name) names[id] = name;
+        var pending = new Queue<(string Path, bool Hidden)>();
+        pending.Enqueue(("me/mailFolders", false));
+        while (pending.Count > 0 && names.Count < MaxFolders)
+        {
+            var (path, parentHidden) = pending.Dequeue();
+            string? next = $"{path}?$select=id,displayName,childFolderCount&$top=100";
+            while (next is not null && names.Count < MaxFolders)
+            {
+                var page = await GetAsync(next, cancel);
+                foreach (var node in page["value"]?.AsArray() ?? [])
+                {
+                    if (Json.Str(node?["id"]) is not { } id) continue;
+                    names[id] = Json.Str(node?["displayName"]) ?? "Mail";
+                    var isHidden = parentHidden || hidden.Contains(id);
+                    if (isHidden) hidden.Add(id);
+                    if (node?["childFolderCount"] is JsonValue count && count.TryGetValue(out int children) && children > 0)
+                        pending.Enqueue(($"me/mailFolders/{Uri.EscapeDataString(id)}/childFolders", isHidden));
+                }
+                next = Json.Str(page["@odata.nextLink"]);
+            }
+        }
         _folderNames = names;
         _hiddenFolderIds = hidden;
+        _foldersLoadedAt = clock.GetUtcNow();
     }
 
     private UnreadItem? ToItem(JsonObject message)

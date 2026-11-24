@@ -70,6 +70,60 @@ public class SlackSourceTests
     }
 
     [Fact]
+    public async Task A_thread_reply_by_the_user_keeps_the_channel_unread()
+    {
+        var (source, feed, _, _) = Create();
+        await source.RecheckAsync(feed, CancellationToken.None);
+        var frame = new JsonObject
+        {
+            ["type"] = "events_api", ["envelope_id"] = "E4",
+            ["payload"] = new JsonObject
+            {
+                ["event"] = new JsonObject
+                {
+                    ["type"] = "message", ["channel"] = "C1", ["user"] = SlackFixture.Me, ["text"] = "in a thread",
+                    ["ts"] = "1700000500.000000", ["thread_ts"] = "1700000001.000000",
+                },
+            },
+        };
+
+        await source.OnFrameAsync(new FakeSocket(), frame.ToJsonString(), feed, CancellationToken.None);
+
+        Assert.Equal(["C1", "D1"], feed.Items("slack").Select(i => i.Group).Order());
+    }
+
+    [Fact]
+    public async Task A_rate_limited_conversation_keeps_its_items_while_the_others_refresh()
+    {
+        var api = SlackFixture.Workspace();
+        var (source, feed, _, _) = Create(api);
+        await source.RecheckAsync(feed, CancellationToken.None);
+        api.On("GET", "/api/conversations.history", (request, _) =>
+        {
+            if (SlackFixture.Query(request, "channel") != "D1") return FakeApi.Respond(new JsonObject { ["ok"] = true, ["messages"] = new JsonArray() });
+            var limited = FakeApi.Respond(new JsonObject { ["ok"] = false, ["error"] = "ratelimited" }, System.Net.HttpStatusCode.TooManyRequests);
+            limited.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.Zero);
+            return limited;
+        });
+
+        await source.RecheckAsync(feed, CancellationToken.None);
+
+        Assert.Equal(["D1"], feed.Items("slack").Select(i => i.Group));
+    }
+
+    [Fact]
+    public async Task A_refused_user_token_still_fails_the_recheck()
+    {
+        var api = SlackFixture.Workspace();
+        api.On("GET", "/api/conversations.history", new JsonObject { ["ok"] = false, ["error"] = "token_revoked" });
+        var (source, feed, _, _) = Create(api);
+
+        var error = await Assert.ThrowsAsync<SlackApiException>(() => source.RecheckAsync(feed, CancellationToken.None));
+
+        Assert.Equal("token_revoked", error.Error);
+    }
+
+    [Fact]
     public async Task A_disconnect_frame_asks_to_reconnect()
     {
         var (source, feed, _, _) = Create();

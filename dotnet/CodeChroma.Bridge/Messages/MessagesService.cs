@@ -17,6 +17,9 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
         public IMessageSource Source { get; } = source;
         public CancellationTokenSource Stop { get; } = stop;
         public Task Task { get; } = task;
+
+        /// <summary>Focus re-checks still running for this source; guarded by the service's gate.</summary>
+        public List<Task> Rechecks { get; } = [];
     }
 
     private readonly ITokenVault _vault;
@@ -26,6 +29,7 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
     private readonly ConcurrentDictionary<string, Pending> _pending = new();
     private readonly Dictionary<string, Runner> _runners = [];
     private readonly object _gate = new();
+    private readonly Dictionary<string, SemaphoreSlim> _lifecycle = UnreadFeed.Sources.ToDictionary(s => s, _ => new SemaphoreSlim(1, 1));
     private DateTimeOffset _lastFocus = DateTimeOffset.MinValue;
     private SlackIdentity? _slackIdentity;
 
@@ -59,7 +63,7 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        foreach (var source in UnreadFeed.Sources) await StopSourceAsync(source);
+        foreach (var source in UnreadFeed.Sources) await Exclusive(source, () => StopSourceAsync(source));
     }
 
     public async ValueTask DisposeAsync()
@@ -84,10 +88,13 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
         }
         catch (SlackApiException error) { throw new IntegrationException("Slack refused the tokens: " + error.Error); }
         catch (HttpRequestException error) { throw new IntegrationException("Slack is unreachable: " + error.Message, 502); }
-        await StopSourceAsync(SlackSource.SourceName);
-        _vault.Set(VaultKeys.SlackUserToken, userToken);
-        _vault.Set(VaultKeys.SlackAppToken, appToken);
-        StartSlack(userToken, appToken);
+        await Exclusive(SlackSource.SourceName, async () =>
+        {
+            await StopSourceAsync(SlackSource.SourceName);
+            _vault.Set(VaultKeys.SlackUserToken, userToken);
+            _vault.Set(VaultKeys.SlackAppToken, appToken);
+            StartSlack(userToken, appToken);
+        });
         return identity;
     }
 
@@ -97,6 +104,7 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
         var effectiveClient = clientId is { Length: > 0 } own ? own.Trim() : _options.DefaultOutlookClientId
             ?? throw new IntegrationException("This build has no CodeChroma Entra client id yet; enter your own application (client) id.");
         var effectiveTenant = tenant is { Length: > 0 } t ? t.Trim() : DefaultTenant;
+        if (!IsRunning(OutlookSource.SourceName)) Feed.Clear(OutlookSource.SourceName);
         foreach (var stale in _pending.Where(p => _clock.GetUtcNow() - p.Value.Created > TimeSpan.FromMinutes(10)).ToList()) _pending.TryRemove(stale.Key, out _);
         var (verifier, challenge) = OutlookAuth.Pkce();
         var state = OutlookAuth.NewState();
@@ -112,42 +120,56 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
         if (code is not { Length: > 0 }) throw new IntegrationException("Microsoft sign-in returned no code.");
         var tokens = await Auth().ExchangeAsync(pending.ClientId, pending.Tenant, code, pending.Verifier, pending.RedirectUri, cancel);
         if (tokens.RefreshToken is not { Length: > 0 } refresh) throw new IntegrationException("Microsoft returned no refresh token (offline_access was not granted).");
-        await StopSourceAsync(OutlookSource.SourceName);
-        _vault.Set(VaultKeys.OutlookRefreshToken, refresh);
-        if (pending.ClientId != _options.DefaultOutlookClientId) _vault.Set(VaultKeys.OutlookClientId, pending.ClientId);
-        else _vault.Delete(VaultKeys.OutlookClientId);
-        if (pending.Tenant != DefaultTenant) _vault.Set(VaultKeys.OutlookTenant, pending.Tenant);
-        else _vault.Delete(VaultKeys.OutlookTenant);
-        StartOutlook(pending.ClientId, pending.Tenant, refresh);
+        await Exclusive(OutlookSource.SourceName, async () =>
+        {
+            await StopSourceAsync(OutlookSource.SourceName);
+            _vault.Set(VaultKeys.OutlookRefreshToken, refresh);
+            if (pending.ClientId != _options.DefaultOutlookClientId) _vault.Set(VaultKeys.OutlookClientId, pending.ClientId);
+            else _vault.Delete(VaultKeys.OutlookClientId);
+            if (pending.Tenant != DefaultTenant) _vault.Set(VaultKeys.OutlookTenant, pending.Tenant);
+            else _vault.Delete(VaultKeys.OutlookTenant);
+            StartOutlook(pending.ClientId, pending.Tenant, refresh);
+        });
+    }
+
+    /// <summary>Shows a failed Outlook sign-in in Settings, unless a working connection is still running.</summary>
+    public void ReportOutlookSignInFailure(string message)
+    {
+        if (!IsRunning(OutlookSource.SourceName)) Feed.Fail(OutlookSource.SourceName, message);
     }
 
     public async Task DisconnectAsync(string source)
     {
         if (!UnreadFeed.Sources.Contains(source)) throw new IntegrationException($"unknown source: {source}", 404);
-        await StopSourceAsync(source);
-        foreach (var key in source == SlackSource.SourceName ? VaultKeys.Slack : VaultKeys.Outlook) _vault.Delete(key);
-        if (source == SlackSource.SourceName) _slackIdentity = null;
-        Feed.Clear(source);
+        await Exclusive(source, async () =>
+        {
+            await StopSourceAsync(source);
+            foreach (var key in source == SlackSource.SourceName ? VaultKeys.Slack : VaultKeys.Outlook) _vault.Delete(key);
+            if (source == SlackSource.SourceName) _slackIdentity = null;
+            Feed.Clear(source);
+        });
     }
 
     /// <summary>A window-focus re-check of every running source, throttled; false when it was skipped.</summary>
     public bool RefreshAll()
     {
-        List<Runner> runners;
         lock (_gate)
         {
             var now = _clock.GetUtcNow();
             if (now - _lastFocus < _options.FocusThrottle) return false;
             _lastFocus = now;
-            runners = [.. _runners.Values];
-        }
-        foreach (var runner in runners)
-            _ = Task.Run(async () =>
+            foreach (var runner in _runners.Values)
             {
-                try { await runner.Source.RecheckAsync(Feed, runner.Stop.Token); }
-                catch (OperationCanceledException) { }
-                catch (Exception error) { Feed.Fail(runner.Source.Name, error is SlackApiException ? SlackSource.Describe(error) : error.Message); }
-            });
+                var token = runner.Stop.Token;
+                runner.Rechecks.RemoveAll(t => t.IsCompleted);
+                runner.Rechecks.Add(Task.Run(async () =>
+                {
+                    try { await runner.Source.RecheckAsync(Feed, token); }
+                    catch (Exception) when (token.IsCancellationRequested) { }
+                    catch (Exception error) { Feed.Fail(runner.Source.Name, error is SlackApiException ? SlackSource.Describe(error) : error.Message); }
+                }, CancellationToken.None));
+            }
+        }
         return true;
     }
 
@@ -223,23 +245,40 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
         var task = Task.Run(async () =>
         {
             try { await run(stop.Token); }
-            catch (OperationCanceledException) { }
+            catch (Exception) when (stop.IsCancellationRequested) { }
             catch (Exception error) { Feed.Fail(source.Name, error.Message); }
         });
-        lock (_gate) _runners[source.Name] = new Runner(source, stop, task);
+        Runner? replaced;
+        lock (_gate)
+        {
+            _runners.Remove(source.Name, out replaced);
+            _runners[source.Name] = new Runner(source, stop, task);
+        }
+        replaced?.Stop.Cancel();
     }
 
     private async Task StopSourceAsync(string name)
     {
         Runner? runner;
+        Task[] running;
         lock (_gate)
         {
             if (!_runners.Remove(name, out runner)) return;
+            running = [runner.Task, .. runner.Rechecks];
         }
         await runner.Stop.CancelAsync();
-        try { await runner.Task.WaitAsync(TimeSpan.FromSeconds(5)); }
+        try { await Task.WhenAll(running).WaitAsync(TimeSpan.FromSeconds(5)); }
         catch (Exception) { /* a source that will not stop in time is abandoned */ }
         runner.Stop.Dispose();
+    }
+
+    /// <summary>Runs one connect/disconnect/stop of a source at a time, so two overlapping requests cannot both start it.</summary>
+    private async Task Exclusive(string source, Func<Task> action)
+    {
+        var gate = _lifecycle[source];
+        await gate.WaitAsync();
+        try { await action(); }
+        finally { gate.Release(); }
     }
 }
 

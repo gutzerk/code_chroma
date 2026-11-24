@@ -62,6 +62,23 @@ describe("IntegrationsPanel", () => {
     await waitFor(() => expect(open).toHaveBeenCalledWith(expect.stringContaining("login.microsoftonline.com"), "_blank", "noopener"));
   });
 
+  it("stops waiting and shows the error when the sign-in fails", async () => {
+    vi.spyOn(window, "open").mockReturnValue(null);
+    render(<IntegrationsPanel onDismiss={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Connect Outlook" }));
+    await screen.findByRole("button", { name: "Waiting for sign-in…" });
+    vi.mocked(client.getIntegrations).mockResolvedValue(
+      status({ outlook: { connected: false, state: "error", error: "Microsoft sign-in was cancelled or refused: access_denied", account: null, client_id: null, tenant: "common", default_client_available: true } }),
+    );
+
+    const alert = await screen.findByRole("alert", {}, { timeout: 4000 });
+
+    expect([alert.textContent, screen.getByRole("button", { name: "Connect Outlook" }) !== null]).toEqual([
+      "Microsoft sign-in was cancelled or refused: access_denied",
+      true,
+    ]);
+  });
+
   it("requires a client id when the build has no default one", async () => {
     vi.mocked(client.getIntegrations).mockResolvedValue(
       status({ outlook: { connected: false, state: "disconnected", error: null, account: null, client_id: null, tenant: "common", default_client_available: false } }),

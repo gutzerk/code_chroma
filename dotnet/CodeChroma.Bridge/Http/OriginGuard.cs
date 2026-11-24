@@ -33,6 +33,9 @@ public sealed class OriginGuard(RequestDelegate next, IReadOnlySet<string> allow
         return netloc != host || !LoopbackHosts.Contains(Hostname(netloc));
     }
 
+    /// <summary>Whether a Host header's hostname (port already stripped) names this machine's loopback.</summary>
+    public static bool IsLoopbackHost(string hostname) => LoopbackHosts.Contains(hostname.Trim('[', ']').ToLowerInvariant());
+
     private static string Netloc(string url)
     {
         var rest = url.Contains("://", StringComparison.Ordinal) ? url[(url.IndexOf("://", StringComparison.Ordinal) + 3)..] : url;

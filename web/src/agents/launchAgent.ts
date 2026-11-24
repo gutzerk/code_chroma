@@ -18,6 +18,7 @@ export async function launchAgent(
   context?: ViewContext | null,
   task?: string,
   diagram?: DiagramTaskHint,
+  model?: string,
 ): Promise<void> {
   await runLaunch(client, async () => {
     if (!(await gitReady(client))) return null;
@@ -25,9 +26,11 @@ export async function launchAgent(
     const workspace = attachTo?.startsWith("pr-")
       ? undefined
       : ((attachTo && agentStore.getAgent(attachTo)?.workspace) || worktreeStore.getActiveId() || undefined);
+    // A picked model rides after workflowRequest; without one the call keeps its old shape.
+    const picked: [undefined, string] | [] = model ? [undefined, model] : [];
     return task
-      ? client.create(diagram?.title ?? "", "agent", attachTo, task, "task", diagram, workspace)
-      : client.create("", "agent", attachTo, context?.description ?? null, undefined, undefined, workspace);
+      ? client.create(diagram?.title ?? "", "agent", attachTo, task, "task", diagram, workspace, ...picked)
+      : client.create("", "agent", attachTo, context?.description ?? null, undefined, undefined, workspace, ...picked);
   });
 }
 

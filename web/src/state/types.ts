@@ -547,8 +547,11 @@ export interface AgentModelChoices {
   provider_name: string | null;
   /** The model a launch without a pick uses; null when the CLI picks its own. */
   current: string | null;
+  /** The listed id `current` names (an alias like "opus" resolves to its catalog id); null when none is listed. */
+  current_id?: string | null;
   models: ProviderModel[];
-  source: "cache" | "catalog" | "static";
+  /** "unsupported": the connection cannot list its models. */
+  source: "cache" | "catalog" | "static" | "unsupported";
   /** Why the provider's listing failed, when it did. */
   error: string | null;
 }

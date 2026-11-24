@@ -82,6 +82,40 @@ public sealed class AgentModelChoicesTests : IDisposable
         Assert.Equal(["--model", "sonnet"], argv.Skip(1).Take(2));
     }
 
+    [Fact]
+    public async Task A_claude_alias_marks_its_catalog_id_as_current()
+    {
+        JsonFile.Write(_paths.Assistant, new JsonObject { ["model"] = "opus" });
+        var dir = CatalogDir("""{"fetchedAt":2,"catalog":{"config":{"models":[{"id":"claude-sonnet-5-5"},{"id":"claude-opus-5-5"}]}}}""");
+
+        var choices = await AgentModelChoices.For(_callSites, _providers, _paths, null, dir);
+
+        Assert.Equal("claude-opus-5-5", choices["current_id"]!.GetValue<string>());
+    }
+
+    [Theory]
+    [InlineData("claude-opus-5-5-20260101", "claude-opus-5-5")]
+    [InlineData("gpt-5.2", "gpt-5.2")]
+    [InlineData("mistral", null)]
+    public void The_current_id_is_the_listed_id_the_model_names(string current, string? expected)
+    {
+        var models = new JsonArray(new JsonObject { ["id"] = "claude-opus-5-5" }, new JsonObject { ["id"] = "gpt-5.2" });
+
+        var id = AgentModelChoices.CurrentId(models, current);
+
+        Assert.Equal(expected, id);
+    }
+
+    [Fact]
+    public void A_claude_window_on_a_stand_in_binary_gets_no_model_flag()
+    {
+        JsonFile.Write(_paths.Assistant, new JsonObject { ["cli"] = "my-wrapper" });
+
+        var argv = new TerminalAgents(_paths, _providers, _callSites).Resolve("claude", model: "sonnet")!.Argv;
+
+        Assert.DoesNotContain("--model", argv);
+    }
+
     [Theory]
     [InlineData("--dangerously-skip-permissions")]
     [InlineData("opus; rm -rf /")]

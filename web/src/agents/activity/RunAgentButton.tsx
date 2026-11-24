@@ -7,12 +7,16 @@ import { PlusIcon } from "./icons";
 /** How long "Run new agent" is held before the model menu drops down under it. */
 export const LONG_PRESS_MS = 1000;
 
+/** How long a press lasts before the model list is prefetched, so a plain click asks the bridge nothing. */
+export const PREFETCH_MS = 250;
+
 /** "Run new agent": a click runs the configured model; holding it for a second (or ArrowDown / right-click) lists models to pick for this one agent. */
 export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; onRunAgent: (model?: string) => void }) {
   const client = useAgentClient();
   const { choices, loading, error, refresh, supported } = useAgentModels(client);
   const [open, setOpen] = useState(false);
   const timer = useRef<number | null>(null);
+  const prefetchTimer = useRef<number | null>(null);
   const swallowClick = useRef(false);
   const focusFirst = useRef(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -21,7 +25,9 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
 
   const cancelPress = () => {
     if (timer.current !== null) window.clearTimeout(timer.current);
+    if (prefetchTimer.current !== null) window.clearTimeout(prefetchTimer.current);
     timer.current = null;
+    prefetchTimer.current = null;
   };
   useEffect(() => cancelPress, []);
   useEffect(() => {
@@ -44,8 +50,11 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
     if (disabled || !supported || e.button !== 0) return;
     swallowClick.current = false;
     cancelPress();
-    // Prefetch now, so the list is usually there by the time the second is up.
-    refresh();
+    // Prefetch once the press outlasts a click, so the list is usually there by the time the second is up.
+    prefetchTimer.current = window.setTimeout(() => {
+      prefetchTimer.current = null;
+      refresh();
+    }, PREFETCH_MS);
     timer.current = window.setTimeout(() => {
       timer.current = null;
       swallowClick.current = true;
@@ -53,13 +62,17 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
     }, LONG_PRESS_MS);
   };
 
-  const onClick = () => {
+  const onClick = (e: MouseEvent<HTMLButtonElement>) => {
     cancelPress();
-    if (swallowClick.current) {
-      swallowClick.current = false;
+    const swallow = swallowClick.current;
+    swallowClick.current = false;
+    // Only the pointer click ending a long press is swallowed; a keyboard click (detail 0) never is.
+    if (swallow && e.detail > 0) return;
+    // With the menu open, the button closes it instead of launching.
+    if (open) {
+      setOpen(false);
       return;
     }
-    setOpen(false);
     onRunAgent();
   };
 
@@ -93,6 +106,7 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
   };
 
   const current = choices?.current ?? null;
+  const currentId = choices?.current_id ?? current;
   const models = choices?.models ?? [];
   return (
     <div className="activity-run-wrap" ref={containerRef}>
@@ -131,7 +145,7 @@ export function RunAgentButton({ disabled, onRunAgent }: { disabled: boolean; on
               type="button"
               role="menuitem"
               className="run-agent-menu-item"
-              aria-current={model.id === current ? "true" : undefined}
+              aria-current={model.id === currentId ? "true" : undefined}
               onClick={() => pick(model.id)}
             >
               <span>{model.label ?? model.id}</span>

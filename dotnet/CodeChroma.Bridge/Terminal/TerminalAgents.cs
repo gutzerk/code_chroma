@@ -95,7 +95,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         {
             var binary = AssistantRoutes.EffectiveCli(paths);
             var mcp = McpFor(binary == DefaultCli ? CliAdapters.All["claude"] : null, agentId, bridgeUrl, bare, workdir);
-            var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, ModelArgs(model ?? "", new Dictionary<string, string>()), delegation);
+            var argv = Argv(binary, binary == DefaultCli, "claude", resumeSessionId, initialPrompt, bare, visiblePrompt, mcp?.Args, binary == DefaultCli ? ModelArgs(model ?? "", new Dictionary<string, string>()) : [], delegation);
             var hooks = binary == DefaultCli ? HookEndpointFor(agentId, bridgeUrl) : null;
             var launch = OwnedLaunch(argv, WithEnv([], mcp), binary == DefaultCli, resumeSessionId, forkSession, newSessionId, sessionTrackingFile, mcp is not null, hooks);
             return launch with { Clear = ClearWatch.For(binary == DefaultCli ? CliAdapters.All["claude"] : null, launch.StatusHooks) };

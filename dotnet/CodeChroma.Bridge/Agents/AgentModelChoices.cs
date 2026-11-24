@@ -7,7 +7,7 @@ namespace CodeChroma.Bridge.Agents;
 /// <summary>GET /agents/models: the models the "Run new agent" long-press menu offers, for the connection new agent windows run on.</summary>
 public static class AgentModelChoices
 {
-    /// <summary>{provider_name, current, models, source, error}: Claude Code's cached catalog first, else the provider listing the LLM settings use.</summary>
+    /// <summary>{provider_name, current, current_id, models, source, error}: Claude Code's cached catalog first, else the provider listing the LLM settings use.</summary>
     public static async Task<JsonObject> For(CallSiteStore sites, ProviderStore providers, UserPaths paths, Skills.RuntimeEnvironment? runtime, string? catalogDir = null)
     {
         var (cli, provider) = new Skills.CliResolver(paths, providers, sites).ResolveWithProvider(TerminalAgents.AgentCallSite, "");
@@ -22,6 +22,7 @@ public static class AgentModelChoices
         {
             reply["models"] = cached;
             reply["source"] = "cache";
+            reply["current_id"] = CurrentId(cached, cli.Model);
             return reply;
         }
         var listing = await ModelCatalog.Fetch(provider ?? new JsonObject { ["kind"] = "cli", ["adapter"] = cli.AdapterKey }, runtime);
@@ -29,9 +30,21 @@ public static class AgentModelChoices
         var error = listing["error"];
         listing.Remove("models");
         listing.Remove("error");
-        reply["models"] = models ?? new JsonArray();
-        reply["source"] = listing["static"] is not null ? "static" : "catalog";
+        var listed = models as JsonArray ?? new JsonArray();
+        reply["models"] = listed;
+        reply["source"] = listing["supported"] is JsonValue s && s.TryGetValue<bool>(out var ok) && !ok ? "unsupported" : listing["static"] is not null ? "static" : "catalog";
+        reply["current_id"] = CurrentId(listed, cli.Model);
         reply["error"] = error;
         return reply;
+    }
+
+    /// <summary>The listed id the configured model names: the same id, the same base id, or the first listed `claude-ALIAS-*` for a claude alias; null when none.</summary>
+    public static string? CurrentId(JsonArray models, string current)
+    {
+        if (current.Length == 0) return null;
+        var ids = models.Select(m => Json.Str(m?["id"])).OfType<string>().ToList();
+        var exact = ids.FirstOrDefault(id => id == current) ?? ids.FirstOrDefault(id => ClaudeModelCatalog.BaseId(id) == ClaudeModelCatalog.BaseId(current));
+        if (exact is not null) return exact;
+        return current.All(char.IsAsciiLetterLower) ? ids.FirstOrDefault(id => id.StartsWith($"claude-{current}-", StringComparison.Ordinal)) : null;
     }
 }

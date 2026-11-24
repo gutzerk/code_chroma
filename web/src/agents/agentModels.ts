@@ -26,8 +26,16 @@ export function useAgentModels(client: AgentClient) {
     if (!entry || Date.now() - entry.at > FRESH_MS) {
       const request = client.agentModels();
       const next: Cached = { at: Date.now(), request, choices: entry?.choices };
-      // A failed listing is dropped, so the next press retries it.
-      request.then((answer) => (next.choices = answer), () => cache.delete(client));
+      const previous = entry;
+      // A failed listing gives way to the last good one (stale, so the next press retries); only this request's own entry is touched.
+      request.then(
+        (answer) => (next.choices = answer),
+        () => {
+          if (cache.get(client) !== next) return;
+          if (previous?.choices) cache.set(client, { ...previous, request: Promise.resolve(previous.choices) });
+          else cache.delete(client);
+        },
+      );
       cache.set(client, next);
       entry = next;
     }

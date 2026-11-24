@@ -8373,12 +8373,13 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
 
 .block-focus-self { outline: 2px solid #5EE0A0; box-shadow: 0 0 0 6px rgba(94, 224, 160, 0.14); }
 
-.canvas-focus-panel { width: 320px; padding: 20px; border-radius: 14px; background: #202226; border-color: #33363C; font-size: 13px; color: #C9CDD2; display: flex; flex-direction: column; gap: 8px; }
+.canvas-focus-panel { width: 320px; padding: 20px; border-radius: 14px; background: #202226; border-color: #33363C; font-size: 13px; color: #C9CDD2; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; max-height: calc(100% - 84px); overflow-y: auto; }
 .canvas-focus-panel__head { display: flex; align-items: center; justify-content: space-between; }
 .canvas-focus-panel__kicker { font-family: var(--font-mono, monospace); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #5EE0A0; }
 .canvas-focus-panel__close { border: 0; background: transparent; color: #8D939B; cursor: pointer; }
 .canvas-focus-panel__name { font-size: 18px; font-weight: 600; color: #ECEDEE; }
-.canvas-focus-panel__desc { font-size: 12.5px; color: #8D939B; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; overflow-wrap: anywhere; }
+/* The focus panel is where a clicked block's full description is read, so it is never clamped; the panel scrolls instead. */
+.canvas-focus-panel__desc { font-size: 12.5px; color: #8D939B; white-space: pre-wrap; overflow-wrap: anywhere; }
 .canvas-focus-panel h4 { margin: 6px 0 0; font-family: var(--font-mono, monospace); font-size: 10.5px; font-weight: 400; letter-spacing: 0; opacity: 1; color: #7C8188; }
 .canvas-focus-panel ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .canvas-focus-panel__edge { color: #7C8188; }

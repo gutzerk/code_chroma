@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { FocusPanel } from "./FocusPanel";
@@ -83,5 +85,13 @@ describe("FocusPanel", () => {
 
     expect(screen.queryByTestId("focus-description")).toBeNull();
     expect(screen.queryByText(/neighbours stay lit/)).toBeNull();
+  });
+  it("never line-clamps the description so a long block text is read in full", () => {
+    const css = readFileSync(resolve(__dirname, "../../styles.css"), "utf-8");
+
+    const rules = [...css.matchAll(/\.canvas-focus-panel__desc\s*\{([^}]*)\}/g)].map((match) => match[1]);
+
+    expect(rules.length).toBeGreaterThan(0);
+    expect(rules.join(" ")).not.toMatch(/line-clamp|overflow:\s*hidden/);
   });
 });

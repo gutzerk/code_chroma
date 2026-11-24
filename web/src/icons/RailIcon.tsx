@@ -25,7 +25,8 @@ export type RailIconName =
   | "layer"
   | "games"
   | "share"
-  | "zoom-settings";
+  | "zoom-settings"
+  | "messages";
 
 export interface RailIconProps {
   name: RailIconName;
@@ -42,6 +43,16 @@ export function RailIcon({ name }: RailIconProps) {
 }
 
 const PATHS: Record<RailIconName, ReactElement> = {
+  // A speech bubble over an envelope flap -- unread Slack and Outlook messages.
+  messages: (
+    <path
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinejoin="round"
+      d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2zM2.5 3.5l5.5 4 5.5-4"
+    />
+  ),
   // Three slider tracks with knobs -- the zoom sensitivity/scale settings.
   "zoom-settings": (
     <>

@@ -141,7 +141,7 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
                 return;
             }
             e.Cancel = true;
-            if (target.Scheme is "http" or "https") Process.Start(new ProcessStartInfo(target.AbsoluteUri) { UseShellExecute = true });
+            if (ExternalLinks.CanOpen(target)) Process.Start(new ProcessStartInfo(target.AbsoluteUri) { UseShellExecute = true });
         };
         view.Web.WebMessageReceived += (_, e) => Dispatcher.UIThread.Post(() =>
         {

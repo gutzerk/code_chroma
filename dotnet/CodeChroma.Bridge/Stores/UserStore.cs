@@ -13,6 +13,7 @@ public sealed class UserPaths
     public required string DiagramTypes { get; init; }
     public required string Workflows { get; init; }
     public required string CanvasStyle { get; init; }
+    public required string IntegrationTokens { get; init; }
 
     public static UserPaths FromEnvironment() => new()
     {
@@ -23,6 +24,7 @@ public sealed class UserPaths
         DiagramTypes = Resolve("codechroma_DIAGRAM_TYPES_DIR", "diagram-types"),
         Workflows = Resolve("codechroma_WORKFLOWS_DIR", "workflows"),
         CanvasStyle = Resolve("codechroma_CANVAS_STYLE_FILE", "canvas-style.json"),
+        IntegrationTokens = Resolve("codechroma_INTEGRATION_TOKENS_FILE", "integration-tokens.json"),
     };
 
     /// <summary>Every store under one directory (tests).</summary>
@@ -35,6 +37,7 @@ public sealed class UserPaths
         DiagramTypes = Path.Combine(directory, "diagram-types"),
         Workflows = Path.Combine(directory, "workflows"),
         CanvasStyle = Path.Combine(directory, "canvas-style.json"),
+        IntegrationTokens = Path.Combine(directory, "integration-tokens.json"),
     };
 
     internal static string Resolve(string envVar, string fileName)

@@ -6,6 +6,7 @@ using CodeChroma.Bridge.Embeddings;
 using CodeChroma.Bridge.Engine;
 using CodeChroma.Bridge.Http;
 using CodeChroma.Bridge.Live;
+using CodeChroma.Bridge.Messages;
 using CodeChroma.Bridge.Questions;
 using CodeChroma.Bridge.Routes;
 using CodeChroma.Bridge.Skills;
@@ -81,6 +82,7 @@ builder.Services.AddSingleton(sp =>
 });
 builder.Services.AddHostedService<RegistryLifecycle>();
 builder.Services.AddAgentsAndPrs(repoRoot);
+builder.Services.AddMessages();
 builder.Services.AddCors();
 
 var app = builder.Build();
@@ -123,6 +125,7 @@ WikiGeneralRoutes.Map(app);
 WorkflowRoutes.Map(app);
 QuestionRoutes.Map(app);
 ProcessDiagramRoutes.Map(app);
+MessageRoutes.Map(app);
 if (Environment.GetEnvironmentVariable("codechroma_MODEL_WARMUP")?.Trim() == "1") _ = Task.Run(() => app.Services.GetRequiredService<DiagramContext>().WarmModelAsync());
 
 app.Run();

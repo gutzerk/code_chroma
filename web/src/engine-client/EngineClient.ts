@@ -276,6 +276,8 @@ export interface EngineClient {
   subscribeRuns(onEvent: (event: RunEvent | undefined) => void): () => void;
   /** Subscribes to `workflows` pings: a workflow definition was saved or deleted (in any workspace). */
   subscribeWorkflows(onChange: () => void): () => void;
+  /** Subscribes to `messages-changed` pings: the unread Slack/Outlook feed changed (C# bridge only, machine-wide). */
+  subscribeMessages(onChange: () => void): () => void;
   /** One fully-loaded work item (GET /repos/{id}/epics/items/{id}); `expand` names one stage node
    * id to populate its sections. Rejects with a readable message on 404. */
   getEpicsItem(itemId: string, expand?: string): Promise<EpicWorkItem>;
@@ -329,7 +331,7 @@ export const AGENT_EVENT_TYPES = [
 type AgentEventType = (typeof AGENT_EVENT_TYPES)[number];
 
 /** Pings that concern every workspace: agent lifecycle (the list spans every workspace) and workflow definitions (machine-wide). */
-const GLOBAL_EVENT_TYPES: readonly string[] = [...AGENT_EVENT_TYPES, "workflows"];
+const GLOBAL_EVENT_TYPES: readonly string[] = [...AGENT_EVENT_TYPES, "workflows", "messages-changed"];
 
 /** Message `type` values the shared events socket fans out, each with its own listener set.
  * Derived from the kind unions rather than hand-listed, so a new skill-run family (including the
@@ -340,6 +342,7 @@ type EventType =
   | "canvas"
   | "run"
   | "workflows"
+  | "messages-changed"
   | DiagramEventKind
   | `${SkillRunKind}-status`
   | `${SkillRunKind}-output`
@@ -812,6 +815,10 @@ export class HttpEngineClient implements EngineClient {
 
   subscribeWorkflows(onChange: () => void): () => void {
     return this.on("workflows", () => onChange());
+  }
+
+  subscribeMessages(onChange: () => void): () => void {
+    return this.on("messages-changed", () => onChange());
   }
 
   async getEpicsItem(itemId: string, expand?: string): Promise<EpicWorkItem> {

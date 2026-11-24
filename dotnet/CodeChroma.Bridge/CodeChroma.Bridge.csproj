@@ -13,6 +13,7 @@
     <EmbeddedResource Include="../../src/codechroma/bridge/agents/detect/*.toml" LogicalName="detect/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../../src/codechroma/bridge/agents/detect/LICENSE-herdr.txt" LogicalName="detect/LICENSE-herdr.txt" />
     <EmbeddedResource Include="../../src/codechroma/prompts/*.yaml" LogicalName="prompts/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Messages/slack-manifest.json" LogicalName="slack-manifest.json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,6 +27,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
     <PackageReference Include="Porta.Pty" Version="1.0.7" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

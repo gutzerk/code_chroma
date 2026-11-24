@@ -1,0 +1,90 @@
+using System.Net;
+using System.Text.Json.Nodes;
+using CodeChroma.Bridge.Http;
+using CodeChroma.Bridge.Messages;
+using CodeChroma.Bridge.Stores;
+
+namespace CodeChroma.Bridge.Routes;
+
+/// <summary>The unread-messages feed and the Slack/Outlook integrations (C#-only, like workflows); see docs/architecture/unread-messages.md.</summary>
+public static class MessageRoutes
+{
+    public const string OutlookCallbackPath = "/integrations/outlook/callback";
+
+    private static readonly Lazy<string> Manifest = new(() =>
+    {
+        using var stream = typeof(MessageRoutes).Assembly.GetManifestResourceStream("slack-manifest.json")!;
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    });
+
+    public static void Map(WebApplication app)
+    {
+        app.MapGet("/messages/unread", (MessagesService messages) => Reply.Json(messages.Feed.Snapshot()));
+
+        app.MapPost("/messages/refresh", (MessagesService messages) => Reply.Json(new JsonObject { ["started"] = messages.RefreshAll() }));
+
+        app.MapGet("/integrations", (MessagesService messages) => Reply.Json(messages.Status()));
+
+        app.MapGet("/integrations/slack/manifest", () => Results.Text(Manifest.Value, "application/json; charset=utf-8"));
+
+        app.MapPost("/integrations/slack", async (HttpRequest request, MessagesService messages) =>
+        {
+            var body = await Reply.LenientBody(request);
+            return await Guard(async () =>
+            {
+                var identity = await messages.ConnectSlackAsync(Json.Str(body["user_token"]) ?? "", Json.Str(body["app_token"]) ?? "", request.HttpContext.RequestAborted);
+                return Reply.Json(new JsonObject { ["workspace"] = identity.Team, ["user"] = identity.User });
+            });
+        });
+
+        app.MapPost("/integrations/outlook/connect", async (HttpRequest request, MessagesService messages) =>
+        {
+            var body = await Reply.LenientBody(request);
+            return await Guard(() =>
+            {
+                var url = messages.BeginOutlook(Json.Str(body["client_id"]), Json.Str(body["tenant"]), RedirectUri(request));
+                return Task.FromResult(Reply.Json(new JsonObject { ["auth_url"] = url.AbsoluteUri }));
+            });
+        });
+
+        app.MapGet(OutlookCallbackPath, async (HttpRequest request, MessagesService messages) =>
+        {
+            var query = request.Query;
+            try
+            {
+                await messages.CompleteOutlookAsync(query["state"], query["code"], query["error_description"].FirstOrDefault() ?? query["error"], request.HttpContext.RequestAborted);
+                return Page("Outlook is connected", "You can close this tab and return to CodeChroma.");
+            }
+            catch (IntegrationException error) { return Page("Outlook was not connected", error.Message, error.Status); }
+            catch (HttpRequestException error) { return Page("Outlook was not connected", "Microsoft sign-in is unreachable: " + error.Message, 502); }
+        });
+
+        app.MapDelete("/integrations/{source}", (string source, MessagesService messages) => Guard(async () =>
+        {
+            await messages.DisconnectAsync(source);
+            return Reply.Json(new JsonObject { ["source"] = source, ["connected"] = false });
+        }));
+    }
+
+    /// <summary>The loopback redirect back into this bridge: Entra matches http://localhost on any port for a public client.</summary>
+    private static string RedirectUri(HttpRequest request)
+    {
+        var port = request.Host.Port ?? (request.IsHttps ? 443 : 80);
+        return $"http://localhost:{port}{OutlookCallbackPath}";
+    }
+
+    private static async Task<IResult> Guard(Func<Task<IResult>> body)
+    {
+        try { return await body(); }
+        catch (IntegrationException error) { return Reply.Error(error.Status, error.Message); }
+    }
+
+    private static IResult Page(string title, string message, int status = 200)
+    {
+        var html = $"<!doctype html><meta charset=\"utf-8\"><title>{WebUtility.HtmlEncode(title)}</title>"
+            + "<body style=\"font-family:system-ui,sans-serif;background:#1b1e27;color:#e6e8ef;display:grid;place-items:center;height:100vh;margin:0\">"
+            + $"<main style=\"max-width:28rem;text-align:center\"><h1 style=\"font-size:1.25rem\">{WebUtility.HtmlEncode(title)}</h1><p>{WebUtility.HtmlEncode(message)}</p></main>";
+        return Results.Text(html, "text/html; charset=utf-8", statusCode: status);
+    }
+}

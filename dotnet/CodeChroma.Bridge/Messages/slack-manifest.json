@@ -1,0 +1,38 @@
+{
+  "display_information": {
+    "name": "CodeChroma Unread",
+    "description": "Lists your unread Slack messages inside CodeChroma. Read-only.",
+    "background_color": "#1b1e27"
+  },
+  "oauth_config": {
+    "scopes": {
+      "user": [
+        "channels:read",
+        "groups:read",
+        "im:read",
+        "mpim:read",
+        "channels:history",
+        "groups:history",
+        "im:history",
+        "mpim:history",
+        "users:read"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "user_events": [
+        "message.channels",
+        "message.groups",
+        "message.im",
+        "message.mpim"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": false
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false
+  }
+}

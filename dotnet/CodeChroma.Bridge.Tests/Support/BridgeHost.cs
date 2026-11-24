@@ -49,6 +49,7 @@ public sealed class BridgeHost : IDisposable
                     : new SnapshotEngineFactory(snapshot));
                 services.AddSingleton(UserPaths.Under(Path.Combine(_tempDir, "user-stores")));
                 services.AddSingleton(CodeChroma.Bridge.Diagrams.DiagramBootstrap.Offline);
+                services.AddSingleton<CodeChroma.Bridge.Messages.ITokenVault>(new CodeChroma.Bridge.Messages.MemoryVault());
                 configure?.Invoke(services);
             });
         });

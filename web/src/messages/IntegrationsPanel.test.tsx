@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as client from "./messagesClient";
 import type { Integrations } from "./messagesClient";
 import { IntegrationsPanel } from "./IntegrationsPanel";
@@ -77,6 +77,19 @@ describe("IntegrationsPanel", () => {
       "Microsoft sign-in was cancelled or refused: access_denied",
       true,
     ]);
+  });
+
+  it("keeps waiting on a retry after an earlier sign-in failed", async () => {
+    vi.spyOn(window, "open").mockReturnValue(null);
+    const failed = status({ outlook: { connected: false, state: "error", error: "earlier failure", account: null, client_id: null, tenant: "common", default_client_available: true } });
+    vi.mocked(client.getIntegrations).mockResolvedValueOnce(failed).mockResolvedValue(status());
+    render(<IntegrationsPanel onDismiss={() => undefined} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Connect Outlook" }));
+    await waitFor(() => expect(vi.mocked(client.getIntegrations).mock.calls.length).toBeGreaterThanOrEqual(2));
+    await act(async () => undefined);
+
+    expect([screen.queryByRole("alert"), screen.queryByRole("button", { name: "Waiting for sign-in…" }) !== null]).toEqual([null, true]);
   });
 
   it("requires a client id when the build has no default one", async () => {

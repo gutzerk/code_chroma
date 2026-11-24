@@ -65,6 +65,7 @@ public sealed class SlackSource(SlackApi api, MessagesOptions options, TimeProvi
     private readonly ConcurrentDictionary<string, long> _socketChanges = new();
     private readonly SemaphoreSlim _recheckGate = new(1, 1);
     private SlackIdentity? _identity;
+    private volatile string? _socketError;
 
     public string Name => SourceName;
 
@@ -86,20 +87,19 @@ public sealed class SlackSource(SlackApi api, MessagesOptions options, TimeProvi
         {
             var me = await IdentifyAsync(cancel);
             var conversations = await ListConversationsAsync(cancel);
-            var items = new ConcurrentBag<UnreadItem>();
-            var kept = new ConcurrentDictionary<string, bool>();
+            var listed = conversations.Select(c => c.Id).ToHashSet();
+            feed.ReplaceWhere(SourceName, i => !listed.Contains(i.Group), [], clock.GetUtcNow(), _socketError);
             using var gate = new SemaphoreSlim(options.SlackConcurrency);
             await Task.WhenAll(conversations.Select(async conversation =>
             {
                 await gate.WaitAsync(cancel);
                 try
                 {
-                    if (await ReadAsync(conversation, me, cancel) is { } fresh) foreach (var item in fresh) items.Add(item);
-                    else kept[conversation.Id] = true;
+                    if (await ReadAsync(conversation, me, cancel) is { } fresh)
+                        feed.ReplaceWhere(SourceName, i => i.Group == conversation.Id, fresh, clock.GetUtcNow(), _socketError);
                 }
                 finally { gate.Release(); }
             }));
-            feed.ReplaceWhere(SourceName, i => !kept.ContainsKey(i.Group), items, clock.GetUtcNow());
         }
         finally { _recheckGate.Release(); }
     }
@@ -114,7 +114,7 @@ public sealed class SlackSource(SlackApi api, MessagesOptions options, TimeProvi
             foreach (var group in feed.Items(SourceName).Select(i => i.Group).Distinct().ToList())
             {
                 if (!_conversations.TryGetValue(group, out var conversation)) continue;
-                if (await ReadAsync(conversation, me, cancel) is { } fresh) feed.ReplaceWhere(SourceName, i => i.Group == group, fresh, clock.GetUtcNow());
+                if (await ReadAsync(conversation, me, cancel) is { } fresh) feed.ReplaceWhere(SourceName, i => i.Group == group, fresh, clock.GetUtcNow(), _socketError);
             }
         }
         finally { _recheckGate.Release(); }
@@ -137,8 +137,8 @@ public sealed class SlackSource(SlackApi api, MessagesOptions options, TimeProvi
     public async Task RunAsync(UnreadFeed feed, CancellationToken stop)
     {
         feed.Connecting(SourceName);
-        await SafeRecheck(feed, full: true, stop);
         var socket = SocketLoop(feed, stop);
+        await SafeRecheck(feed, full: true, stop);
         var nextFull = clock.GetUtcNow() + options.SlackFullRecheck;
         try
         {
@@ -146,8 +146,8 @@ public sealed class SlackSource(SlackApi api, MessagesOptions options, TimeProvi
             {
                 await Task.Delay(options.SlackOpenRecheck, clock, stop);
                 var full = clock.GetUtcNow() >= nextFull;
-                if (full) nextFull = clock.GetUtcNow() + options.SlackFullRecheck;
                 await SafeRecheck(feed, full, stop);
+                if (full) nextFull = clock.GetUtcNow() + options.SlackFullRecheck;
             }
         }
         catch (OperationCanceledException) { }
@@ -176,7 +176,9 @@ public sealed class SlackSource(SlackApi api, MessagesOptions options, TimeProvi
                 var open = await api.Call("apps.connections.open", useAppToken: true, cancel: stop);
                 var url = Json.Str(open["url"]) ?? throw new SlackApiException("apps.connections.open", "no_url");
                 await using var socket = await options.SlackSocket(new Uri(url), stop);
-                if (!first) await SafeRecheck(feed, full: true, stop);
+                var recovered = _socketError is not null;
+                _socketError = null;
+                if (!first || recovered) await SafeRecheck(feed, full: true, stop);
                 first = false;
                 backoff = TimeSpan.FromSeconds(2);
                 while (await socket.ReceiveAsync(stop) is { } frame)
@@ -185,7 +187,8 @@ public sealed class SlackSource(SlackApi api, MessagesOptions options, TimeProvi
             catch (OperationCanceledException) when (stop.IsCancellationRequested) { return; }
             catch (SlackApiException error) when (error.Error is "invalid_auth" or "not_allowed_token_type" or "token_revoked")
             {
-                feed.Fail(SourceName, "Slack app-level token was refused: " + error.Error);
+                _socketError = "Slack app-level token was refused: " + error.Error;
+                feed.Fail(SourceName, _socketError);
             }
             catch (Exception) { /* the socket dropped; reconnect below */ }
             try { await Task.Delay(backoff, clock, stop); }

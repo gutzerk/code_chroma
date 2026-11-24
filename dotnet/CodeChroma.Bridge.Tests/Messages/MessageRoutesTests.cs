@@ -13,6 +13,7 @@ public class MessageRoutesTests
     {
         public FakeApi Api { get; } = new();
         public MemoryVault Vault { get; } = new();
+        public ManualClock Clock { get; } = new();
         public BridgeHost Host { get; }
 
         public Rig(string? defaultClient = "default-client", Action<MemoryVault>? seed = null)
@@ -29,6 +30,7 @@ public class MessageRoutesTests
             {
                 services.AddSingleton(options);
                 services.AddSingleton<ITokenVault>(Vault);
+                services.AddSingleton<TimeProvider>(Clock);
             });
         }
 
@@ -120,6 +122,20 @@ public class MessageRoutesTests
         var exchange = rig.Api.Requests.First(r => r.Request.RequestUri!.AbsolutePath == "/organizations/oauth2/v2.0/token").Body;
         Assert.Equal((HttpStatusCode.OK, "own-client", true),
             (callback.StatusCode, rig.Vault.Get(VaultKeys.OutlookClientId), exchange.Contains("code_verifier=") && exchange.Contains("code=abc")));
+    }
+
+    [Fact]
+    public async Task A_callback_after_the_sign_in_window_closed_is_refused()
+    {
+        using var rig = new Rig();
+        var connect = await rig.Host.Client.PostAsJsonAsync("/integrations/outlook/connect", new { });
+        var url = new Uri((await connect.Content.ReadFromJsonAsync<JsonObject>())!["auth_url"]!.GetValue<string>());
+        var state = System.Web.HttpUtility.ParseQueryString(url.Query)["state"];
+        rig.Clock.Offset = TimeSpan.FromMinutes(11);
+
+        var callback = await rig.Host.Client.GetAsync($"/integrations/outlook/callback?code=abc&state={state}");
+
+        Assert.Equal((HttpStatusCode.BadRequest, (string?)null), (callback.StatusCode, rig.Vault.Get(VaultKeys.OutlookRefreshToken)));
     }
 
     [Fact]

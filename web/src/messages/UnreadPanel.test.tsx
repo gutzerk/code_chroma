@@ -5,6 +5,7 @@ import { EngineClientProvider } from "../engine-client/EngineClientContext";
 import type { EngineClient } from "../engine-client/EngineClient";
 import * as client from "./messagesClient";
 import type { UnreadFeed } from "./messagesClient";
+import { BridgeHttpError } from "../util/httpJson";
 import { MessagesRailButton, UnreadPanel } from "./UnreadPanel";
 import { messagesStore } from "./messagesStore";
 
@@ -102,6 +103,15 @@ describe("UnreadPanel", () => {
     act(() => void window.dispatchEvent(new Event("focus")));
 
     expect(client.refreshMessages).toHaveBeenCalled();
+  });
+
+  it("hides the rail button on a bridge without the messages routes", async () => {
+    vi.mocked(client.getUnread).mockRejectedValue(new BridgeHttpError("Not Found", 404));
+    renderWith(stubEngineClient, <MessagesRailButton />);
+
+    await waitFor(() => expect(screen.queryByTestId("messages-toggle-button")).toBeNull());
+
+    expect(client.getUnread).toHaveBeenCalled();
   });
 
   it("points at Settings when nothing is connected", async () => {

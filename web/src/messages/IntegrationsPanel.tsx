@@ -98,6 +98,7 @@ export function IntegrationsPanel({ onDismiss }: { onDismiss: () => void }) {
     run("outlook", async () => {
       const { auth_url } = await connectOutlook(clientId.trim(), tenant.trim());
       window.open(auth_url, "_blank", "noopener");
+      await reload();
       setWaitingForOutlook(true);
     });
 

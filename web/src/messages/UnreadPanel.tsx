@@ -9,6 +9,7 @@ import {
   useMessagesError,
   useMessagesFeed,
   useMessagesSync,
+  useMessagesUnsupported,
 } from "./messagesStore";
 import "./messages.css";
 
@@ -20,7 +21,9 @@ export function MessagesRailButton() {
   useMessagesSync(client);
   const open = useIsMessagesPanelOpen();
   const count = unreadCount(useMessagesFeed());
+  const unsupported = useMessagesUnsupported();
   const label = count > 0 ? `Unread messages (${count})` : "Unread messages";
+  if (unsupported) return null;
 
   return (
     <RailButton
@@ -81,7 +84,8 @@ export function UnreadPanel() {
   const open = useIsMessagesPanelOpen();
   const feed = useMessagesFeed();
   const error = useMessagesError();
-  if (!open) return null;
+  const unsupported = useMessagesUnsupported();
+  if (!open || unsupported) return null;
 
   const allDisconnected = feed && Object.values(feed.sources).every((s) => s.state === "disconnected");
 

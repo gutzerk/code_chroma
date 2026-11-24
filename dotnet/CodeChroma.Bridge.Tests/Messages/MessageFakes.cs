@@ -38,6 +38,14 @@ public sealed class FakeApi : HttpMessageHandler
     }
 }
 
+/// <summary>A wall clock the test can move forward; timers still run on real time.</summary>
+public sealed class ManualClock : TimeProvider
+{
+    public TimeSpan Offset { get; set; }
+
+    public override DateTimeOffset GetUtcNow() => System.GetUtcNow() + Offset;
+}
+
 /// <summary>A scripted Socket Mode connection: frames pushed by the test, acks recorded.</summary>
 public sealed class FakeSocket : ISocketConnection
 {

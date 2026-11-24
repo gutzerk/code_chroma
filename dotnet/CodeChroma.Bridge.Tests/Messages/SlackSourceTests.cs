@@ -208,6 +208,26 @@ public class SlackSourceTests
         Assert.Equal(("connected", 3), (feed.StateOf("slack").State, feed.Items("slack").Count));
     }
 
+    [Fact]
+    public async Task A_refused_app_token_stays_reported_after_the_next_recheck()
+    {
+        var api = SlackFixture.Workspace().On("POST", "/api/apps.connections.open", new JsonObject { ["ok"] = false, ["error"] = "invalid_auth" });
+        var options = new MessagesOptions { Handler = api, SlackOpenRecheck = TimeSpan.FromMilliseconds(20) };
+        var feed = new UnreadFeed(() => { });
+        var source = new SlackSource(new SlackApi(new HttpClient(api), options.SlackApi, "xoxp-1", "xapp-1"), options, TimeProvider.System);
+        using var stop = new CancellationTokenSource();
+        var run = source.RunAsync(feed, stop.Token);
+        await WaitUntil(() => feed.Items("slack").Count == 2 && feed.StateOf("slack").State == "error");
+        var reads = api.Paths.Count(p => p == "/api/conversations.info");
+        await WaitUntil(() => api.Paths.Count(p => p == "/api/conversations.info") > reads + 2);
+
+        var state = feed.StateOf("slack");
+        await stop.CancelAsync();
+        await run.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(("error", true), (state.State, state.Error!.Contains("app-level token", StringComparison.Ordinal)));
+    }
+
     internal static async Task WaitUntil(Func<bool> condition)
     {
         for (var i = 0; i < 200 && !condition(); i++) await Task.Delay(25);

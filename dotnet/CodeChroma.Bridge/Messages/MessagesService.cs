@@ -10,6 +10,8 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
 {
     public const string DefaultTenant = "common";
 
+    private static readonly TimeSpan PendingLifetime = TimeSpan.FromMinutes(10);
+
     private sealed record Pending(string ClientId, string Tenant, string Verifier, string RedirectUri, DateTimeOffset Created);
 
     private sealed class Runner(IMessageSource source, CancellationTokenSource stop, Task task)
@@ -105,7 +107,7 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
             ?? throw new IntegrationException("This build has no CodeChroma Entra client id yet; enter your own application (client) id.");
         var effectiveTenant = tenant is { Length: > 0 } t ? t.Trim() : DefaultTenant;
         if (!IsRunning(OutlookSource.SourceName)) Feed.Clear(OutlookSource.SourceName);
-        foreach (var stale in _pending.Where(p => _clock.GetUtcNow() - p.Value.Created > TimeSpan.FromMinutes(10)).ToList()) _pending.TryRemove(stale.Key, out _);
+        foreach (var stale in _pending.Where(p => _clock.GetUtcNow() - p.Value.Created > PendingLifetime).ToList()) _pending.TryRemove(stale.Key, out _);
         var (verifier, challenge) = OutlookAuth.Pkce();
         var state = OutlookAuth.NewState();
         _pending[state] = new Pending(effectiveClient, effectiveTenant, verifier, redirectUri, _clock.GetUtcNow());
@@ -115,7 +117,7 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
     /// <summary>Exchanges the callback's code, saves the refresh token, and starts polling.</summary>
     public async Task CompleteOutlookAsync(string? state, string? code, string? error, CancellationToken cancel)
     {
-        if (state is null || !_pending.TryRemove(state, out var pending)) throw new IntegrationException("This sign-in link expired; start again from Settings › Integrations.");
+        if (state is null || !_pending.TryRemove(state, out var pending) || _clock.GetUtcNow() - pending.Created > PendingLifetime) throw new IntegrationException("This sign-in link expired; start again from Settings › Integrations.");
         if (error is { Length: > 0 }) throw new IntegrationException("Microsoft sign-in was cancelled or refused: " + error);
         if (code is not { Length: > 0 }) throw new IntegrationException("Microsoft sign-in returned no code.");
         var tokens = await Auth().ExchangeAsync(pending.ClientId, pending.Tenant, code, pending.Verifier, pending.RedirectUri, cancel);
@@ -145,7 +147,7 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
         {
             await StopSourceAsync(source);
             foreach (var key in source == SlackSource.SourceName ? VaultKeys.Slack : VaultKeys.Outlook) _vault.Delete(key);
-            if (source == SlackSource.SourceName) _slackIdentity = null;
+            if (source == SlackSource.SourceName) lock (_gate) _slackIdentity = null;
             Feed.Clear(source);
         });
     }
@@ -210,6 +212,9 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
         lock (_gate) return _runners.ContainsKey(source);
     }
 
+    /// <summary>Whether this source is still the running one, so a stopped or abandoned one cannot write state back; call under _gate.</summary>
+    private bool IsCurrent(IMessageSource source) => _runners.TryGetValue(source.Name, out var runner) && ReferenceEquals(runner.Source, source);
+
     private OutlookAuth Auth() => new(_http, _options.Login, _clock);
 
     private void StartSlack(string userToken, string appToken)
@@ -217,7 +222,11 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
         var source = new SlackSource(new SlackApi(_http, _options.SlackApi, userToken, appToken), _options, _clock);
         Start(source, async stop =>
         {
-            try { _slackIdentity = await source.IdentifyAsync(stop); }
+            try
+            {
+                var identity = await source.IdentifyAsync(stop);
+                lock (_gate) if (IsCurrent(source)) _slackIdentity = identity;
+            }
             catch (Exception) { /* RunAsync reports it */ }
             await source.RunAsync(Feed, stop);
         });
@@ -230,9 +239,13 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
             Feed.Fail(OutlookSource.SourceName, "No Entra client id is configured; connect again with your own client id.");
             return;
         }
-        var source = new OutlookSource(_http, Auth(), _options, _clock, clientId, tenant, refreshToken, rotated =>
+        OutlookSource? source = null;
+        source = new OutlookSource(_http, Auth(), _options, _clock, clientId, tenant, refreshToken, rotated =>
         {
-            try { _vault.Set(VaultKeys.OutlookRefreshToken, rotated); }
+            try
+            {
+                lock (_gate) if (IsCurrent(source!)) _vault.Set(VaultKeys.OutlookRefreshToken, rotated);
+            }
             catch (Exception error) when (error is IOException or InvalidOperationException) { }
         });
         Start(source, stop => source.RunAsync(Feed, stop));
@@ -241,9 +254,11 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
     private void Start(IMessageSource source, Func<CancellationToken, Task> run)
     {
         var stop = new CancellationTokenSource();
+        var registered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Feed.Connecting(source.Name);
         var task = Task.Run(async () =>
         {
+            await registered.Task;
             try { await run(stop.Token); }
             catch (Exception) when (stop.IsCancellationRequested) { }
             catch (Exception error) { Feed.Fail(source.Name, error.Message); }
@@ -254,6 +269,7 @@ public sealed class MessagesService : IHostedService, IAsyncDisposable
             _runners.Remove(source.Name, out replaced);
             _runners[source.Name] = new Runner(source, stop, task);
         }
+        registered.SetResult();
         replaced?.Stop.Cancel();
     }
 

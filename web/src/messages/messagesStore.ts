@@ -1,7 +1,14 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { PanelStore, useIsPanelOpen } from "../canvas/panelStore";
 import type { EngineClient } from "../engine-client/EngineClient";
+import { BridgeHttpError } from "../util/httpJson";
 import { getUnread, refreshMessages, type UnreadFeed } from "./messagesClient";
+
+/** Whether a failed fetch means this bridge has no messages feed at all (mock, Python bridge, no bridge). */
+function isUnsupported(err: unknown): boolean {
+  if (err instanceof BridgeHttpError) return err.status === 404 || err.status === 405;
+  return err instanceof Error && err.message.startsWith("no bridge");
+}
 
 /** The unread feed the rail badge and the panel share, plus the panel's open state; machine-wide, so global. */
 class MessagesStore extends PanelStore {
@@ -9,10 +16,12 @@ class MessagesStore extends PanelStore {
   private error: string | null = null;
   private loading = false;
   private again = false;
+  private unsupported = false;
 
   getFeed = (): UnreadFeed | null => this.feed;
   hide = (): void => this.closePanel();
   getError = (): string | null => this.error;
+  isUnsupported = (): boolean => this.unsupported;
 
   /** Re-fetches the feed; a call during a fetch queues exactly one more. */
   load = async (): Promise<void> => {
@@ -24,8 +33,10 @@ class MessagesStore extends PanelStore {
     try {
       this.feed = await getUnread();
       this.error = null;
+      this.unsupported = false;
     } catch (err) {
       this.error = err instanceof Error ? err.message : String(err);
+      this.unsupported = isUnsupported(err);
     } finally {
       this.loading = false;
       this.emit();
@@ -42,6 +53,7 @@ class MessagesStore extends PanelStore {
     this.error = null;
     this.loading = false;
     this.again = false;
+    this.unsupported = false;
     this.closePanel();
   };
 }
@@ -56,6 +68,11 @@ export function useMessagesError(): string | null {
   return useSyncExternalStore(messagesStore.subscribe, messagesStore.getError);
 }
 
+/** True once the bridge answered that it has no messages routes, so the rail hides the button. */
+export function useMessagesUnsupported(): boolean {
+  return useSyncExternalStore(messagesStore.subscribe, messagesStore.isUnsupported);
+}
+
 export function useIsMessagesPanelOpen(): boolean {
   return useIsPanelOpen(messagesStore);
 }
@@ -66,6 +83,7 @@ export function useMessagesSync(client: EngineClient): void {
     void messagesStore.load();
     const unsubscribe = client.subscribeMessages(() => void messagesStore.load());
     const onFocus = () => {
+      if (messagesStore.isUnsupported()) return;
       refreshMessages().catch(() => undefined);
       void messagesStore.load();
     };

@@ -123,6 +123,21 @@ public class OutlookSourceTests
     }
 
     [Fact]
+    public async Task A_throttled_request_is_retried_without_a_new_token_grant()
+    {
+        var api = Mailbox();
+        var throttled = 0;
+        api.On("GET", "/v1.0/me", (_, _) => Interlocked.Increment(ref throttled) == 1
+            ? new HttpResponseMessage(HttpStatusCode.TooManyRequests) { Headers = { RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.Zero) } }
+            : FakeApi.Respond(new JsonObject { ["mail"] = "me@acme.dev" }));
+        var (source, feed, _) = Create(api);
+
+        await source.RecheckAsync(feed, CancellationToken.None);
+
+        Assert.Equal((1, "me@acme.dev"), (api.Paths.Count(p => p.EndsWith("/oauth2/v2.0/token", StringComparison.Ordinal)), source.Account));
+    }
+
+    [Fact]
     public async Task The_next_page_link_is_followed()
     {
         var api = Mailbox();

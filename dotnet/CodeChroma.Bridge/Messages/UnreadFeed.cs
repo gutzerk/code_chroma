@@ -54,16 +54,17 @@ public sealed class UnreadFeed(Action changed)
     /// <summary>Replaces the whole slice after a full re-check.</summary>
     public void Replace(string source, IEnumerable<UnreadItem> items, DateTimeOffset at) => ReplaceWhere(source, _ => true, items, at);
 
-    /// <summary>Replaces the items matching scope (e.g. one conversation) with a fresh read of that scope.</summary>
-    public void ReplaceWhere(string source, Func<UnreadItem, bool> scope, IEnumerable<UnreadItem> items, DateTimeOffset at) => Mutate(source, slot =>
+    /// <summary>Replaces the items matching scope (e.g. one conversation) with a fresh read; a non-null error keeps the source in error (a fault the read cannot clear).</summary>
+    public void ReplaceWhere(string source, Func<UnreadItem, bool> scope, IEnumerable<UnreadItem> items, DateTimeOffset at, string? error = null) => Mutate(source, slot =>
     {
         var next = slot.Items.Values.Where(i => !scope(i)).ToDictionary(i => i.Id);
         foreach (var item in items) next[item.Id] = item;
         var changedItems = !SameItems(slot.Items, next);
-        var changedState = slot.State != "connected" || slot.Error is not null;
+        var state = error is null ? "connected" : "error";
+        var changedState = slot.State != state || slot.Error != error;
         slot.Items = next;
-        slot.State = "connected";
-        slot.Error = null;
+        slot.State = state;
+        slot.Error = error;
         slot.SyncedAt = at;
         return changedItems || changedState;
     });

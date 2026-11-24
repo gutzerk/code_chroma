@@ -87,6 +87,8 @@ public sealed class OutlookSource(
     private OutlookTokens? _tokens;
     private string _refreshToken = refreshToken;
     private static readonly TimeSpan FolderRefresh = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(30);
+    private readonly SemaphoreSlim _recheckGate = new(1, 1);
     private const int MaxFolders = 2000;
 
     private HashSet<string>? _hiddenFolderIds;
@@ -99,6 +101,13 @@ public sealed class OutlookSource(
     public string? Account { get; private set; }
 
     public async Task RecheckAsync(UnreadFeed feed, CancellationToken cancel)
+    {
+        await _recheckGate.WaitAsync(cancel);
+        try { await RecheckLockedAsync(feed, cancel); }
+        finally { _recheckGate.Release(); }
+    }
+
+    private async Task RecheckLockedAsync(UnreadFeed feed, CancellationToken cancel)
     {
         if (Account is null)
         {
@@ -187,15 +196,25 @@ public sealed class OutlookSource(
     {
         var url = Uri.TryCreate(pathOrUrl, UriKind.Absolute, out var absolute) && absolute.Scheme.StartsWith("http", StringComparison.Ordinal)
             ? absolute : new Uri(options.GraphApi, pathOrUrl);
-        for (var attempt = 0; ; attempt++)
+        var refreshed = false;
+        var forceRefresh = false;
+        var throttled = 0;
+        while (true)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await AccessTokenAsync(force: attempt > 0, cancel));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await AccessTokenAsync(forceRefresh, cancel));
+            forceRefresh = false;
             using var response = await http.SendAsync(request, cancel);
-            if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 0) continue;
-            if (response.StatusCode == HttpStatusCode.TooManyRequests && attempt < 3)
+            if (response.StatusCode == HttpStatusCode.Unauthorized && !refreshed)
             {
-                await Task.Delay(response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(5), cancel);
+                refreshed = forceRefresh = true;
+                continue;
+            }
+            if (response.StatusCode == HttpStatusCode.TooManyRequests && throttled < 3)
+            {
+                throttled++;
+                var wait = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(5);
+                await Task.Delay(wait > MaxRetryAfter ? MaxRetryAfter : wait, clock, cancel);
                 continue;
             }
             var body = await OutlookAuth.ParseAsync(response, cancel);

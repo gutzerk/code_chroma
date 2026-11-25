@@ -12,7 +12,7 @@
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--st-blocked);
   color: var(--st-blocked-ink);
   font-size: 10px;
@@ -201,7 +201,7 @@
   max-height: 200px;
   overflow: auto;
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--bg-inset);
   font-size: 11px;
 }
@@ -216,7 +216,7 @@
 .integrations-field input {
   padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--bg-inset);
   color: var(--text-soft);
 }
@@ -240,7 +240,7 @@
 
 .integrations-warning {
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--st-blocked-chip-bg);
   color: var(--st-blocked);
   font-size: 12px;

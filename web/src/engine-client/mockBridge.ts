@@ -2062,4 +2062,9 @@ export class MockBridgeEngineClient implements EngineClient {
   subscribeWorkflows(): () => void {
     return () => {};
   }
+
+  /** The mock has no messages feed, so nothing ever pings. */
+  subscribeMessages(): () => void {
+    return () => {};
+  }
 }

@@ -128,6 +128,8 @@ Each canvas page reports its agents to the shell; the tab strip shows the most u
   (`RecoverAsync` forgets the tab and its PR tabs before respawning, so a failed respawn's `ShowTabError` leaves no stale
   pill), a shell navigation of an open project to a worktree, and any new-document navigation of the WebView
   (`NavigationStarting` -> `ShellController.PageReset`; fragment-only jumps keep it). The new page re-reports on load.
+  A navigation off the bridge origin is cancelled and, when `ExternalLinks.CanOpen` allows its scheme (`http`, `https`,
+  `slack` for the unread-messages deep links), handed to the OS.
   `AgentBoard.Report` returns an `AgentChange`: `None` (same summary) does nothing, `Tabs` (a badge or the blocked set
   changed) redraws the strip via `TabsChanged` (`TabInfo.Agents`, `TabsSnapshot.Waiting`), and `Activity` (tool, target,
   turn start) only calls `IShellUi.AgentsChanged`, which swaps the chip's summary and refreshes the open popover.

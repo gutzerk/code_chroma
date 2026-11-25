@@ -58,6 +58,7 @@ import { PrRailButton } from "../pr/PrRailButton";
 import { usePrWorkspaces } from "../pr/prStore";
 import { SettingsRailButton } from "../assistant/SettingsRailButton";
 import { ReportIssueRailButton } from "../assistant/ReportIssueRailButton";
+import { MessagesRailButton, UnreadPanel } from "../messages/UnreadPanel";
 import { traceStore, useTraceState } from "../state/traceStore";
 import { revealNode } from "../state/revealNode";
 import { autoExpandInitial } from "../state/autoExpandInitial";
@@ -519,6 +520,7 @@ export function RootCanvas() {
           >
             <RailIcon name="terminal" />
           </RailButton>
+          <MessagesRailButton />
           {/* Diff / AI-plan / Replay rail buttons hidden for now; underlying logic kept above. */}
         </nav>
         <TutorialChat />
@@ -581,6 +583,7 @@ export function RootCanvas() {
           {/* Docked under the canvas, inside .canvas-area, so the inspector to the right of it stays
               full viewport height and the terminal spans only the canvas's own width. */}
           {terminalMounted && <TerminalPanel hidden={!isTerminalPanelOpen} onHeightChange={setTerminalHeight} />}
+          <UnreadPanel />
           {/* Floating chrome over the canvas area; z-order comes from layoutMetrics Z_*. */}
           {leftOpen ? (
             <LeftPanel

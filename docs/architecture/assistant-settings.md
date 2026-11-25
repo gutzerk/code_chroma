@@ -62,7 +62,8 @@ Not repo-scoped — no `Services` dependency.
 
 - `web/src/assistant/SettingsRailButton.tsx` — the gear button on the canvas chrome,
   self-contained open state (mirrors `PrRailButton`). Opens `SettingsDialog.tsx`, a category-list
-  home ("LLM", "Canvas style" and "Updates"; "Report an issue" is its own top-bar button — see
+  home ("LLM", "Canvas style", "Integrations" (Slack/Outlook for the unread panel, see
+  [`unread-messages.md`](unread-messages.md)) and "Updates"; "Report an issue" is its own top-bar button — see
   [`report-issue.md`](report-issue.md)) rather than this form directly.
 - `web/src/canvas-style/` — the "Canvas style" category: `CanvasStylePanel.tsx` (theme presets,
   background colour, None/Dots/Lines texture with colour/opacity/spacing, light-background warning,

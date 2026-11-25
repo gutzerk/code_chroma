@@ -5,6 +5,7 @@ import { RailIcon } from "../icons/RailIcon";
 import { CanvasStylePanel } from "../canvas-style/CanvasStylePanel";
 import { matchPreset, useSavedCanvasStyle } from "../canvas-style/canvasStyleStore";
 import { LlmSettingsPanel } from "../llm-settings/LlmSettingsPanel";
+import { IntegrationsPanel } from "../messages/IntegrationsPanel";
 import { listCallSites, listProviders } from "../llm-settings/llmSettingsClient";
 
 /** One line of live numbers under the LLM row, so the settings home says something before you open
@@ -37,7 +38,7 @@ function useLlmSummary(): string | null {
  * provider connections, per-feature routing, and the agent-window fallback -- lives behind the one
  * "LLM" row rather than being split between here and a second rail button. */
 export function SettingsDialog({ onDismiss }: { onDismiss: () => void }) {
-  const [openCategory, setOpenCategory] = useState<"llm" | "updates" | "canvas-style" | null>(null);
+  const [openCategory, setOpenCategory] = useState<"llm" | "updates" | "canvas-style" | "integrations" | null>(null);
   const summary = useLlmSummary();
   const savedStyle = useSavedCanvasStyle();
   const styleSummary = savedStyle ? (matchPreset(savedStyle)?.name ?? "Custom") : "Default";
@@ -47,6 +48,7 @@ export function SettingsDialog({ onDismiss }: { onDismiss: () => void }) {
   if (openCategory === "updates") return <UpdatesPanel onDismiss={() => setOpenCategory(null)} />;
   if (openCategory === "canvas-style") return <CanvasStylePanel onDismiss={() => setOpenCategory(null)} />;
   if (openCategory === "llm") return <LlmSettingsPanel onDismiss={() => setOpenCategory(null)} />;
+  if (openCategory === "integrations") return <IntegrationsPanel onDismiss={() => setOpenCategory(null)} />;
 
   return (
     <ModalDialog
@@ -108,6 +110,13 @@ export function SettingsDialog({ onDismiss }: { onDismiss: () => void }) {
             </span>
           </button>
         </li>
+        <li><button type="button" className="settings-home-row" data-testid="settings-open-integrations" onClick={() => setOpenCategory("integrations")}>
+          <span className="settings-home-row-icon">
+            <RailIcon name="messages" />
+          </span>
+          <span className="settings-home-row-text"><span className="settings-home-row-title">Integrations</span><span className="settings-home-row-desc">Connect Slack and Outlook for the unread messages panel</span></span>
+          <span className="settings-home-row-chevron" aria-hidden="true">›</span>
+        </button></li>
         <li><button type="button" className="settings-home-row" data-testid="settings-open-updates" onClick={() => setOpenCategory("updates")}>
           <span className="settings-home-row-icon">
             <RailIcon name="updates" />

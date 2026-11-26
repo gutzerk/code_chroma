@@ -66,6 +66,11 @@ _SGR_BASE = {
 }
 _HEX_DIGITS = set("0123456789abcdefABCDEF")
 
+# Private modes a redraw replays (pyte stores them shifted left by 5): DECCKM, mouse, focus, paste.
+_REPLAYED_MODES = (1, 1000, 1002, 1003, 1004, 1005, 1006, 1015, 2004)
+_ALT_SCREEN_MODES = (1049, 1047, 47)
+_AUTOWRAP = 7
+
 
 def _colour_sgr(name: str, background: bool) -> str:
     """One SGR parameter for a pyte colour name, which may also be a 6-digit truecolour hex."""
@@ -144,7 +149,10 @@ class ScreenTap:
 
     def render(self) -> str:
         """The whole screen redrawn as escape sequences, for a reattach that can't start mid-CSI."""
-        out = ["\x1b[?25l\x1b[H\x1b[2J\x1b[3J\x1b[m"]
+        mode = self._screen.mode
+        # pyte keeps one buffer, so on the alt screen only that screen is drawn, after entering it.
+        alt = any((n << 5) in mode for n in _ALT_SCREEN_MODES)
+        out = ["\x1b[?25l" + ("\x1b[?1049h" if alt else "") + "\x1b[H\x1b[2J\x1b[3J\x1b[m"]
         for y in range(self._screen.lines):
             row = self._screen.buffer[y]
             cells = [row[x] for x in range(self._screen.columns)]
@@ -161,7 +169,14 @@ class ScreenTap:
                     attributes = key
                 out.append(char.data)
         cursor = self._screen.cursor
-        out.append(f"\x1b[m\x1b[{cursor.y + 1};{cursor.x + 1}H")
+        out.append("\x1b[m")
+        out.extend(f"\x1b[?{n}h" for n in _REPLAYED_MODES if (n << 5) in mode)
+        if (_AUTOWRAP << 5) not in mode:
+            out.append("\x1b[?7l")
+        margins = self._screen.margins
+        if margins is not None and (margins.top, margins.bottom) != (0, self._screen.lines - 1):
+            out.append(f"\x1b[{margins.top + 1};{margins.bottom + 1}r")
+        out.append(f"\x1b[{cursor.y + 1};{cursor.x + 1}H")
         if not cursor.hidden:
             out.append("\x1b[?25h")
         return "".join(out)

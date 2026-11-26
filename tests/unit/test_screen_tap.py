@@ -132,3 +132,40 @@ def test_kitty_keyboard_sequences_do_not_restore_the_cursor(sequence):
     tap.feed(sequence + "d")
 
     assert tap.tail(3)[0] == "abcd"
+
+
+def test_the_render_enters_the_alt_screen_first_when_the_process_is_on_it():
+    tap = ScreenTap(rows=3, cols=20)
+    tap.feed("\x1b[?1049happ")
+
+    redraw = tap.render()
+
+    assert redraw.startswith("\x1b[?25l\x1b[?1049h\x1b[H\x1b[2J")
+
+
+def test_the_render_replays_terminal_modes_after_the_cells():
+    tap = ScreenTap(rows=3, cols=20)
+    tap.feed("\x1b[?1000h\x1b[?1006;2004h\x1b[?1hx")
+
+    redraw = tap.render()
+
+    assert "\x1b[?1h\x1b[?1000h\x1b[?1006h\x1b[?2004h" in redraw[redraw.rindex("x") :]
+
+
+def test_the_render_replays_autowrap_off_and_the_scroll_region():
+    tap = ScreenTap(rows=5, cols=20)
+    tap.feed("\x1b[?7l\x1b[2;4r\x1b[3;2H")
+
+    redraw = tap.render()
+
+    assert redraw.endswith("\x1b[?7l\x1b[2;4r\x1b[3;2H\x1b[?25h")
+
+
+def test_a_plain_screen_replays_no_modes():
+    tap = ScreenTap(rows=3, cols=20)
+    tap.feed("plain")
+
+    redraw = tap.render()
+
+    assert "\x1b[?1049h" not in redraw
+    assert "r\x1b[" not in redraw.split("plain")[-1]

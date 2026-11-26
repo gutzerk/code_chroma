@@ -47,9 +47,16 @@ public sealed class ScreenTap
     private static readonly string[] BaseNames = ["black", "red", "green", "brown", "blue", "magenta", "cyan", "white"];
 
     private readonly object _gate = new();
+    /// <summary>Private modes replayed on a redraw, in this order: DECCKM, mouse tracking and its encodings, focus events, bracketed paste.</summary>
+    private static readonly int[] ReplayedModes = [1, 1000, 1002, 1003, 1004, 1005, 1006, 1015, 2004];
+
     private Cell[][] _buffer;
+    private Cell[][] _inactive;
     private readonly Queue<Run[]> _history = new();
     private bool _altScreen;
+    private int _mainX, _mainY;
+    private readonly SortedSet<int> _modes = [];
+    private bool _autowrap = true;
     private int _x, _y;
     private int _savedX, _savedY;
     private bool _cursorHidden;
@@ -66,7 +73,20 @@ public sealed class ScreenTap
         Rows = Math.Max(1, rows);
         Cols = Math.Max(1, cols);
         _buffer = NewBuffer(Rows, Cols);
+        _inactive = NewBuffer(Rows, Cols);
         _bottom = Rows - 1;
+    }
+
+    /// <summary>True while the process draws on the alternate screen (`?1049h`, `?1047h`, `?47h`).</summary>
+    public bool AltScreen
+    {
+        get { lock (_gate) return _altScreen; }
+    }
+
+    /// <summary>The replayed private modes currently set, for tests and diagnostics.</summary>
+    public int[] PrivateModes
+    {
+        get { lock (_gate) return [.. _modes]; }
     }
 
     public int Rows { get; private set; }
@@ -114,20 +134,34 @@ public sealed class ScreenTap
         lock (_gate)
         {
             _generation++;
-            var next = NewBuffer(rows, cols);
-            // Like xterm, a shrink that would push the cursor off the bottom scrolls the top rows into the history instead.
-            var shift = Math.Max(0, _y - (rows - 1));
-            for (var y = 0; y < shift; y++) Remember(_buffer[y]);
-            for (var y = 0; y < Math.Min(rows, Rows - shift); y++)
-                Array.Copy(_buffer[y + shift], next[y], Math.Min(cols, Cols));
-            _buffer = next;
+            // Like xterm, a shrink that would push the cursor off the bottom scrolls the top rows up; only the main screen's go to the history.
+            var (main, mainCursorY) = _altScreen ? (_inactive, _mainY) : (_buffer, _y);
+            var mainShift = Math.Max(0, mainCursorY - (rows - 1));
+            for (var y = 0; y < mainShift; y++) Remember(main[y], force: true);
+            var nextMain = Resized(main, mainShift, rows, cols);
+            if (_altScreen)
+            {
+                var altShift = Math.Max(0, _y - (rows - 1));
+                _buffer = Resized(_buffer, altShift, rows, cols);
+                _inactive = nextMain;
+                _y -= altShift;
+                _mainY = Math.Clamp(_mainY - mainShift, 0, rows - 1);
+                _mainX = Math.Min(_mainX, cols - 1);
+                _savedY = Math.Clamp(_savedY - altShift, 0, rows - 1);
+            }
+            else
+            {
+                _inactive = Resized(_inactive, 0, rows, cols);
+                _buffer = nextMain;
+                _y -= mainShift;
+                _savedY = Math.Clamp(_savedY - mainShift, 0, rows - 1);
+            }
             Rows = rows;
             Cols = cols;
             _top = 0;
             _bottom = rows - 1;
             _x = Math.Min(_x, cols - 1);
-            _y = Math.Min(_y - shift, rows - 1);
-            _savedY = Math.Clamp(_savedY - shift, 0, rows - 1);
+            _y = Math.Clamp(_y, 0, rows - 1);
             _wrapPending = false;
         }
     }
@@ -148,16 +182,25 @@ public sealed class ScreenTap
     {
         lock (_gate)
         {
-            var output = new StringBuilder(Esc + "[?25l" + Esc + "[H" + Esc + "[2J" + Esc + "[3J" + Esc + "[m");
-            // History goes out as plain lines so xterm scrolls it into its own scrollback; on the alt screen there is none.
-            if (withHistory && !_altScreen)
+            // On the alt screen the main one is drawn first (a window following the stream is on alt too, so it leaves it before clearing), then re-entered.
+            var output = new StringBuilder(Esc + "[?25l");
+            if (_altScreen) output.Append(Esc + "[?1049l");
+            output.Append(Esc + "[H" + Esc + "[2J" + Esc + "[3J" + Esc + "[m");
+            // History goes out as plain lines so xterm scrolls it into its own scrollback; only the main screen has one.
+            if (withHistory)
                 foreach (var row in _history) AppendHistoryRow(output, row);
-            for (var y = 0; y < Rows; y++)
+            AppendScreen(output, _altScreen ? _inactive : _buffer);
+            if (_altScreen)
             {
-                AppendCells(output, Trimmed(_buffer[y])).Append(Esc + "[m");
-                if (y < Rows - 1) output.Append("\r\n");
+                AppendCursor(output, _mainX, _mainY);
+                output.Append(Esc + "[?1049h" + Esc + "[H");
+                AppendScreen(output, _buffer);
             }
-            output.Append(Esc).Append("[m").Append(Esc).Append('[').Append(_y + 1).Append(';').Append(_x + 1).Append('H');
+            output.Append(Esc).Append("[m");
+            foreach (var mode in _modes) output.Append(Esc + "[?").Append(mode).Append('h');
+            if (!_autowrap) output.Append(Esc + "[?7l");
+            if (_top != 0 || _bottom != Rows - 1) output.Append(Esc + "[").Append(_top + 1).Append(';').Append(_bottom + 1).Append('r');
+            AppendCursor(output, _x, _y);
             if (!_cursorHidden) output.Append(Esc + "[?25h");
             return output.ToString();
         }
@@ -167,6 +210,26 @@ public sealed class ScreenTap
     public int HistoryCount
     {
         get { lock (_gate) return _history.Count; }
+    }
+
+    private void AppendScreen(StringBuilder output, Cell[][] buffer)
+    {
+        for (var y = 0; y < Rows; y++)
+        {
+            AppendCells(output, Trimmed(buffer[y])).Append(Esc + "[m");
+            if (y < Rows - 1) output.Append("\r\n");
+        }
+    }
+
+    private static void AppendCursor(StringBuilder output, int x, int y) =>
+        output.Append(Esc).Append('[').Append(y + 1).Append(';').Append(x + 1).Append('H');
+
+    private Cell[][] Resized(Cell[][] buffer, int shift, int rows, int cols)
+    {
+        var next = NewBuffer(rows, cols);
+        for (var y = 0; y < Math.Min(rows, Rows - shift); y++)
+            Array.Copy(buffer[y + shift], next[y], Math.Min(cols, Cols));
+        return next;
     }
 
     private static Cell[] Trimmed(Cell[] row)
@@ -193,9 +256,9 @@ public sealed class ScreenTap
         output.Append(Esc + "[m\r\n");
     }
 
-    private void Remember(Cell[] row)
+    private void Remember(Cell[] row, bool force = false)
     {
-        if (_altScreen) return;
+        if (_altScreen && !force) return;
         var cells = Trimmed(row);
         var runs = new List<Run>();
         for (var start = 0; start < cells.Length;)
@@ -282,7 +345,7 @@ public sealed class ScreenTap
         cell.Data = ch.ToString();
         _buffer[_y][_x] = cell;
         if (_x < Cols - 1) _x++;
-        else _wrapPending = true;
+        else _wrapPending = _autowrap;
     }
 
     private void LineFeed()
@@ -336,8 +399,11 @@ public sealed class ScreenTap
     private void Reset()
     {
         _buffer = NewBuffer(Rows, Cols);
+        _inactive = NewBuffer(Rows, Cols);
         _history.Clear();
         _altScreen = false;
+        _modes.Clear();
+        _autowrap = true;
         _x = _y = 0;
         _top = 0;
         _bottom = Rows - 1;
@@ -431,8 +497,34 @@ public sealed class ScreenTap
 
     private void SetPrivateModes(int[] values, bool set)
     {
-        if (values.Contains(25)) _cursorHidden = !set;
-        if (values.Contains(1049) || values.Contains(1047) || values.Contains(47)) _altScreen = set;
+        foreach (var mode in values)
+        {
+            switch (mode)
+            {
+                case 25: _cursorHidden = !set; break;
+                case 7: _autowrap = set; break;
+                case 1049: SwitchScreen(set, cursor: true, clear: true); break;
+                case 1047: SwitchScreen(set, cursor: false, clear: true); break;
+                case 47: SwitchScreen(set, cursor: false, clear: false); break;
+                default:
+                    if (Array.IndexOf(ReplayedModes, mode) < 0) break;
+                    if (set) _modes.Add(mode);
+                    else _modes.Remove(mode);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>Swaps the main and alt buffers like xterm: 1049 saves the main cursor and clears the alt screen on entry, 1047 only clears, 47 does neither.</summary>
+    private void SwitchScreen(bool alt, bool cursor, bool clear)
+    {
+        if (alt == _altScreen) return;
+        if (alt && cursor) (_mainX, _mainY) = (_x, _y);
+        (_buffer, _inactive) = (_inactive, _buffer);
+        _altScreen = alt;
+        if (alt && clear) _buffer = NewBuffer(Rows, Cols);
+        if (!alt && cursor) (_x, _y) = (_mainX, _mainY);
+        _wrapPending = false;
     }
 
     private void SetScrollRegion(int top, int bottom)

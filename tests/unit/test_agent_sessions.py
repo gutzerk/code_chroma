@@ -30,7 +30,8 @@ def test_attaching_sends_a_redraw_of_the_screen_not_the_escape_sequences_that_dr
     frame = _attach_frame("\x1b[?1049h\x1b[2Jinside the alt screen")
 
     assert "inside the alt screen" in frame
-    assert "\x1b[?1049h" not in frame
+    assert frame.startswith("\x1b[?25l\x1b[?1049h\x1b[H\x1b[2J")
+    assert frame.count("\x1b[?1049h") == 1
 
 
 def test_a_repainted_screen_reattaches_without_the_text_the_repaint_erased():

@@ -447,7 +447,19 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   CSI (claude's modifyOtherKeys `ESC[>4m` would otherwise underline everything, kitty keyboard
   `ESC[>1u`/`ESC[<u` would restore the cursor) and lets `?` through only for modes (`h`/`l`) and
   selective erase (`J`/`K`); Python strips the same `m`/`u` sequences before pyte sees them
-  (`_PRIVATE_KEYBOARD`). The C# tap also keeps SGR 2 (dim); pyte has no dim attribute. `Attach()` sends the
+  (`_PRIVATE_KEYBOARD`). The C# tap also keeps SGR 2 (dim); pyte has no dim attribute. The C# tap keeps
+  separate main and alt buffers like xterm (`?1049h` saves the main cursor and clears alt, `?47h` /
+  `?1047h` switch without the cursor save; a resize resizes both; history only comes from main) and
+  tracks the private modes a fresh xterm would lack (DECCKM 1, autowrap 7, mouse 1000/1002/1003,
+  focus 1004, mouse encodings 1005/1006/1015, bracketed paste 2004) plus the scroll region.
+  `Render()` on the alt screen first leaves alt (`?1049l`, so a window that followed the stream
+  clears its main screen, not alt), draws the history and main screen, puts the cursor at the saved
+  main position and re-enters with `?1049h`, then draws alt; after the cells it replays the set modes,
+  `?7l` when autowrap is off and DECSTBM, then the final CUP. Without that replay a reattached
+  fullscreen agent would sit in a window with no mouse tracking (wheel scrolls nothing) and the
+  wrong buffer. Python replays the same modes from pyte's `screen.mode` (private modes stored as
+  `n << 5`) and the margins, and sends `?1049h` first when the alt screen is on; pyte keeps one
+  buffer, so Python cannot restore the main screen behind it. `Attach()` sends the
   screen only (the history too once the process has exited); the first-resize `Resync` sends the
   history once. 🔴 `useXtermSession` sends no size until `FitAddon.proposeDimensions()` can measure
   its box (a hidden or not-yet-laid-out box would leave xterm's 80x24 default, shrinking the PTY so

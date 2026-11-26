@@ -28,12 +28,17 @@ public sealed class HistoryClearTests : IDisposable
 
     private static StringContent Body(string json) => new(json, Encoding.UTF8, "application/json");
 
-    private static JsonObject[] ChattyScript() => [.. Enumerable.Range(0, 60).Select(n => Stdout($"turn {n}")), Hang()];
+    private const int ChattyLines = 60;
 
+    private static JsonObject[] ChattyScript() => [.. Enumerable.Range(0, ChattyLines).Select(n => Stdout($"turn {n}")), Hang()];
+
+    /// <summary>Waits until the fake CLI printed its last line, so nothing it prints later can refill a cleared history.</summary>
     private static async Task WaitForHistory(AgentSession session)
     {
+        var last = $"turn {ChattyLines - 1}";
         var deadline = DateTime.UtcNow.AddSeconds(20);
-        while (session.Screen.HistoryCount < 30 && DateTime.UtcNow < deadline) await Task.Delay(50);
+        while (DateTime.UtcNow < deadline && (session.Screen.HistoryCount < 30 || !session.Screen.Tail(session.Screen.Rows).Any(row => row.Contains(last))))
+            await Task.Delay(50);
     }
 
     /// <summary>Starts a claude agent whose fake CLI prints more lines than the screen holds, then waits for them to scroll into the history.</summary>

@@ -4,8 +4,11 @@ import {
   TERMINAL_FONT_MAX,
   TERMINAL_FONT_MIN,
   browserDisplayKey,
+  resetDisplayWatchForTests,
   terminalFontStore,
+  watchDisplayChanges,
 } from "./terminalFontStore";
+import { DESKTOP_READY_EVENT, type AgentCommand, type DesktopWorkspaceApi } from "../agents/desktopWorkspaceApi";
 
 const KEY = "codechroma.terminalFont";
 
@@ -123,5 +126,25 @@ describe("terminalFontStore", () => {
     const key = browserDisplayKey();
 
     expect(key).toBe("1512x982@2");
+  });
+
+  describe("watchDisplayChanges", () => {
+    afterEach(() => {
+      delete window.codechromaDesktop;
+      resetDisplayWatchForTests();
+    });
+
+    it("hooks up the shell's display once its script is injected after the first terminal", () => {
+      watchDisplayChanges();
+      let listener: ((command: AgentCommand) => void) | undefined;
+      const api: Partial<DesktopWorkspaceApi> = { displayKey: () => "left", onAgentCommand: (fn) => void (listener = fn) };
+      window.codechromaDesktop = api as DesktopWorkspaceApi;
+      window.dispatchEvent(new Event(DESKTOP_READY_EVENT));
+      const first = terminalFontStore.displayKey();
+
+      listener?.({ type: "display", key: "right" });
+
+      expect([first, terminalFontStore.displayKey()]).toEqual(["left", "right"]);
+    });
   });
 });

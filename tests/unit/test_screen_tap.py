@@ -124,6 +124,25 @@ def test_a_private_prefixed_csi_m_is_not_sgr(sequence):
     assert "\x1b[0;39;49mplain" in tap.render()
 
 
+@pytest.mark.parametrize("split", [1, 2, 3, 5])
+def test_a_private_csi_split_across_chunks_is_still_not_sgr(split):
+    tap = ScreenTap(rows=3, cols=20)
+    sequence = "\x1b[>4;2m"
+    tap.feed(sequence[:split])
+
+    tap.feed(sequence[split:] + "plain")
+
+    assert "\x1b[0;39;49mplain" in tap.render()
+
+
+def test_a_held_back_escape_counts_as_an_open_sequence():
+    tap = ScreenTap(rows=3, cols=20)
+
+    tap.feed("text\x1b[>4")
+
+    assert tap.in_ground is False
+
+
 @pytest.mark.parametrize("sequence", ["\x1b[>1u", "\x1b[<u", "\x1b[?u", "\x1b[=1;1u"])
 def test_kitty_keyboard_sequences_do_not_restore_the_cursor(sequence):
     tap = ScreenTap(rows=3, cols=20)

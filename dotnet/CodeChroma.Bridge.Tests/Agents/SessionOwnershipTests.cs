@@ -58,7 +58,7 @@ public sealed class SessionOwnershipTests
         Assert.Single(launch.Argv, "--settings");
         var settings = JsonNode.Parse(launch.Argv[launch.Argv.ToList().IndexOf("--settings") + 1])!;
         Assert.Equal(AgentSessionOwnership.FullscreenTui, (string?)settings["tui"]);
-        Assert.DoesNotContain("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN", launch.Env.Keys);
+        Assert.Equal("0", launch.Env[TerminalAgents.AlternateScreenEnv]);
     }
 
     [Fact]

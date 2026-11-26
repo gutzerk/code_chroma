@@ -104,7 +104,8 @@ export function attachXtermPromptViewport(
     void seekPromptOnAltScreen(altScreenDriver(term), prompts, index, () => generation !== seekGeneration || !alternate()).then((row) => {
       if (generation !== seekGeneration) return;
       scan();
-      if (row === null) promptNavStore.seekMissed(agentId, index);
+      // A seek that stopped because the TUI left the alternate buffer was cancelled, not missed.
+      if (row === null && alternate()) promptNavStore.seekMissed(agentId, index);
     });
   };
 

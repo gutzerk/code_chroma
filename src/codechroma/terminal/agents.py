@@ -30,6 +30,8 @@ from codechroma.questions.launch import CLAUDE_PERMISSION, McpEndpoint
 
 # Every claude window runs fullscreen: alt screen plus mouse, redrawn at each new width (C# same).
 FULLSCREEN_TUI = "fullscreen"
+# Pinned to "0": an inherited "1" would switch claude back to its hard-wrapping classic renderer.
+ALTERNATE_SCREEN_ENV = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"
 
 ALLOWED_AGENTS: dict[str, list[str]] = {
     "shell": (
@@ -121,6 +123,7 @@ def agent_launch(
         ], {
             **resolution.env_overrides, **_status_hook_env(is_claude, mcp), **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
+            **_renderer_env(is_claude),
         }, agent if stand_in else resolution.adapter_key,
             clear_watch_for(CLI_ADAPTERS.get(adapter or ""), is_claude and mcp is not None),
             prompt_context=_prompt_context(is_claude and mcp is not None))
@@ -143,6 +146,7 @@ def agent_launch(
         ], {
             **_status_hook_env(is_claude, mcp), **mcp_env,
             **_tracking_env(is_claude, session_tracking_file, resume_session_id or new_session_id),
+            **_renderer_env(is_claude),
         }, agent, clear_watch_for(CLI_ADAPTERS["claude"] if is_claude else None, mcp is not None),
             prompt_context=_prompt_context(is_claude and mcp is not None))
     # Generic kinds (e.g. shell): a resume still appends the flag; a first message never does.
@@ -186,6 +190,11 @@ def _prompt_context(status_hooked: bool) -> PromptContext:
 def _status_hook_env(is_claude: bool, mcp: McpEndpoint | None) -> dict[str, str]:
     """The bridge URL and token the status hooks post with, even without the MCP server."""
     return mcp.env() if is_claude and mcp is not None else {}
+
+
+def _renderer_env(is_claude: bool) -> dict[str, str]:
+    """Keeps claude on the fullscreen renderer whatever the inherited environment says."""
+    return {ALTERNATE_SCREEN_ENV: "0"} if is_claude else {}
 
 
 def _tracking_env(is_claude: bool, file: Path | None, session_id: str | None) -> dict[str, str]:

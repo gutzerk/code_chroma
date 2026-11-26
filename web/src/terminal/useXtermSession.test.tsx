@@ -316,6 +316,8 @@ describe("useXtermSession", () => {
     [{ key: "0", metaKey: true }, true, 0],
     [{ key: "-", ctrlKey: true }, true, null],
     [{ key: "-", ctrlKey: true }, false, -1],
+    [{ key: "_", ctrlKey: true }, false, null],
+    [{ key: "_", metaKey: true }, true, null],
     [{ key: "=", metaKey: true, altKey: true }, true, null],
     [{ key: "a", metaKey: true }, true, null],
   ])("reads %o (mac %s) as the font chord %s", (keys, mac, expected) => {

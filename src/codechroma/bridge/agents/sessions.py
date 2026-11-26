@@ -270,9 +270,10 @@ class AgentSession(AgentSessionPort):
         return len(self._consumers)
 
     def attach(self, size: tuple[int, int] | None = None) -> asyncio.Queue:
-        """A queue seeded with one redraw; with a size the window takes the PTY over at it first."""
+        """A queue seeded with one redraw; with a size a live agent's PTY is taken over first."""
         queue: asyncio.Queue = asyncio.Queue()
-        if size is not None:
+        # An exited agent keeps its last screen at the size it died at (as C# Attach does).
+        if size is not None and self.exit_code is None:
             self.resize_from(queue, *size)
         queue.put_nowait(self._tap.render())
         self._consumers.add(queue)

@@ -145,4 +145,4 @@ def test_claude_windows_run_the_fullscreen_renderer_in_their_one_settings_docume
 
     assert argv.count("--settings") == 1
     assert json.loads(argv[argv.index("--settings") + 1])["tui"] == FULLSCREEN_TUI
-    assert "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN" not in env
+    assert env["CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"] == "0"

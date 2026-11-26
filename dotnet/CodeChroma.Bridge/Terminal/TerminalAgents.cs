@@ -139,6 +139,9 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
     private McpEndpoint? HookEndpointFor(string? agentId, string? bridgeUrl) =>
         questions is null || string.IsNullOrEmpty(agentId) || string.IsNullOrEmpty(bridgeUrl) ? null : questions.EndpointFor(agentId, bridgeUrl);
 
+    /// <summary>Claude's switch back to its classic renderer, which hard-wraps history at the width it printed at.</summary>
+    public const string AlternateScreenEnv = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN";
+
     private static Dictionary<string, string> WithEnv(Dictionary<string, string> env, McpLaunch? mcp)
     {
         if (mcp?.Env is null) return env;
@@ -159,6 +162,8 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         var statusHooks = hooks is not null && AgentSessionOwnership.CanRunHooks;
         // The status hooks authenticate with the agent's workspace token, which a bare window gets without the MCP server.
         foreach (var (key, value) in hooks?.Env() ?? new Dictionary<string, string>()) ownedEnv.TryAdd(key, value);
+        // Pinned off, so an inherited CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 cannot override the fullscreen `tui` setting.
+        ownedEnv[AlternateScreenEnv] = "0";
         if (trackingFile is not null)
         {
             ownedEnv[AgentSessionOwnership.FileEnv] = trackingFile;

@@ -39,7 +39,7 @@ to revive if it comes back, it would be rebuilt from scratch.
     [`desktop-app.md`](desktop-app.md)), else `${screen.width}x${screen.height}@${devicePixelRatio}`, re-read on a
     `matchMedia('(resolution: …dppx)')` change and on window `resize` (`watchDisplayChanges`). Every
     `useXtermSession` terminal starts at the store's size and, on a change, sets `term.options.fontSize` and refits.
-    Cmd+`=`/`+`/`-`/`0` on macOS (Ctrl elsewhere, so Ctrl+- still reaches a shell on the Mac) step or reset it from inside
+    Cmd+`=`/`+`/`-`/`0` on macOS (Ctrl elsewhere, so Ctrl+- still reaches a shell on the Mac; Ctrl+Shift+- = Ctrl+_, readline's undo, is never a chord and always reaches the PTY) step or reset it from inside
     the terminal: the key handler prevents the default and returns false, so the chord never reaches the PTY. The agent
     window header has A−/A+ buttons (`Smaller terminal text` / `Larger terminal text`). Tests:
     `terminalFontStore.test.ts`, `TerminalFontButtons.test.tsx`, `useXtermSession.test.tsx`,

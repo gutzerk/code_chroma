@@ -140,7 +140,9 @@ Each canvas page reports its agents to the shell; the tab strip shows the most u
   computes it from `Screens.ScreenFromWindow(this)` on `Opened`, `PositionChanged` and `ScalingChanged`, and
   `ShellController.ReportDisplay` sends it to every tab only when it changed; a page that loads later gets the current
   one from `PageLoaded` (after `NavigationCompleted` injects `DesktopScript`). `DesktopScript` keeps the last key for
-  `codechromaDesktop.displayKey()`. The web keeps the terminal text size per display under it (see
+  `codechromaDesktop.displayKey()` and, once `codechromaDesktop` exists, fires `codechroma-desktop-ready`
+  (`DESKTOP_READY_EVENT`) on `window`: the injection lands after the page's own scripts ran, so a terminal mounted
+  earlier hooks the shell's display up on that event. The web keeps the terminal text size per display under it (see
   [`web-panels.md`](web-panels.md)). The native menu claims no `=`/`-`/`0` gesture, so Cmd/Ctrl+= / − / 0 reach the
   page. Tests: `DisplayIdentityTests`.
 - Tab chip (`TabChip`, kept across redraws so animations don't restart): `AgentRollup.Badge` picks the dot by the one

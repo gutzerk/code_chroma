@@ -69,11 +69,11 @@ function measurable(fitAddon: FitAddon): boolean {
   return !!measured && measured.cols > MIN_COLS && measured.rows > MIN_ROWS;
 }
 
-/** Cmd (macOS) or Ctrl (elsewhere) with `=`/`+`, `-` or `0`: the terminal text-size chords; the step, or 0 to restore the default. */
+/** Cmd (macOS) or Ctrl (elsewhere) with `=`/`+`, `-` or `0`: the text-size chords; Ctrl+_ (readline undo, 0x1F) still reaches the PTY. */
 export function fontChord(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "altKey" | "key">, mac = IS_MAC): 1 | -1 | 0 | null {
   if (event.altKey || !(mac ? event.metaKey : event.ctrlKey)) return null;
   if (event.key === "=" || event.key === "+") return 1;
-  if (event.key === "-" || event.key === "_") return -1;
+  if (event.key === "-") return -1;
   if (event.key === "0") return 0;
   return null;
 }

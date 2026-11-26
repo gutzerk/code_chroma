@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { getDesktopWorkspaceApi } from "../agents/desktopWorkspaceApi";
+import { DESKTOP_READY_EVENT, getDesktopWorkspaceApi } from "../agents/desktopWorkspaceApi";
 import { Store } from "../state/createStore";
 import { clamp } from "../util/clamp";
 
@@ -119,6 +119,27 @@ class TerminalFontStore extends Store {
 export const terminalFontStore = new TerminalFontStore().markGlobalStore();
 
 let watching = false;
+let shellHooked = false;
+
+/** Takes the shell's monitor identity and follows its `display` commands; false while the shell's API is not injected yet. */
+function hookShell(): boolean {
+  if (shellHooked) return true;
+  const desktop = getDesktopWorkspaceApi();
+  if (!desktop) return false;
+  shellHooked = true;
+  const shellKey = desktop.displayKey?.();
+  if (shellKey) terminalFontStore.setShellDisplay(shellKey);
+  desktop.onAgentCommand?.((command) => {
+    if (command.type === "display") terminalFontStore.setShellDisplay(command.key);
+  });
+  return true;
+}
+
+/** Forgets the module's listeners' latches, so a test can watch afresh -- tests only. */
+export function resetDisplayWatchForTests(): void {
+  watching = false;
+  shellHooked = false;
+}
 
 /** Follows the window between monitors: a pixel-ratio change (a `resolution` media query) or a resize re-reads the display key. */
 export function watchDisplayChanges(): void {
@@ -139,13 +160,8 @@ export function watchDisplayChanges(): void {
   };
   listenResolution();
   window.addEventListener("resize", terminalFontStore.displayChanged);
-  // The desktop shell knows the real monitor (two same-sized screens look identical to the browser), so it wins.
-  const desktop = getDesktopWorkspaceApi();
-  const shellKey = desktop?.displayKey?.();
-  if (shellKey) terminalFontStore.setShellDisplay(shellKey);
-  desktop?.onAgentCommand?.((command) => {
-    if (command.type === "display") terminalFontStore.setShellDisplay(command.key);
-  });
+  // The desktop shell knows the real monitor (two same-sized screens look identical to the browser), so it wins; its API may arrive later.
+  if (!hookShell()) window.addEventListener(DESKTOP_READY_EVENT, hookShell, { once: true });
 }
 
 export function useTerminalFontSize(): number {

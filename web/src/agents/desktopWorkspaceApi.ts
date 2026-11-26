@@ -53,6 +53,9 @@ declare global {
   }
 }
 
+/** Fired on `window` by the shell's injected script once `codechromaDesktop` exists (it lands after the page's own scripts ran). */
+export const DESKTOP_READY_EVENT = "codechroma-desktop-ready";
+
 /** Its presence is the desktop-app detection: no user-agent sniffing needed. */
 export function getDesktopWorkspaceApi(): DesktopWorkspaceApi | undefined {
   return typeof window === "undefined" ? undefined : window.codechromaDesktop;

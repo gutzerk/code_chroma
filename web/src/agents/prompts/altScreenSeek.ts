@@ -27,12 +27,7 @@ function directionFor(lines: readonly (number | null)[], index: number): Directi
   return index < Math.min(...visible) ? "up" : "down";
 }
 
-/**
- * Pages a fullscreen TUI's own transcript until prompt `index` (1-based) shows its echo below the top row, which fullscreen
- * claude uses as a pinned header for the prompt being read. Rescans the screen after every step; stops at an end that no
- * longer moves (then tries the other way once), after `maxSteps`, or when `cancelled` says a newer jump took over.
- * Resolves to the echo's screen row, or null when it was not found.
- */
+/** Pages a fullscreen TUI's transcript until prompt `index` (1-based) echoes below the pinned top row; its row, or null if never found. */
 export async function seekPromptOnAltScreen(
   driver: AltScreenDriver,
   prompts: readonly { text: string }[],

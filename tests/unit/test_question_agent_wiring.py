@@ -20,7 +20,12 @@ from codechroma.questions.launch import (
     write_claude_config,
 )
 from codechroma.questions.mcp_server import QuestionMcp
-from codechroma.terminal.agents import FULLSCREEN_TUI, agent_cli, agent_launch
+from codechroma.terminal.agents import (
+    ALTERNATE_SCREEN_ENV,
+    FULLSCREEN_TUI,
+    agent_cli,
+    agent_launch,
+)
 
 ENDPOINT = McpEndpoint("agent-1", "http://127.0.0.1:8123", "agent-1.sig")
 
@@ -52,6 +57,7 @@ def test_claude_argv_registers_an_http_mcp_config_with_bearer_header_before_the_
     assert env == {
         "CODECHROMA_BRIDGE_URL": "http://127.0.0.1:8123",
         "CODECHROMA_QUESTION_TOKEN": "agent-1.sig",
+        ALTERNATE_SCREEN_ENV: "0",
     }
     assert server["type"] == "http"
     assert server["url"] == "http://127.0.0.1:8123/mcp/"
@@ -73,7 +79,7 @@ def test_claude_argv_is_unchanged_without_an_endpoint():
 
     assert "--mcp-config" not in argv
     assert json.loads(argv[argv.index("--settings") + 1]) == {"tui": FULLSCREEN_TUI}
-    assert env == {}
+    assert env == {ALTERNATE_SCREEN_ENV: "0"}
 
 
 def _route_agents_to(

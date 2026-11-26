@@ -32,6 +32,7 @@ public static class DesktopScript
             writeClipboard: function (text) { return rpc({ type: "clipboard", method: "write", arg: text }); },
             saveFile: function (name, mime, base64) { return rpc({ type: "save-file", id: name, method: mime, arg: base64 }); }
           };
+          window.dispatchEvent(new Event("codechroma-desktop-ready"));
           function snap(t, input) {
             if (input) return { v: t.value, s: t.selectionStart, e: t.selectionEnd };
             var g = window.getSelection();

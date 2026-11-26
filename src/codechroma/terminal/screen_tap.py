@@ -35,9 +35,12 @@ PROGRESS_NONE = "none"
 # `OSC 9;4;<state>;<pct>`, read off the raw chunk: pyte drops every OSC code it has no method for.
 _OSC_PROGRESS = re.compile(r"\x1b\]9;4;(\d)(?:;(\d+))?(?:\x07|\x1b\\)")
 
-# Private-prefixed `m`/`u` (modifyOtherKeys `>4m`, kitty keyboard `>1u`/`<u`/`?u`): pyte reads them
-# as SGR / cursor restore, so they are dropped before feeding.
+# Private `m`/`u` CSIs (modifyOtherKeys `>4m`, kitty `>1u`/`<u`/`?u`) that pyte misreads: dropped.
 _PRIVATE_KEYBOARD = re.compile(r"\x1b\[(?:[<>=][0-9;]*[mu]|\?[0-9;]*u)")
+# A chunk's unfinished tail that may still become one of those; held for the next chunk.
+_OPEN_TAIL = re.compile(r"\x1b(?:\[(?:[<>=?][0-9;]*)?)?\Z")
+# Longest tail held back, so a runaway parameter list cannot grow the carry forever.
+_MAX_OPEN_TAIL = 64
 
 _PROGRESS_STATES = {
     "0": PROGRESS_NONE,
@@ -113,6 +116,8 @@ class ScreenTap:
         self._screen = pyte.Screen(cols, rows)
         # Non-strict: an agent TUI emits sequences pyte doesn't model, and none of them are fatal.
         self._stream = pyte.Stream(self._screen, strict=False)
+        # An unfinished escape held from the last chunk, so a split private CSI is still dropped.
+        self._carry = ""
         self._progress = PROGRESS_UNKNOWN
         # Bumped on every feed and resize, so a reader can tell the screen has not changed.
         self.generation = 0
@@ -127,14 +132,18 @@ class ScreenTap:
         matches = _OSC_PROGRESS.findall(chunk)
         if matches:
             self._progress = _PROGRESS_STATES.get(matches[-1][0], PROGRESS_NONE)
+        data = self._carry + chunk
+        tail = _OPEN_TAIL.search(data)
+        cut = tail.start() if tail and len(data) - tail.start() <= _MAX_OPEN_TAIL else len(data)
+        self._carry = data[cut:]
         with contextlib.suppress(Exception):
-            self._stream.feed(_PRIVATE_KEYBOARD.sub("", chunk))
+            self._stream.feed(_PRIVATE_KEYBOARD.sub("", data[:cut]))
 
     @property
     def in_ground(self) -> bool:
         """True between escape sequences, so an inserted sequence cannot cut one left open."""
         # pyte's parser yields True only from its ground state; it has no public accessor.
-        return bool(getattr(self._stream, "_taking_plain_text", True))
+        return not self._carry and bool(getattr(self._stream, "_taking_plain_text", True))
 
     def resize(self, rows: int, cols: int) -> None:
         """Kept in step with the PTY's own resize, so the screen matches what is displayed."""

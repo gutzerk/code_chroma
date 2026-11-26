@@ -261,3 +261,17 @@ def test_attaching_with_a_size_takes_the_pty_over_and_paints_once():
     frames, rows, cols, tap_cols = asyncio.run(run())
 
     assert (frames, rows, cols, tap_cols) == (1, 40, 140, 140)
+
+
+def test_attaching_an_exited_agent_with_a_size_keeps_its_last_screen_size():
+    async def run() -> tuple[int, int, int]:
+        session = AgentSession("runner", ECHO, cwd=".")
+        died_at = session._cols
+        session.close()
+        session.exit_code = 0
+        session.attach((40, 60))
+        return (died_at, session._cols, session._tap._screen.columns)
+
+    died_at, cols, tap_cols = asyncio.run(run())
+
+    assert (cols, tap_cols) == (died_at, died_at)

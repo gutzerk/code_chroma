@@ -91,7 +91,7 @@ public sealed class QuestionAgentWiringTests : IDisposable
 
         Assert.DoesNotContain("--mcp-config", noId.Argv);
         Assert.DoesNotContain("--mcp-config", noUrl.Argv);
-        Assert.Empty(noId.Env.Keys);
+        Assert.Equal([TerminalAgents.AlternateScreenEnv], noId.Env.Keys);
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class QuestionAgentWiringTests : IDisposable
 
         Assert.DoesNotContain("--mcp-config", bare.Argv);
         Assert.DoesNotContain("--mcp-config", shell.Argv);
-        Assert.Equal(new[] { BridgeAddress.BridgeUrlEnv, McpEndpoint.TokenEnv, BridgeAddress.WorkspaceIdEnv }.Order(), bare.Env.Keys.Order());
+        Assert.Equal(new[] { BridgeAddress.BridgeUrlEnv, McpEndpoint.TokenEnv, BridgeAddress.WorkspaceIdEnv, TerminalAgents.AlternateScreenEnv }.Order(), bare.Env.Keys.Order());
     }
 
     [Fact]

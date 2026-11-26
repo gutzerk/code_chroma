@@ -153,6 +153,8 @@ export function useXtermSession(
       // Unicode 11 widths need the proposed API; without them the braille spinner, box drawing and
       // emoji an agent TUI paints with are measured at the wrong cell width and the frame smears.
       allowProposedApi: true,
+      // While a TUI has mouse tracking on (claude fullscreen), Option-drag still selects text on macOS.
+      macOptionClickForcesSelection: true,
     });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);

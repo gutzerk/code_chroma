@@ -46,6 +46,9 @@ to revive if it comes back, it would be rebuilt from scratch.
     when the window connected without a size) is parsed; xterm then thinks the user scrolled and stops following output a few screens up. Only wheel, key
     and held-pointer input change the pinned state; other scrolls and writes snap a pinned terminal back. The prompt
     navigator unpins on a jump (`unpinTerminal`) and pins on Latest (`pinTerminal`); showing a hidden window re-applies it. It is a no-op while a TUI is on the alternate buffer (claude runs fullscreen): that buffer has no scrollback, so there is nothing to follow; the wheel goes to the TUI as mouse reports.
+  - 🔴 `macOptionClickForcesSelection: true`: claude runs fullscreen with mouse tracking on, so a plain drag is sent
+    to claude as mouse reports and selects nothing; on macOS an Option-drag still selects text (and copy-on-select copies
+    it). Other platforms: Shift-drag, xterm's default override.
   - Copy-on-select: `term.onSelectionChange` writes the new (non-empty) selection to
     the native desktop clipboard when available, otherwise `navigator.clipboard` (writes are serialized, and only selections started by a pointer press are copied), the same way a native terminal (iTerm, GNOME Terminal) works — no
     Cmd/Ctrl+C needed. Applies to both the panel and every agent window since they share this hook.

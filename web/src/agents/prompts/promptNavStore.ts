@@ -11,6 +11,8 @@ export interface PromptViewport {
   scrollToLine(line: number): void;
   scrollToBottom(): void;
   highlight(line: number | null): void;
+  /** On the alternate buffer (a fullscreen TUI keeps its own transcript): scroll the TUI until prompt `index` shows. */
+  seekPrompt?(index: number): void;
 }
 
 /** One agent's navigator state; `current` is 1-based and 0 when there are no prompts. */
@@ -24,9 +26,11 @@ export interface PromptNavState {
   announce: string;
   /** Bumped by Cmd/Ctrl+Shift+P: the outline focuses its search, the compact bar opens its list. */
   findRequest: number;
+  /** The terminal shows its alternate buffer: `lines` are screen rows, there is no scrollback to place markers on. */
+  alternate: boolean;
 }
 
-const EMPTY: PromptNavState = { prompts: [], lines: [], totalLines: 0, current: 0, announce: "", findRequest: 0 };
+const EMPTY: PromptNavState = { prompts: [], lines: [], totalLines: 0, current: 0, announce: "", findRequest: 0, alternate: false };
 
 function samePrompts(a: readonly PromptItem[], b: readonly PromptItem[]): boolean {
   return a.length === b.length && a.every((p, i) => p.id === b[i].id && p.text === b[i].text && p.summary === b[i].summary);
@@ -71,7 +75,7 @@ class PromptNavStore extends Store {
 
   /** A scroll: the active prompt follows the viewport (the latest one at the bottom), except during a jump's own scroll. */
   onViewport = (agentId: string, viewportTop: number, atBottom = false): void => {
-    if (Date.now() < (this.lockUntil.get(agentId) ?? 0)) return;
+    if (this.get(agentId).alternate || Date.now() < (this.lockUntil.get(agentId) ?? 0)) return;
     const { lines, current, prompts } = this.get(agentId);
     if (lines.length === 0) return;
     const next = atBottom ? prompts.length : activeIndexAt(lines, viewportTop);
@@ -79,9 +83,15 @@ class PromptNavStore extends Store {
   };
 
   go = (agentId: string, index: number): void => {
-    const { prompts, lines } = this.get(agentId);
+    const { prompts, lines, alternate } = this.get(agentId);
     const current = clampIndex(index, prompts.length);
     if (current === 0) return;
+    const viewport = this.viewports.get(agentId);
+    if (alternate && viewport?.seekPrompt) {
+      viewport.seekPrompt(current);
+      this.set(agentId, { current, announce: `Prompt ${current} of ${prompts.length}` });
+      return;
+    }
     const line = lines[current - 1] ?? null;
     this.lockUntil.set(agentId, Date.now() + JUMP_LOCK_MS);
     if (line !== null) this.viewports.get(agentId)?.scrollToLine(line);
@@ -98,6 +108,17 @@ class PromptNavStore extends Store {
     this.viewports.get(agentId)?.scrollToBottom();
   };
 
+  /** The terminal switched between its normal and alternate buffer. */
+  setAlternate = (agentId: string, alternate: boolean): void => {
+    if (this.get(agentId).alternate !== alternate) this.set(agentId, { alternate });
+  };
+
+  /** A fullscreen seek gave up: the prompt's echo never came into view. */
+  seekMissed = (agentId: string, index: number): void => {
+    const { current, prompts } = this.get(agentId);
+    if (current === index) this.set(agentId, { announce: `Prompt ${index} of ${prompts.length} (not found in the terminal)` });
+  };
+
   requestFind = (agentId: string): void => {
     this.set(agentId, { findRequest: this.get(agentId).findRequest + 1 });
   };
@@ -106,7 +127,7 @@ class PromptNavStore extends Store {
   clear = (agentId: string): void => {
     if (!this.states.has(agentId)) return;
     this.lockUntil.delete(agentId);
-    this.set(agentId, { ...EMPTY, findRequest: this.get(agentId).findRequest });
+    this.set(agentId, { ...EMPTY, findRequest: this.get(agentId).findRequest, alternate: this.get(agentId).alternate });
   };
 
   /** Drops the state of agents that no longer exist. */

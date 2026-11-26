@@ -15,6 +15,7 @@ const { terminals, fit, MEASURED } = vi.hoisted(() => {
       written: string[];
       refreshed: [number, number][];
       disposed: boolean;
+      options: { macOptionClickForcesSelection?: boolean };
     }[],
     fit: { count: 0, proposed: MEASURED as { rows: number; cols: number } | undefined },
   };
@@ -28,7 +29,9 @@ vi.mock("@xterm/xterm", () => {
     refreshed: [number, number][] = [];
     disposed = false;
     unicode = { activeVersion: "6" };
-    constructor() {
+    options: { macOptionClickForcesSelection?: boolean };
+    constructor(options: { macOptionClickForcesSelection?: boolean } = {}) {
+      this.options = { ...options };
       terminals.push(this);
     }
     loadAddon(): void {}
@@ -257,5 +260,11 @@ describe("useXtermSession", () => {
     vi.advanceTimersByTime(60);
 
     expect(session.resize).not.toHaveBeenCalled();
+  });
+
+  it("lets Option-drag select text while a fullscreen TUI tracks the mouse", () => {
+    mount(() => fakeSession().session);
+
+    expect(terminals[0].options.macOptionClickForcesSelection).toBe(true);
   });
 });

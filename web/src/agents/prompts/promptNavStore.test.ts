@@ -141,4 +141,44 @@ describe("promptHotkey", () => {
   ])("maps %o to %s", (event, expected) => {
     expect(promptHotkey(event)).toBe(expected);
   });
+
+  describe("on the alternate buffer", () => {
+    it("asks the terminal to seek the prompt instead of scrolling to a line", () => {
+      const view = { ...viewport(), seekPrompt: vi.fn() };
+      promptNavStore.attach("a", view);
+      promptNavStore.setPrompts("a", [raw("one"), raw("two")]);
+      promptNavStore.setAlternate("a", true);
+
+      promptNavStore.go("a", 1);
+
+      expect(view.seekPrompt).toHaveBeenCalledWith(1);
+      expect(view.scrollToLine).not.toHaveBeenCalled();
+      expect(promptNavStore.get("a")).toMatchObject({ current: 1, announce: "Prompt 1 of 2" });
+    });
+
+    it("keeps the chosen prompt while the TUI repaints, and says so when a seek misses", () => {
+      const view = { ...viewport(), seekPrompt: vi.fn() };
+      promptNavStore.attach("a", view);
+      promptNavStore.setPrompts("a", [raw("one"), raw("two")]);
+      promptNavStore.setAlternate("a", true);
+      promptNavStore.go("a", 1);
+
+      promptNavStore.onViewport("a", 0, true);
+      promptNavStore.seekMissed("a", 1);
+
+      expect(promptNavStore.get("a")).toMatchObject({ current: 1, announce: "Prompt 1 of 2 (not found in the terminal)" });
+    });
+
+    it("leaves the main buffer's jump unchanged", () => {
+      const view = { ...viewport(), seekPrompt: vi.fn() };
+      promptNavStore.attach("a", view);
+      promptNavStore.setPrompts("a", [raw("one"), raw("two")]);
+      promptNavStore.setLayout("a", [10, 80], 200);
+
+      promptNavStore.go("a", 1);
+
+      expect(view.scrollToLine).toHaveBeenCalledWith(10);
+      expect(view.seekPrompt).not.toHaveBeenCalled();
+    });
+  });
 });

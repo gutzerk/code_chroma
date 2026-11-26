@@ -6,7 +6,9 @@ import { PROMPT_NAV_SCOPE } from "./usePromptHotkeys";
 
 /** Full screen's left-column section under the agent list: every prompt of the selected agent, searchable. */
 export function PromptOutline({ agentId, agentTitle }: { agentId: string; agentTitle: string }) {
-  const { prompts, lines, current, findRequest } = usePromptNav(agentId);
+  const { prompts, lines: scanned, alternate, current, findRequest } = usePromptNav(agentId);
+  // On the alternate buffer a prompt off screen is still reachable (the TUI scrolls to it), so none reads as gone.
+  const lines = alternate ? prompts.map(() => 0) : scanned;
   const inputRef = useRef<HTMLInputElement | null>(null);
   useOnRequest(findRequest, () => inputRef.current?.focus());
 

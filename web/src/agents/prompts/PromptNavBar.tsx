@@ -13,7 +13,9 @@ const STEPS = [
 
 /** The row between the agent header and its terminal: compact (with a prompt list popover) or full screen. */
 export function PromptNavBar({ agentId, full }: { agentId: string; full: boolean }) {
-  const { prompts, lines, current, announce, findRequest } = usePromptNav(agentId);
+  const { prompts, lines: scanned, alternate, current, announce, findRequest } = usePromptNav(agentId);
+  // On the alternate buffer a prompt off screen is still reachable (the TUI scrolls to it), so none reads as gone.
+  const lines = alternate ? prompts.map(() => 0) : scanned;
   const [open, setOpen] = useState(false);
   const hide = useCallback(() => setOpen(false), []);
   const { containerRef, triggerRef } = useDisclosureMenu(open, hide);

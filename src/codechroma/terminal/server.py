@@ -78,7 +78,7 @@ async def terminal_socket(websocket: WebSocket) -> None:
 
 
 def _query_size(websocket: WebSocket) -> tuple[int, int] | None:
-    """The window's measured `?rows=&cols=`, clamped like a resize frame; None unless both parse."""
+    """The window's measured `?rows=&cols=`, clamped to 1..1000; None unless both parse."""
     try:
         rows = int(websocket.query_params.get("rows") or "")
         cols = int(websocket.query_params.get("cols") or "")

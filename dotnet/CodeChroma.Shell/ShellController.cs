@@ -60,7 +60,8 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
     {
         if (key == Display) return;
         Display = key;
-        foreach (var tab in tabs.Tabs) ui.SendAgentCommand(tab, AgentCommand.Display(key));
+        var command = AgentCommand.Display(key);
+        foreach (var tab in tabs.Tabs) ui.SendAgentCommand(tab, command);
     }
 
     /// <summary>A tab's page just loaded: it gets the current monitor, which it missed while it was not there.</summary>

@@ -18,18 +18,15 @@ public static class AgentSessionOwnership
         return Path.Combine(root, ".codechroma", "agent-sessions", id.ToString() + ".json");
     }
 
-    public static string HookSettings(bool sessionTracking = true, bool askUserQuestion = false, bool statusHooks = false) =>
-        TryHookSettings(sessionTracking, askUserQuestion, statusHooks) ?? new JsonObject { ["hooks"] = new JsonObject() }.ToJsonString();
-
-    /// <summary>The `--settings` document: the hooks plus, with `askUserQuestion` (the MCP server is registered), its tools pre-approved, and with `fullscreen` claude's fullscreen renderer; null when it would hold nothing.</summary>
-    public static string? TryHookSettings(bool sessionTracking = true, bool askUserQuestion = false, bool statusHooks = false, bool fullscreen = false)
+    /// <summary>The `--settings` document every claude window gets: claude's fullscreen renderer, the hooks, and with `askUserQuestion` (the MCP server is registered) its tools pre-approved.</summary>
+    public static string HookSettings(bool sessionTracking = true, bool askUserQuestion = false, bool statusHooks = false)
     {
-        var hooks = Hooks(sessionTracking, askUserQuestion, statusHooks);
-        if (hooks is null && !askUserQuestion && !fullscreen) return null;
-        var settings = new JsonObject();
         // the fullscreen renderer redraws the whole conversation at the new width on SIGWINCH; the classic one leaves hard-wrapped rows
-        if (fullscreen) settings["tui"] = FullscreenTui;
-        if (hooks is not null) settings["hooks"] = hooks;
+        var settings = new JsonObject
+        {
+            ["tui"] = FullscreenTui,
+            ["hooks"] = Hooks(sessionTracking, askUserQuestion, statusHooks) ?? new JsonObject(),
+        };
         if (askUserQuestion)
             settings["permissions"] = new JsonObject { ["allow"] = new JsonArray(Questions.McpEndpoint.ClaudePermission) };
         return settings.ToJsonString();

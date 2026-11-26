@@ -273,9 +273,7 @@ class AgentSession(AgentSessionPort):
         """A queue seeded with one redraw; with a size the window takes the PTY over at it first."""
         queue: asyncio.Queue = asyncio.Queue()
         if size is not None:
-            self._sizes[queue] = size
-            self._size_owner = queue
-            self.resize(*size)
+            self.resize_from(queue, *size)
         queue.put_nowait(self._tap.render())
         self._consumers.add(queue)
         self._pty.client_attached = True

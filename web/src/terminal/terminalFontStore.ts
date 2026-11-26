@@ -148,11 +148,6 @@ export function watchDisplayChanges(): void {
   });
 }
 
-/** Tests only: lets `watchDisplayChanges` wire its listeners again. */
-export function resetDisplayWatchForTests(): void {
-  watching = false;
-}
-
 export function useTerminalFontSize(): number {
   return useSyncExternalStore(terminalFontStore.subscribe, terminalFontStore.get, terminalFontStore.get);
 }

@@ -211,8 +211,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
             if (size is { } known && _exitCode is null)
             {
                 consumer.Size = known;
-                _sizeOwner = consumer;
-                ResizeLocked(known.Rows, known.Cols);
+                TakeSizeLocked(consumer);
             }
             consumer.Channel.Writer.TryWrite(_tap.Render(withHistory: _exitCode is not null || consumer.Size is not null));
             if (_exitCode is not null) consumer.Channel.Writer.TryComplete();
@@ -235,8 +234,8 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         {
             _consumers.Remove(consumer);
             if (_sizeOwner != consumer) return;
-            _sizeOwner = _consumers.LastOrDefault(other => other.Size is not null);
-            if (_sizeOwner?.Size is { } size) ResizeLocked(size.Rows, size.Cols);
+            _sizeOwner = null;
+            if (_consumers.LastOrDefault(other => other.Size is not null) is { } next) TakeSizeLocked(next);
         }
     }
 
@@ -248,11 +247,7 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         {
             first = consumer.Size is null;
             consumer.Size = (rows, cols);
-            if (first || _sizeOwner is null || _sizeOwner == consumer)
-            {
-                _sizeOwner = consumer;
-                ResizeLocked(rows, cols);
-            }
+            if (first || _sizeOwner is null || _sizeOwner == consumer) TakeSizeLocked(consumer);
         }
         if (first) Resync(consumer);
     }
@@ -276,10 +271,17 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
     {
         lock (_gate)
         {
-            if (_sizeOwner == consumer || consumer.Size is not { } size || !_consumers.Contains(consumer)) return;
-            _sizeOwner = consumer;
-            ResizeLocked(size.Rows, size.Cols);
+            if (_sizeOwner == consumer || consumer.Size is null || !_consumers.Contains(consumer)) return;
+            TakeSizeLocked(consumer);
         }
+    }
+
+    /// <summary>Makes `consumer` the size owner and sizes the PTY to it; the caller holds _gate and has set its Size.</summary>
+    private void TakeSizeLocked(AgentConsumer consumer)
+    {
+        _sizeOwner = consumer;
+        var (rows, cols) = consumer.Size!.Value;
+        ResizeLocked(rows, cols);
     }
 
     /// <summary>Types into the agent; a submitted clear command of a CLI without a clear hook also clears the window's history.</summary>

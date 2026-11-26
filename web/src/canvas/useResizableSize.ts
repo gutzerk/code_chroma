@@ -96,7 +96,9 @@ export function useResizableSize(
     maxWidthPx,
     persistKey,
   } = options;
-  const maxWidthNow = () => (axis === "x" && maxWidthPx ? maxWidthPx() : window.innerWidth * maxViewportFraction);
+  // Screen-px width ceiling: the caller's fraction applies to whichever axis it is actually resizing.
+  const maxWidthNow = () =>
+    axis === "x" && maxWidthPx ? maxWidthPx() : window.innerWidth * (axis === "y" ? MAX_VIEWPORT_FRACTION : maxViewportFraction);
   // A remembered width as a starting size: only the width is set, so the panel's CSS height still applies.
   const storedSize = (): Size | null => {
     const stored = persistKey && axis === "x" ? readStoredWidth(persistKey) : null;
@@ -143,9 +145,8 @@ export function useResizableSize(
     // Same logical-space conversion as above: the viewport-fraction ceiling is a screen-space
     // limit, so it has to be divided by scale too before comparing against logical width/height.
     // The caller's fraction applies to whichever axis it is actually resizing.
-    const widthFraction = axis === "y" ? MAX_VIEWPORT_FRACTION : maxViewportFraction;
     const heightFraction = axis === "y" ? maxViewportFraction : MAX_VIEWPORT_FRACTION;
-    const maxWidth = ((axis === "x" && maxWidthPx ? maxWidthPx() : window.innerWidth * widthFraction)) / resize.scale;
+    const maxWidth = maxWidthNow() / resize.scale;
     const maxHeight = (window.innerHeight * heightFraction) / resize.scale;
     if (onExceedMax && axis === "x" && dx > 0 && resize.startWidth + dx >= maxWidth + EXCEED_SLACK / resize.scale) {
       resizeRef.current = null;

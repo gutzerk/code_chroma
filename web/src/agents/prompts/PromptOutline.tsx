@@ -1,14 +1,14 @@
 import { useRef } from "react";
 import { PromptPicker } from "./PromptPicker";
 import { PROMPT_KEYS, useOnRequest } from "./promptKeys";
-import { promptNavStore, usePromptNav } from "./promptNavStore";
+import { promptNavStore, usePromptListLines, usePromptNav } from "./promptNavStore";
 import { PROMPT_NAV_SCOPE } from "./usePromptHotkeys";
 
 /** Full screen's left-column section under the agent list: every prompt of the selected agent, searchable. */
 export function PromptOutline({ agentId, agentTitle }: { agentId: string; agentTitle: string }) {
-  const { prompts, lines: scanned, alternate, current, findRequest } = usePromptNav(agentId);
-  // On the alternate buffer a prompt off screen is still reachable (the TUI scrolls to it), so none reads as gone.
-  const lines = alternate ? prompts.map(() => 0) : scanned;
+  const nav = usePromptNav(agentId);
+  const { prompts, current, findRequest } = nav;
+  const lines = usePromptListLines(nav);
   const inputRef = useRef<HTMLInputElement | null>(null);
   useOnRequest(findRequest, () => inputRef.current?.focus());
 

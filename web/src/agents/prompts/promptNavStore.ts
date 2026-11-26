@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { Store } from "../../state/createStore";
 import type { RawPrompt } from "../../state/types";
 import { activeIndexAt, clampIndex, toPrompts, type PromptItem } from "./promptNav";
@@ -75,9 +75,8 @@ class PromptNavStore extends Store {
 
   /** A scroll: the active prompt follows the viewport (the latest one at the bottom), except during a jump's own scroll. */
   onViewport = (agentId: string, viewportTop: number, atBottom = false): void => {
-    if (this.get(agentId).alternate || Date.now() < (this.lockUntil.get(agentId) ?? 0)) return;
-    const { lines, current, prompts } = this.get(agentId);
-    if (lines.length === 0) return;
+    const { lines, current, prompts, alternate } = this.get(agentId);
+    if (alternate || Date.now() < (this.lockUntil.get(agentId) ?? 0) || lines.length === 0) return;
     const next = atBottom ? prompts.length : activeIndexAt(lines, viewportTop);
     if (next !== current) this.set(agentId, { current: next });
   };
@@ -94,7 +93,7 @@ class PromptNavStore extends Store {
     }
     const line = lines[current - 1] ?? null;
     this.lockUntil.set(agentId, Date.now() + JUMP_LOCK_MS);
-    if (line !== null) this.viewports.get(agentId)?.scrollToLine(line);
+    if (line !== null) viewport?.scrollToLine(line);
     const where = line === null ? " (not found in the terminal)" : "";
     this.set(agentId, { current, announce: `Prompt ${current} of ${prompts.length}${where}` });
   };
@@ -127,7 +126,8 @@ class PromptNavStore extends Store {
   clear = (agentId: string): void => {
     if (!this.states.has(agentId)) return;
     this.lockUntil.delete(agentId);
-    this.set(agentId, { ...EMPTY, findRequest: this.get(agentId).findRequest, alternate: this.get(agentId).alternate });
+    const { findRequest, alternate } = this.get(agentId);
+    this.set(agentId, { ...EMPTY, findRequest, alternate });
   };
 
   /** Drops the state of agents that no longer exist. */
@@ -162,6 +162,11 @@ export const promptNavStore = new PromptNavStore().markGlobalStore();
 
 export function usePromptNav(agentId: string): PromptNavState {
   return useSyncExternalStore(promptNavStore.subscribe, () => promptNavStore.get(agentId));
+}
+
+/** Each prompt's line for the lists: on the alternate buffer every prompt is reachable (the TUI scrolls to it), so none reads as gone. */
+export function usePromptListLines({ prompts, lines, alternate }: PromptNavState): (number | null)[] {
+  return useMemo(() => (alternate ? prompts.map(() => 0) : lines), [alternate, prompts, lines]);
 }
 
 /** Whether the agent has any prompts; re-renders only when that flips, not on every buffer scan. */

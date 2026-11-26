@@ -31,10 +31,10 @@ const FULL_SNAP_MARGIN = 120;
 /** The header chips, most urgent first. */
 const ATTENTION_ORDER: AttentionStatus[] = ["blocked", "error", "done"];
 
-/** Floating panel. Terminals stay mounted when tabs or visibility change. */
 /** Where the activity panel's dragged width is remembered across reloads. */
 export const ACTIVITY_PANEL_WIDTH_KEY = "codechroma.activityPanel.width";
 
+/** Floating panel. Terminals stay mounted when tabs or visibility change. */
 export function ActivityPanel({
   onRunAgent,
   disabled = false,

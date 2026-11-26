@@ -21,9 +21,9 @@ A Python-only change does not fix the production desktop runtime.
 - 🔴 Every claude window (agent, bare `--system-prompt`, `agent`-kind on the claude adapter,
   workflow steps and forks, which all go through `TerminalAgents.Resolve` → `OwnedLaunch`) runs
   claude's **fullscreen renderer**: its one `--settings` document always carries `"tui":
-  "fullscreen"` next to whatever hooks and permissions it has (`AgentSessionOwnership.TryHookSettings(...,
-  fullscreen: true)`, `FullscreenTui`; Python `terminal/agents.py` `_settings_args`, `FULLSCREEN_TUI`),
-  so even a window with no hooks gets `--settings {"tui":"fullscreen"}`. Fullscreen claude runs on the
+  "fullscreen"` next to whatever hooks and permissions it has (`AgentSessionOwnership.HookSettings(...)`,
+  `FullscreenTui`; Python `terminal/agents.py` `_settings_args`, `FULLSCREEN_TUI`),
+  so even a window with no hooks gets `--settings {"tui":"fullscreen","hooks":{}}`. Fullscreen claude runs on the
   alternate screen with mouse tracking (`?1000h`/`?1002h`/`?1003h`/`?1006h`) and on SIGWINCH redraws the
   whole conversation at the new width in one frame (measured: within ~30 ms of a 41→110 widen, no
   bridge clear). The classic renderer it replaced (forced before with
@@ -68,7 +68,7 @@ report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `wo
 `AgentStatus` (`Agents/AgentStatusState.cs`), Python the `STATUS_*` constants of `live_status.py`.
 
 - Every Claude launch with a bridge URL and agent id passes `--settings` with the status hooks, bare
-  diagram windows included (`AgentSessionOwnership.TryHookSettings(..., statusHooks)`; Python
+  diagram windows included (`AgentSessionOwnership.HookSettings(..., statusHooks)`; Python
   `session_ownership.hook_document(..., status_hooks=True)`). The launch also exports
   `CODECHROMA_BRIDGE_URL`, `CODECHROMA_QUESTION_TOKEN` and `CODECHROMA_WORKSPACE_ID` (= agent id) even
   without the MCP server. Events: `UserPromptSubmit`, `PreToolUse` (`*`, after the AskUserQuestion

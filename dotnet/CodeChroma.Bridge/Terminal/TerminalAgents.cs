@@ -155,9 +155,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         var fresh = string.IsNullOrEmpty(resumeSessionId) || fork;
         if (fresh && !string.IsNullOrEmpty(newSessionId)) options.AddRange(["--session-id", newSessionId]);
         var ownedEnv = new Dictionary<string, string>(env);
-        // one --settings document for every claude window, so the fullscreen renderer rides with whatever hooks it has
-        var settings = AgentSessionOwnership.TryHookSettings(trackingFile is not null, hasMcp, hooks is not null, fullscreen: true)!;
-        options.AddRange(["--settings", settings]);
+        options.AddRange(["--settings", AgentSessionOwnership.HookSettings(trackingFile is not null, hasMcp, hooks is not null)]);
         var statusHooks = hooks is not null && AgentSessionOwnership.CanRunHooks;
         // The status hooks authenticate with the agent's workspace token, which a bare window gets without the MCP server.
         foreach (var (key, value) in hooks?.Env() ?? new Dictionary<string, string>()) ownedEnv.TryAdd(key, value);
@@ -205,7 +203,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             return [binary, .. model, .. ResumePrompt(null, visiblePrompt), .. bareArgs];
         }
         if (bareArgs.Length > 0) return [binary, .. model, .. ResumePrompt(null, initialPrompt), .. bareArgs];
-        // Only a real claude launch takes a delegation (the CLI may have changed since the delegation was built); the start block rides on the first launch only.
+        // Only a real claude launch takes a delegation; the start block rides on the first launch only.
         var drawer = delegation is not null && isClaude && CliAdapters.All.TryGetValue(adapterKey, out var cli)
             ? cli.SubagentArgs(BareSkill.DrawerPlugin, BareSkill.DrawerAgent, BareSkill.DrawerDescription, delegation.DrawerPrompt, CliAdapters.DefaultBareTools, delegation.AllowedTools)
             : [];

@@ -231,10 +231,14 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         }
     }
 
+    private (PixelRect Bounds, double Scaling)? lastDisplay;
+
     /// <summary>Tells every page which monitor the window is on, so each display keeps its own terminal text size.</summary>
     private void ReportDisplay()
     {
-        if (Screens.ScreenFromWindow(this) is not { } screen) return;
+        // a window drag fires PositionChanged per pixel: only a different monitor or scaling is worth a key
+        if (Screens.ScreenFromWindow(this) is not { } screen || (screen.Bounds, screen.Scaling) == lastDisplay) return;
+        lastDisplay = (screen.Bounds, screen.Scaling);
         var bounds = screen.Bounds;
         controller.ReportDisplay(DisplayIdentity.Key(bounds.X, bounds.Y, bounds.Width, bounds.Height, screen.Scaling));
     }

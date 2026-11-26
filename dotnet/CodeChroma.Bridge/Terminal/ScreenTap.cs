@@ -139,29 +139,26 @@ public sealed class ScreenTap
             var mainShift = Math.Max(0, mainCursorY - (rows - 1));
             for (var y = 0; y < mainShift; y++) Remember(main[y], force: true);
             var nextMain = Resized(main, mainShift, rows, cols);
+            var cursorShift = _altScreen ? Math.Max(0, _y - (rows - 1)) : mainShift;
             if (_altScreen)
             {
-                var altShift = Math.Max(0, _y - (rows - 1));
-                _buffer = Resized(_buffer, altShift, rows, cols);
+                _buffer = Resized(_buffer, cursorShift, rows, cols);
                 _inactive = nextMain;
-                _y -= altShift;
                 _mainY = Math.Clamp(_mainY - mainShift, 0, rows - 1);
                 _mainX = Math.Min(_mainX, cols - 1);
-                _savedY = Math.Clamp(_savedY - altShift, 0, rows - 1);
             }
             else
             {
                 _inactive = Resized(_inactive, 0, rows, cols);
                 _buffer = nextMain;
-                _y -= mainShift;
-                _savedY = Math.Clamp(_savedY - mainShift, 0, rows - 1);
             }
+            _y = Math.Clamp(_y - cursorShift, 0, rows - 1);
+            _savedY = Math.Clamp(_savedY - cursorShift, 0, rows - 1);
             Rows = rows;
             Cols = cols;
             _top = 0;
             _bottom = rows - 1;
             _x = Math.Min(_x, cols - 1);
-            _y = Math.Clamp(_y, 0, rows - 1);
             _wrapPending = false;
         }
     }

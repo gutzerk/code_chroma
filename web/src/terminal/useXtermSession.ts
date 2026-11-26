@@ -6,6 +6,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import { useTerminalClient } from "./TerminalClientContext";
 import type { TerminalSession, TerminalSize } from "./TerminalClient";
+import { IS_MAC } from "../util/platform";
 import { attachStickToBottom, type StickToBottomHandle } from "./stickToBottom";
 import { terminalFontStore, watchDisplayChanges } from "./terminalFontStore";
 
@@ -68,12 +69,8 @@ function measurable(fitAddon: FitAddon): boolean {
   return !!measured && measured.cols > MIN_COLS && measured.rows > MIN_ROWS;
 }
 
-function isMac(): boolean {
-  return typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
-}
-
 /** Cmd (macOS) or Ctrl (elsewhere) with `=`/`+`, `-` or `0`: the terminal text-size chords; the step, or 0 to restore the default. */
-export function fontChord(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "altKey" | "key">, mac = isMac()): 1 | -1 | 0 | null {
+export function fontChord(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "altKey" | "key">, mac = IS_MAC): 1 | -1 | 0 | null {
   if (event.altKey || !(mac ? event.metaKey : event.ctrlKey)) return null;
   if (event.key === "=" || event.key === "+") return 1;
   if (event.key === "-" || event.key === "_") return -1;
@@ -251,7 +248,6 @@ export function useXtermSession(
         userSelectionPending = false;
       }, SELECTION_COPY_DEBOUNCE_MS);
     });
-    refit();
 
     const sticky = attachStickToBottom(term, container, () => hiddenRef.current);
     stickyRef.current = sticky;

@@ -59,7 +59,7 @@ def default_repo_root() -> Path:
 _PENDING_BROADCASTS: set[asyncio.Task] = set()
 
 
-async def _poll_agent_statuses(services: BridgeServices, question_mcp=None) -> None:
+async def _poll_agent_statuses(services: BridgeServices) -> None:
     """Samples every live agent's screen and pushes only the changes the detector settled on."""
     from codechroma.bridge.routes.agents import broadcast_agent
 
@@ -123,7 +123,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     services.connections.bind_loop(asyncio.get_running_loop())
     services.registry.start_all()
     await auto_start_agents(services, app.state.question_mcp)
-    status_poller = asyncio.create_task(_poll_agent_statuses(services, app.state.question_mcp))
+    status_poller = asyncio.create_task(_poll_agent_statuses(services))
     idle_sweeper = asyncio.create_task(_unload_idle_workspaces(services))
     try:
         # The MCP session manager's task group must live exactly as long as the bridge.

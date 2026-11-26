@@ -66,8 +66,11 @@ public static class TerminalRoutes
     public static (int Rows, int Cols)? QuerySize(IQueryCollection query)
     {
         if (!int.TryParse(query["rows"].ToString(), out var rows) || !int.TryParse(query["cols"].ToString(), out var cols)) return null;
-        return (Math.Clamp(rows, 1, 1000), Math.Clamp(cols, 1, 1000));
+        return (ClampDimension(rows), ClampDimension(cols));
     }
+
+    /// <summary>The one bound every rows/cols value from a client is held to.</summary>
+    private static int ClampDimension(int value) => Math.Clamp(value, 1, 1000);
 
     /// <summary>True when the id names an agent workspace, so "not running" beats opening a bare shell.</summary>
     private static bool NamesAnAgent(AgentManager agents, string workspace)
@@ -181,8 +184,8 @@ public static class TerminalRoutes
     private static int? Dimension(JsonNode? node, int fallback)
     {
         if (node is null) return fallback;
-        if (node is JsonValue value && value.TryGetValue<int>(out var number)) return Math.Clamp(number, 1, 1000);
-        if (node is JsonValue text && text.TryGetValue<string>(out var s) && int.TryParse(s, out var parsed)) return Math.Clamp(parsed, 1, 1000);
+        if (node is JsonValue value && value.TryGetValue<int>(out var number)) return ClampDimension(number);
+        if (node is JsonValue text && text.TryGetValue<string>(out var s) && int.TryParse(s, out var parsed)) return ClampDimension(parsed);
         return null;
     }
 

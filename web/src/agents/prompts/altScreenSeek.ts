@@ -43,15 +43,14 @@ export async function seekPromptOnAltScreen(
   let direction: Direction | null = null;
   let reversed = false;
   let stalls = 0;
-  let previous: string | null = null;
+  let previous: readonly string[] | null = null;
   for (let step = 0; step <= maxSteps; step++) {
     if (cancelled()) return null;
     const rows = driver.rows();
     const lines = findPromptLines(rows, prompts);
     const row = lines[index - 1] ?? null;
     if (row !== null && row > 0) return row;
-    const screen = rows.join("\n");
-    stalls = screen === previous ? stalls + 1 : 0;
+    stalls = previous !== null && sameRows(rows, previous) ? stalls + 1 : 0;
     if (direction === null) direction = directionFor(lines, index);
     else if (stalls >= STALLS_AT_END) {
       // No progress: this end of the transcript is reached.
@@ -61,10 +60,14 @@ export async function seekPromptOnAltScreen(
       reversed = true;
       stalls = 0;
     }
-    previous = screen;
+    previous = rows;
     if (step === maxSteps) break;
     driver.send(direction === "up" ? PAGE_UP : PAGE_DOWN);
     await driver.settled();
   }
   return null;
+}
+
+function sameRows(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((row, i) => row === b[i]);
 }

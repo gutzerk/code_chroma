@@ -7,6 +7,7 @@ import "@xterm/xterm/css/xterm.css";
 import { useTerminalClient } from "./TerminalClientContext";
 import type { TerminalSession, TerminalSize } from "./TerminalClient";
 import { attachStickToBottom, type StickToBottomHandle } from "./stickToBottom";
+import { terminalFontStore, watchDisplayChanges } from "./terminalFontStore";
 
 const REFIT_DEBOUNCE_MS = 60;
 const SELECTION_COPY_DEBOUNCE_MS = 150;
@@ -65,6 +66,19 @@ export function isPasteChord(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | 
 function measurable(fitAddon: FitAddon): boolean {
   const measured = fitAddon.proposeDimensions();
   return !!measured && measured.cols > MIN_COLS && measured.rows > MIN_ROWS;
+}
+
+function isMac(): boolean {
+  return typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+}
+
+/** Cmd (macOS) or Ctrl (elsewhere) with `=`/`+`, `-` or `0`: the terminal text-size chords; the step, or 0 to restore the default. */
+export function fontChord(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "altKey" | "key">, mac = isMac()): 1 | -1 | 0 | null {
+  if (event.altKey || !(mac ? event.metaKey : event.ctrlKey)) return null;
+  if (event.key === "=" || event.key === "+") return 1;
+  if (event.key === "-" || event.key === "_") return -1;
+  if (event.key === "0") return 0;
+  return null;
 }
 
 export interface XtermSessionOptions {
@@ -144,9 +158,10 @@ export function useXtermSession(
     const container = containerRef.current;
     if (!container || !enabled) return undefined;
 
+    watchDisplayChanges();
     const term = new Terminal({
       fontFamily: FONT_FAMILY,
-      fontSize: 12,
+      fontSize: terminalFontStore.get(),
       lineHeight: 1,
       scrollback: 5000,
       theme: THEME,
@@ -164,9 +179,26 @@ export function useXtermSession(
     term.open(container);
     // Leave Ctrl/Cmd+V to the browser: xterm cancelling the keydown suppresses the native paste event,
     // and the desktop shell's clipboard fallback then raises a WebView "Insert" prompt instead of pasting.
-    term.attachCustomKeyEventHandler(
-      (event) => !(event.type === "keydown" && isPasteChord(event)),
-    );
+    // Cmd/Ctrl+=/-/0 size the terminal text and never reach the PTY.
+    term.attachCustomKeyEventHandler((event) => {
+      const chord = fontChord(event);
+      if (chord !== null) {
+        if (event.type === "keydown") {
+          event.preventDefault();
+          if (chord === 0) terminalFontStore.restoreDefault();
+          else terminalFontStore.step(chord);
+        }
+        return false;
+      }
+      return !(event.type === "keydown" && isPasteChord(event));
+    });
+    // Every terminal follows the size for this display: a chord, the A-/A+ buttons or a move to another monitor.
+    const offFont = terminalFontStore.subscribe(() => {
+      const size = terminalFontStore.get();
+      if (term.options.fontSize === size) return;
+      term.options.fontSize = size;
+      scheduleRefit();
+    });
 
     // No WebglAddon on purpose: its glyph atlas is shared by every terminal and, once pages merge, drops glyphs.
     // The default DOM renderer has no atlas, so that whole class of blank cells cannot happen.
@@ -231,6 +263,7 @@ export function useXtermSession(
 
     return () => {
       disposed = true;
+      offFont();
       sticky.detach();
       stickyRef.current = null;
       detachConsumer?.();

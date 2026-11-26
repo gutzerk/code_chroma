@@ -21,6 +21,7 @@ import { CreatePrButton } from "./CreatePrButton";
 import { PromptNavBar } from "./prompts/PromptNavBar";
 import { usePromptHotkeys, PROMPT_NAV_SCOPE } from "./prompts/usePromptHotkeys";
 import { usePromptList } from "./prompts/usePromptList";
+import { TerminalFontButtons } from "../terminal/TerminalFontButtons";
 
 const DEFAULT_WIDTH = 440;
 const MIN_WIDTH = 320;
@@ -177,6 +178,7 @@ export function DockedAgentPanel({
           </>
         )}
         {usage && <UsageStrip usage={usage} />}
+        <TerminalFontButtons />
         {!agent.worktree_lost && !agent.source_pr && <CreatePrButton agent={agent} />}
         <button
           type="button"

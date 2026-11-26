@@ -54,6 +54,9 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         Deactivated += (_, _) => popover.Close();
         KeyDown += OnKeyDown;
         Closing += OnClosing;
+        Opened += (_, _) => ReportDisplay();
+        PositionChanged += (_, _) => ReportDisplay();
+        ScalingChanged += (_, _) => ReportDisplay();
 
         controller.NewTab();
         WindowState = WindowState.Maximized;
@@ -130,7 +133,9 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         var view = new TabView(this) { IsVisible = false };
         view.Web.NavigationCompleted += (_, _) =>
         {
-            if (IsBridgeOrigin(view, view.Web.Url)) _ = view.Web.ExecuteScriptAsync(DesktopScript.Source);
+            if (!IsBridgeOrigin(view, view.Web.Url)) return;
+            _ = view.Web.ExecuteScriptAsync(DesktopScript.Source);
+            if (tabs.Tabs.FirstOrDefault(t => ReferenceEquals(t.View, view)) is { } loaded) controller.PageLoaded(loaded.Id);
         };
         view.Web.NavigationStarting += (_, e) =>
         {
@@ -224,6 +229,14 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
             var file = await window.StorageProvider.SaveFilePickerAsync(options);
             return file?.TryGetLocalPath();
         }
+    }
+
+    /// <summary>Tells every page which monitor the window is on, so each display keeps its own terminal text size.</summary>
+    private void ReportDisplay()
+    {
+        if (Screens.ScreenFromWindow(this) is not { } screen) return;
+        var bounds = screen.Bounds;
+        controller.ReportDisplay(DisplayIdentity.Key(bounds.X, bounds.Y, bounds.Width, bounds.Height, screen.Scaling));
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

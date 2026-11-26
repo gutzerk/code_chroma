@@ -134,8 +134,15 @@ Each canvas page reports its agents to the shell; the tab strip shows the most u
   changed) redraws the strip via `TabsChanged` (`TabInfo.Agents`, `TabsSnapshot.Waiting`), and `Activity` (tool, target,
   turn start) only calls `IShellUi.AgentsChanged`, which swaps the chip's summary and refreshes the open popover.
 - Shell -> page: `IShellUi.SendAgentCommand` runs `window.__ccAgentCommand(<json>)` (bridge-origin tabs only), which calls
-  the listeners registered with `codechromaDesktop.onAgentCommand(fn)`. Commands (`AgentCommand`): `select-agent {id}` and
-  `permission {id, request_id, decision:"allow"}`.
+  the listeners registered with `codechromaDesktop.onAgentCommand(fn)`. Commands (`AgentCommand`): `select-agent {id}`,
+  `permission {id, request_id, decision:"allow"}` and `display {key}`. `display` names the monitor the window is on
+  (`DisplayIdentity.Key`: device-pixel bounds and scaling, e.g. `3840x2160+-1920+0@2`): `MainWindow.ReportDisplay`
+  computes it from `Screens.ScreenFromWindow(this)` on `Opened`, `PositionChanged` and `ScalingChanged`, and
+  `ShellController.ReportDisplay` sends it to every tab only when it changed; a page that loads later gets the current
+  one from `PageLoaded` (after `NavigationCompleted` injects `DesktopScript`). `DesktopScript` keeps the last key for
+  `codechromaDesktop.displayKey()`. The web keeps the terminal text size per display under it (see
+  [`web-panels.md`](web-panels.md)). The native menu claims no `=`/`-`/`0` gesture, so Cmd/Ctrl+= / − / 0 reach the
+  page. Tests: `DisplayIdentityTests`.
 - Tab chip (`TabChip`, kept across redraws so animations don't restart): `AgentRollup.Badge` picks the dot by the one
   status order `AgentRollup.Rank` (blocked > error > done > working > idle; the dot skips idle) (blocked: pulsing `#f2b33d` circle; error: `#ff7a7a` square r=2; done: `#4cc38a` circle;
   working: `#7ea3ff` spinner on `#26365a`; idle: nothing) and a badge counting blocked + error + done (solid yellow for

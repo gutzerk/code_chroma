@@ -74,6 +74,17 @@ public static class AgentCommand
 
     public static string Allow(string agentId, string requestId) =>
         JsonSerializer.Serialize(new Dictionary<string, string> { ["type"] = "permission", ["id"] = agentId, ["request_id"] = requestId, ["decision"] = "allow" });
+
+    /// <summary>Which monitor the window is on, so the page keeps a terminal text size per display.</summary>
+    public static string Display(string key) =>
+        JsonSerializer.Serialize(new Dictionary<string, string> { ["type"] = "display", ["key"] = key });
+}
+
+/// <summary>A monitor's identity as the page stores terminal text sizes under it: its bounds in device pixels and its scaling.</summary>
+public static class DisplayIdentity
+{
+    public static string Key(int x, int y, int width, int height, double scaling) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{width}x{height}+{x}+{y}@{scaling:0.##}");
 }
 
 /// <summary>Agent summaries per tab plus the round-robin cursor of the "N waiting" pill.</summary>

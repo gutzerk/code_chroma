@@ -52,6 +52,23 @@ public sealed class ShellController(TabModel tabs, BridgeRegistry bridges, IShel
         }
     }
 
+    /// <summary>The monitor the window is on now; null until the window first reports one.</summary>
+    public string? Display { get; private set; }
+
+    /// <summary>The window moved to a monitor (or its scaling changed): every tab's page hears the new identity once.</summary>
+    public void ReportDisplay(string key)
+    {
+        if (key == Display) return;
+        Display = key;
+        foreach (var tab in tabs.Tabs) ui.SendAgentCommand(tab, AgentCommand.Display(key));
+    }
+
+    /// <summary>A tab's page just loaded: it gets the current monitor, which it missed while it was not there.</summary>
+    public void PageLoaded(string tabId)
+    {
+        if (Display is { } key && tabs.FindTab(tabId) is { } tab) ui.SendAgentCommand(tab, AgentCommand.Display(key));
+    }
+
     /// <summary>The tab's page is gone or reloading: drop its summary so the pill and badges stop pointing at it.</summary>
     public void PageReset(string tabId) => ForgetAgents([tabId]);
 

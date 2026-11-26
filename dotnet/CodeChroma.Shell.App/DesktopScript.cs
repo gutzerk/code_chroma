@@ -7,8 +7,10 @@ public static class DesktopScript
         (function () {
           if (window.codechromaDesktop) return;
           var agentListeners = [];
+          var display = null;
           window.__ccAgentCommand = function (json) {
             var command = typeof json === "string" ? JSON.parse(json) : json;
+            if (command && command.type === "display") display = command.key;
             agentListeners.slice().forEach(function (fn) { try { fn(command); } catch (e) { console.error(e); } });
             return "ok";
           };
@@ -25,6 +27,7 @@ public static class DesktopScript
             focusThisTab: function () { return post({ type: "focus-tab" }); },
             closeThisProject: function () { return post({ type: "close-project" }); },
             reportAgents: function (summary) { var m = Object.assign({}, summary); m.type = "agent-summary"; return post(m); },
+            displayKey: function () { return display; },
             onAgentCommand: function (fn) { agentListeners.push(fn); return function () { agentListeners = agentListeners.filter(function (x) { return x !== fn; }); }; },
             writeClipboard: function (text) { return rpc({ type: "clipboard", method: "write", arg: text }); },
             saveFile: function (name, mime, base64) { return rpc({ type: "save-file", id: name, method: mime, arg: base64 }); }

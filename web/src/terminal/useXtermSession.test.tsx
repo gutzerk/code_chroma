@@ -1,9 +1,10 @@
 import { useRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import { TerminalClientProvider } from "./TerminalClientContext";
 import type { TerminalClient, TerminalSession } from "./TerminalClient";
-import { useXtermSession, type XtermSessionOptions } from "./useXtermSession";
+import { fontChord, useXtermSession, type XtermSessionOptions } from "./useXtermSession";
+import { terminalFontStore } from "./terminalFontStore";
 
 const { terminals, fit, MEASURED } = vi.hoisted(() => {
   const MEASURED = { rows: 24, cols: 80 };
@@ -15,7 +16,8 @@ const { terminals, fit, MEASURED } = vi.hoisted(() => {
       written: string[];
       refreshed: [number, number][];
       disposed: boolean;
-      options: { macOptionClickForcesSelection?: boolean };
+      options: { fontSize?: number; macOptionClickForcesSelection?: boolean };
+      keyHandler: ((event: KeyboardEvent) => boolean) | null;
     }[],
     fit: { count: 0, proposed: MEASURED as { rows: number; cols: number } | undefined },
   };
@@ -29,13 +31,16 @@ vi.mock("@xterm/xterm", () => {
     refreshed: [number, number][] = [];
     disposed = false;
     unicode = { activeVersion: "6" };
-    options: { macOptionClickForcesSelection?: boolean };
-    constructor(options: { macOptionClickForcesSelection?: boolean } = {}) {
+    options: { fontSize?: number; macOptionClickForcesSelection?: boolean };
+    keyHandler: ((event: KeyboardEvent) => boolean) | null = null;
+    constructor(options: { fontSize?: number } = {}) {
       this.options = { ...options };
       terminals.push(this);
     }
     loadAddon(): void {}
-    attachCustomKeyEventHandler(): void {}
+    attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean): void {
+      this.keyHandler = handler;
+    }
     open(): void {}
     focus(): void {}
     write(data: string): void {
@@ -110,6 +115,8 @@ function mount(connect: TerminalClient["connect"], options: Partial<XtermSession
 
 afterEach(() => {
   cleanup();
+  window.localStorage.removeItem("codechroma.terminalFont");
+  terminalFontStore.reloadForTests();
   terminals.length = 0;
   fit.count = 0;
   fit.proposed = MEASURED;
@@ -262,9 +269,60 @@ describe("useXtermSession", () => {
     expect(session.resize).not.toHaveBeenCalled();
   });
 
-  it("lets Option-drag select text while a fullscreen TUI tracks the mouse", () => {
+  it("starts every terminal at the stored size with Option-click selection on", () => {
+    terminalFontStore.set(15);
+
     mount(() => fakeSession().session);
 
+    expect(terminals[0].options.fontSize).toBe(15);
     expect(terminals[0].options.macOptionClickForcesSelection).toBe(true);
+  });
+
+  it("applies a size change to every open terminal and refits them", () => {
+    vi.useFakeTimers();
+    const first = fakeSession();
+    const second = fakeSession();
+    const sessions = [first.session, second.session];
+    const connect = () => sessions.shift()!;
+    mount(connect);
+    mount(connect);
+    fit.count = 0;
+
+    act(() => terminalFontStore.set(18));
+    vi.advanceTimersByTime(60);
+
+    expect(terminals.map((t) => t.options.fontSize)).toEqual([18, 18]);
+    expect(fit.count).toBe(2);
+  });
+
+  it("handles Cmd/Ctrl+= in the terminal without sending it to the PTY", () => {
+    const { session } = fakeSession();
+    mount(() => session);
+    terminalFontStore.set(12);
+    const event = new KeyboardEvent("keydown", { key: "=", ctrlKey: true, metaKey: true, cancelable: true });
+
+    const passed = terminals[0].keyHandler!(event);
+
+    expect(passed).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
+    expect(terminalFontStore.get()).toBe(13);
+    expect(session.write).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ key: "=", metaKey: true }, true, 1],
+    [{ key: "+", metaKey: true }, true, 1],
+    [{ key: "-", metaKey: true }, true, -1],
+    [{ key: "0", metaKey: true }, true, 0],
+    [{ key: "-", ctrlKey: true }, true, null],
+    [{ key: "-", ctrlKey: true }, false, -1],
+    [{ key: "=", metaKey: true, altKey: true }, true, null],
+    [{ key: "a", metaKey: true }, true, null],
+  ])("reads %o (mac %s) as the font chord %s", (keys, mac, expected) => {
+    const event = { ctrlKey: false, metaKey: false, altKey: false, ...keys };
+
+    const chord = fontChord(event, mac);
+
+    expect(chord).toBe(expected);
   });
 });

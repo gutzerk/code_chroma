@@ -11,7 +11,7 @@ public sealed record ClearWatch(IReadOnlyList<string> TypedCommands, string? Rep
         adapter is null ? null : new ClearWatch(adapter.HookReportsClear && hooked ? [] : adapter.ClearCommands, adapter.RepaintInput);
 }
 
-/// <summary>Follows the user's keystrokes line by line: the draft a restart would lose, and a clear command submitted with Enter (CR); a line edited with cursor keys, completion, Ctrl+J or a pasted line break is unknown and never matches.</summary>
+/// <summary>Follows the user's keystrokes line by line to spot a clear command submitted with Enter (CR); a line edited with cursor keys, completion, Ctrl+J or a pasted line break is unknown and never matches.</summary>
 public sealed class TypedLine(IReadOnlyList<string> clearCommands)
 {
     private const int MaxLine = 256;
@@ -23,9 +23,6 @@ public sealed class TypedLine(IReadOnlyList<string> clearCommands)
     private bool _inEscape;
     private bool _inPaste;
     private bool _unknown;
-
-    /// <summary>Whether the prompt holds a draft: typed text, or a line no longer known (history recall, a pasted line break).</summary>
-    public bool HasDraft => _unknown || _line.Length > 0;
 
     /// <summary>Feeds one input chunk; true when a line the user submitted in it was a clear command; bridge-typed (`injected`) text joins the line unseen, so it never matches.</summary>
     public bool Feed(string data, bool injected = false)

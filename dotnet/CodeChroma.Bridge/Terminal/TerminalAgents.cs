@@ -209,7 +209,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             return [binary, .. model, .. ResumePrompt(null, visiblePrompt), .. bareArgs];
         }
         if (bareArgs.Length > 0) return [binary, .. model, .. ResumePrompt(null, initialPrompt), .. bareArgs];
-        // Only a real claude launch takes a delegation (the CLI may have changed since a widen-resume stored one); the start block rides on the first launch only.
+        // Only a real claude launch takes a delegation (the CLI may have changed since the delegation was built); the start block rides on the first launch only.
         var drawer = delegation is not null && isClaude && CliAdapters.All.TryGetValue(adapterKey, out var cli)
             ? cli.SubagentArgs(BareSkill.DrawerPlugin, BareSkill.DrawerAgent, BareSkill.DrawerDescription, delegation.DrawerPrompt, CliAdapters.DefaultBareTools, delegation.AllowedTools)
             : [];

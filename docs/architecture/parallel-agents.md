@@ -36,32 +36,13 @@ A Python-only change does not fix the production desktop runtime.
   Legacy records keep their saved session ID; records without an ID start fresh. `Transcripts.cs`
   still reads known transcripts for token usage and supports workflow discovery, but is not used
   to choose an interactive agent's resume target.
-- ⚠ Widen resume (`Agents/WidenResume.cs`, Python `agents/widen_resume.py`): once an agent window
-  settles (`Settle`, 1.5 s after the last resize) at least `MinGainCols` (8) columns wider than the
-  narrowest width the current process printed at, and the agent is `idle`/`done` with no pending
-  permission, no queued `InjectWhenIdle`, no unsent draft and no keystroke for `TypingQuiet` (3 s),
-  the status poller restarts it in place: `AgentSession.Respawn` starts `claude --resume <its own
-  session id>` (with a new tracking file, via `TerminalAgents.Resolve`) on a new PTY at the current
-  size, writes `ResetScreen` (SGR reset, home, `ESC[2J` and `ESC[3J`) to the screen tap and every
-  attached window, then kills the old process; its late output and exit are ignored, so agent
-  identity, status, consumers and the prompt outline survive and no window reconnects. Busy agents
-  simply wait for a later idle poll, if still wider. An agent with an `ask_user` question on its
-  canvas is rechecked every 5 s. Skipped (the width is taken as printed, no error shown) when the
-  launch is untracked, bare (`--system-prompt`), not claude, has no session id or no transcript yet,
-  or the new PTY fails to start (the old one keeps running). A drawing window resumes with its
-  drawer plugin dir and lead instruction (`AgentSession.Delegation`), since the CLI does not store them.
-  - 🔴 `Respawn` re-checks the input under `_gate` and refuses (old process untouched) while an
-    injection is queued or typing, a draft exists or a key came within `TypingQuiet`.
-    `InjectWhenIdle` counts itself in under the same `_gate`, so its text and the Enter
-    `TypeAndSubmit` sends 300 ms later never straddle the PTY swap.
-  - The registry's `Respawn` takes the `AgentSession` itself and only restarts it while it is
-    still the one registered for the agent, so a stop/restart during the sweep is left alone.
-  - Draft tracking (both bridges) is the same `TypedLine` (`Agents/HistoryClear.cs`,
-    `history_clear.py`) that spots typed clears: printable text adds, backspace removes one,
-    Enter/^C/^U clears, any other key (e.g. Up-arrow history recall) or a line break inside a paste
-    makes the line unknown (= a draft) until the next Enter/^C/^U; a lone Escape, focus reports
-    (`ESC[I`/`ESC[O`) and SGR mouse reports (`ESC[<…`) are not typing. Tests: `Agents/WidenResumeTests.cs`,
-  `tests/unit/test_agent_widen_resume.py`.
+- 🔴 **A resize is a PTY resize plus SIGWINCH; agents are never restarted.** A window that grows or
+  shrinks only resizes the PTY and the screen tap (`AgentSession.Resize` / `resize_from`, size owner
+  rules below); the CLI repaints itself. There used to be a "widen resume" that restarted an idle
+  claude with `--resume` after a widening and cleared the window (`ESC[2J ESC[3J`) first, so text
+  vanished and the whole conversation reprinted about 1.5 s later; it was removed along with
+  `AgentSession.Respawn`, `ResetScreen` and the draft/typing bookkeeping it needed. Reflow at the new
+  width comes from claude's fullscreen renderer instead (see below).
 - Regression coverage: `Agents/SessionOwnershipTests.cs`, `Agents/OpenStepAgentTests.cs`, and
   `Terminal/TerminalAgentsBareTests.cs`. Run
   `dotnet test dotnet/CodeChroma.Bridge.Tests/CodeChroma.Bridge.Tests.csproj`.
@@ -170,7 +151,7 @@ into a `ClearWatch` (`Agents/HistoryClear.cs`, Python `bridge/agents/history_cle
   session id on its next read.
 - ⚠ Claude Code 2.1 prints no clear sequence on `/clear` (verified on a PTY): the old turns stay on
   screen and in the scrollback without this. Ctrl+L wipes the visible rows and redraws the prompt.
-- Typed detection (`TypedLine`, which also tracks the widen-resume draft) follows `AgentSession.Write`: a line submitted with CR (Enter)
+- Typed detection (`TypedLine`) follows `AgentSession.Write`: a line submitted with CR (Enter)
   whose first word is a clear command matches; backspace edits, Ctrl+U/Ctrl+C reset, a bracketed
   paste without a line break counts. Only CR submits: LF (Ctrl+J adds a composer line in Codex and
   Gemini) and any CR/LF inside a paste (tracked between `ESC[200~` and `ESC[201~`) make the line
@@ -477,7 +458,7 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   `a_plain_shell_connecting_with_a_query_size_starts_at_that_size`, `useXtermSession.test.tsx`,
   `TerminalClient.test.ts`. Claude's classic renderer
   writes wrapped rows as hard rows and on SIGWINCH repaints only the visible frame, so rows printed
-  while the PTY was narrow would stay narrow; the widen resume below reprints them.
+  while the PTY was narrow would stay narrow; nothing restarts the agent to reprint them.
   🔴 Entirely separate from `skill_agent`'s registry: if the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
   kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via
@@ -853,7 +834,7 @@ Being in a non-`normal` mode (also on mount) closes an open code popup and inspe
 
 ## Model pick on launch (long press, C# bridge)
 
-A click on "Run new agent" (`web/src/agents/activity/RunAgentButton.tsx`) runs the configured model as before. Holding it for `LONG_PRESS_MS` (1 s), or ArrowDown / right-click on it, drops a menu under the button (a click on the button while it is open only closes it; a keyboard click is never swallowed by a long press): "Default" (the configured model, shown beside it) plus the models of the connection new agent windows run on. Picking one calls `onRunAgent(model)` → `attachAgent`/`launchAgent(..., model)` → `POST /agents {model}`. The list comes from `GET /agents/models` (`Agents/AgentModelChoices.cs`): the `parallel_agents` call site's connection as `CliResolver.ResolveWithProvider` resolves it for the launch itself (LLM settings → Agents group, else the assistant's claude), with `current` = its model and `current_id` = the listed id it names (`AgentModelChoices.CurrentId`: same id, same base id, or a claude alias like `opus` → `claude-opus-*`), which the menu marks; for claude on its own account (no provider env overrides) it reads Claude Code's cached catalog (`<config>/cache/model-catalog/*.json`, `ClaudeModelCatalog.Models`, `source: "cache"`), otherwise the same `ModelCatalog.Fetch` the LLM settings' model pickers use (`source: "catalog"`, `"static"`, or `"unsupported"` when the connection cannot list models). The catalog files are parsed once per set of file stamps, shared with the context-window lookup. The web keeps the last answer per client (`agents/agentModels.ts`), shows it at once, and asks again on a press only when it is over a minute old (the fetch starts once a press lasts `PREFETCH_MS`, 250 ms, so a plain click asks nothing; a failed fetch falls back to the last good list and touches only its own cache entry); outside click / Escape come from `util/useDisclosureMenu.ts`. The pick is persisted as `model` on the agent record (`AgentRecord.CleanModel`: `[A-Za-z0-9._:@/\[\]-]`, ≤128 chars, no leading `-`; anything else is a 400) and passed to every `TerminalAgents.Resolve` (start, auto-start, widen-resume): an `agent` window applies it with `CliResolver.WithModel` (so an `ANTHROPIC_MODEL` provider gets it there), a `claude` window gets `--model` on the real claude binary only (a stand-in assistant CLI gets none). Tests: `Agents/AgentModelChoicesTests.cs`, `RunAgentButton.test.tsx`, `attachAgent.test.ts`. Python gap: see `docs/planning/012-csharp-bridge.md`.
+A click on "Run new agent" (`web/src/agents/activity/RunAgentButton.tsx`) runs the configured model as before. Holding it for `LONG_PRESS_MS` (1 s), or ArrowDown / right-click on it, drops a menu under the button (a click on the button while it is open only closes it; a keyboard click is never swallowed by a long press): "Default" (the configured model, shown beside it) plus the models of the connection new agent windows run on. Picking one calls `onRunAgent(model)` → `attachAgent`/`launchAgent(..., model)` → `POST /agents {model}`. The list comes from `GET /agents/models` (`Agents/AgentModelChoices.cs`): the `parallel_agents` call site's connection as `CliResolver.ResolveWithProvider` resolves it for the launch itself (LLM settings → Agents group, else the assistant's claude), with `current` = its model and `current_id` = the listed id it names (`AgentModelChoices.CurrentId`: same id, same base id, or a claude alias like `opus` → `claude-opus-*`), which the menu marks; for claude on its own account (no provider env overrides) it reads Claude Code's cached catalog (`<config>/cache/model-catalog/*.json`, `ClaudeModelCatalog.Models`, `source: "cache"`), otherwise the same `ModelCatalog.Fetch` the LLM settings' model pickers use (`source: "catalog"`, `"static"`, or `"unsupported"` when the connection cannot list models). The catalog files are parsed once per set of file stamps, shared with the context-window lookup. The web keeps the last answer per client (`agents/agentModels.ts`), shows it at once, and asks again on a press only when it is over a minute old (the fetch starts once a press lasts `PREFETCH_MS`, 250 ms, so a plain click asks nothing; a failed fetch falls back to the last good list and touches only its own cache entry); outside click / Escape come from `util/useDisclosureMenu.ts`. The pick is persisted as `model` on the agent record (`AgentRecord.CleanModel`: `[A-Za-z0-9._:@/\[\]-]`, ≤128 chars, no leading `-`; anything else is a 400) and passed to every `TerminalAgents.Resolve` (start, auto-start): an `agent` window applies it with `CliResolver.WithModel` (so an `ANTHROPIC_MODEL` provider gets it there), a `claude` window gets `--model` on the real claude binary only (a stand-in assistant CLI gets none). Tests: `Agents/AgentModelChoicesTests.cs`, `RunAgentButton.test.tsx`, `attachAgent.test.ts`. Python gap: see `docs/planning/012-csharp-bridge.md`.
 
 ## Session usage (019 Stage 7)
 

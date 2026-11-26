@@ -59,24 +59,10 @@ def default_repo_root() -> Path:
 _PENDING_BROADCASTS: set[asyncio.Task] = set()
 
 
-def _asks_user(services: BridgeServices, agent_id: str) -> bool:
-    """Whether the agent has an ask_user question on its canvas not yet typed back to it."""
-    from codechroma.questions.store import agent_questions
-
-    return bool(agent_questions(services.registry.get(agent_id), agent_id))
-
-
 async def _poll_agent_statuses(services: BridgeServices, question_mcp=None) -> None:
     """Samples every live agent's screen and pushes only the changes the detector settled on."""
-    from codechroma.bridge.agents.widen_resume import WidenResume
     from codechroma.bridge.routes.agents import broadcast_agent
-    from codechroma.io import utc_now
 
-    widen = WidenResume(
-        services.agent_manager, services.agent_sessions,
-        lambda agent_id: _asks_user(services, agent_id),
-        question_mcp.endpoint_for if question_mcp is not None else None,
-    )
     while True:
         await asyncio.sleep(_status_poll_seconds())
         try:
@@ -85,11 +71,6 @@ async def _poll_agent_statuses(services: BridgeServices, question_mcp=None) -> N
         except Exception:
             logger.exception("agents: status poll failed")
             continue
-        try:
-            # On the loop: a respawn spawns a PTY, which registers its reader with this loop.
-            changes = [*changes, *widen.sweep(utc_now())]
-        except Exception:
-            logger.exception("agents: widen resume failed")
         for agent_id in changes:
             await broadcast_agent(services, agent_id)
 

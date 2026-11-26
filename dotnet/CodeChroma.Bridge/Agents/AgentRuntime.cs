@@ -41,11 +41,6 @@ public sealed class AgentRuntime(
 
     private CancellationTokenSource? _stop;
     private Task? _poller;
-    private readonly WidenResume _widen = new(agents, sessions, terminalAgents, paths, id => AsksUser(registry, id));
-
-    /// <summary>Whether the agent has an ask_user question on its canvas, answered or not, that is not yet typed back to it.</summary>
-    private static bool AsksUser(WorkspaceRegistry registry, string agentId) =>
-        QuestionStore.AgentQuestions(registry.Get(agentId), agentId).Count > 0;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -166,7 +161,6 @@ public sealed class AgentRuntime(
                 try
                 {
                     foreach (var id in sessions.PollStatuses()) await BroadcastAgent(id);
-                    foreach (var id in _widen.Sweep(DateTimeOffset.UtcNow)) await BroadcastAgent(id);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {

@@ -323,4 +323,66 @@ public class ScreenTapTests
         Assert.Equal(["3", "4"], tap.Tail(2));
         Assert.Empty(tap.Tail(0));
     }
+    [Theory]
+    [InlineData(Esc + "[>4;2m")]
+    [InlineData(Esc + "[>4m")]
+    [InlineData(Esc + "[<4m")]
+    [InlineData(Esc + "[=4m")]
+    [InlineData(Esc + "[?4m")]
+    public void A_private_prefixed_csi_m_is_not_sgr(string sequence)
+    {
+        var tap = Tap();
+
+        tap.Feed(sequence + "plain");
+
+        Assert.Contains(Esc + "[0;39;49mplain", tap.Render());
+    }
+
+    [Theory]
+    [InlineData(Esc + "[>1u")]
+    [InlineData(Esc + "[<u")]
+    [InlineData(Esc + "[?u")]
+    [InlineData(Esc + "[=1;1u")]
+    public void Kitty_keyboard_sequences_do_not_restore_the_cursor(string sequence)
+    {
+        var tap = Tap();
+        tap.Feed(Esc + "[s" + "abc");
+
+        tap.Feed(sequence + "d");
+
+        Assert.Equal("abcd", tap.Tail(5)[0]);
+    }
+
+    [Fact]
+    public void Private_erase_still_erases()
+    {
+        var tap = Tap();
+        tap.Feed("abc\r\ndef" + Esc + "[1;1H");
+
+        tap.Feed(Esc + "[?2K" + Esc + "[2;2H" + Esc + "[?0J");
+
+        Assert.Equal(["", "d", "", "", ""], TopFirst(tap));
+    }
+
+    [Fact]
+    public void Dim_is_kept_and_cleared_with_bold_by_sgr_22()
+    {
+        var tap = Tap();
+
+        tap.Feed(Esc + "[1;2mfaint" + Esc + "[22mnormal");
+
+        var redraw = tap.Render();
+        Assert.Contains(Esc + "[0;1;2;39;49mfaint", redraw);
+        Assert.Contains(Esc + "[0;39;49mnormal", redraw);
+    }
+
+    [Fact]
+    public void A_dim_space_is_not_blank()
+    {
+        var tap = Tap();
+
+        tap.Feed(Esc + "[2m ");
+
+        Assert.Contains(Esc + "[0;2;39;49m ", tap.Render());
+    }
 }

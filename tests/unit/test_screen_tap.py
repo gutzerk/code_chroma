@@ -113,3 +113,22 @@ def test_the_tap_reports_whether_a_chunk_left_an_escape_sequence_open(chunk, gro
     tap.feed(chunk)
 
     assert tap.in_ground is ground
+
+
+@pytest.mark.parametrize("sequence", ["\x1b[>4;2m", "\x1b[>4m", "\x1b[<4m", "\x1b[=4m"])
+def test_a_private_prefixed_csi_m_is_not_sgr(sequence):
+    tap = ScreenTap(rows=3, cols=20)
+
+    tap.feed(sequence + "plain")
+
+    assert "\x1b[0;39;49mplain" in tap.render()
+
+
+@pytest.mark.parametrize("sequence", ["\x1b[>1u", "\x1b[<u", "\x1b[?u", "\x1b[=1;1u"])
+def test_kitty_keyboard_sequences_do_not_restore_the_cursor(sequence):
+    tap = ScreenTap(rows=3, cols=20)
+    tap.feed("\x1b[sabc")
+
+    tap.feed(sequence + "d")
+
+    assert tap.tail(3)[0] == "abcd"

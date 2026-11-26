@@ -442,7 +442,12 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   runs, none on the alt screen or from `CSI S`, cleared by `ESC[3J` / `ESC c`) and `Render()` replays
   them as plain lines first, each row whole (no breaks at the current width): xterm's autowrap
   soft-wraps a row wider than the window and re-wraps it on every later resize, so history replayed
-  into a narrow window widens with it — still parsed cells, never raw bytes. `Attach()` sends the
+  into a narrow window widens with it — still parsed cells, never raw bytes. ⚠ A CSI with a private
+  prefix is a different command than its final byte suggests: `Dispatch` drops every `>`/`<`/`=`
+  CSI (claude's modifyOtherKeys `ESC[>4m` would otherwise underline everything, kitty keyboard
+  `ESC[>1u`/`ESC[<u` would restore the cursor) and lets `?` through only for modes (`h`/`l`) and
+  selective erase (`J`/`K`); Python strips the same `m`/`u` sequences before pyte sees them
+  (`_PRIVATE_KEYBOARD`). The C# tap also keeps SGR 2 (dim); pyte has no dim attribute. `Attach()` sends the
   screen only (the history too once the process has exited); the first-resize `Resync` sends the
   history once. 🔴 `useXtermSession` sends no size until `FitAddon.proposeDimensions()` can measure
   its box (a hidden or not-yet-laid-out box would leave xterm's 80x24 default, shrinking the PTY so

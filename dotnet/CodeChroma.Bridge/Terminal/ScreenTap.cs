@@ -27,12 +27,12 @@ public sealed class ScreenTap
         public string Data;
         public string Fg;
         public string Bg;
-        public bool Bold, Italics, Underscore, Blink, Reverse, Strike;
+        public bool Bold, Dim, Italics, Underscore, Blink, Reverse, Strike;
 
-        public readonly bool IsBlank => Data == " " && Fg == "default" && Bg == "default" && !Bold && !Italics && !Underscore && !Reverse;
+        public readonly bool IsBlank => Data == " " && Fg == "default" && Bg == "default" && !Bold && !Dim && !Italics && !Underscore && !Reverse;
 
         public readonly bool SameStyle(Cell other) =>
-            Fg == other.Fg && Bg == other.Bg && Bold == other.Bold && Italics == other.Italics && Underscore == other.Underscore
+            Fg == other.Fg && Bg == other.Bg && Bold == other.Bold && Dim == other.Dim && Italics == other.Italics && Underscore == other.Underscore
             && Blink == other.Blink && Reverse == other.Reverse && Strike == other.Strike;
     }
 
@@ -379,8 +379,21 @@ public sealed class ScreenTap
 
     private static int At(int[] values, int index, int fallback) => index < values.Length && values[index] > 0 ? values[index] : fallback;
 
+    /// <summary>A CSI with a private prefix is a different command than the plain final byte suggests (`>4m` is modifyOtherKeys, `<u` pops kitty keyboard flags), so only `?` modes and selective erase get through.</summary>
+    private static bool Ignored(char final, string raw)
+    {
+        if (raw.Length == 0) return false;
+        return raw[0] switch
+        {
+            '>' or '<' or '=' => true,
+            '?' => final is not ('h' or 'l' or 'J' or 'K'),
+            _ => false,
+        };
+    }
+
     private void Dispatch(char final, string raw)
     {
+        if (Ignored(final, raw)) return;
         var privateMode = raw.StartsWith('?');
         var values = Params(raw, 0);
         _wrapPending = final is 'A' or 'B' or 'C' or 'D' or 'E' or 'F' or 'G' or 'H' or 'f' or 'd' ? false : _wrapPending;
@@ -531,12 +544,13 @@ public sealed class ScreenTap
             {
                 case 0: _pen = BlankCell(); break;
                 case 1: _pen.Bold = true; break;
+                case 2: _pen.Dim = true; break;
                 case 3: _pen.Italics = true; break;
                 case 4: _pen.Underscore = true; break;
                 case 5: _pen.Blink = true; break;
                 case 7: _pen.Reverse = true; break;
                 case 9: _pen.Strike = true; break;
-                case 22: _pen.Bold = false; break;
+                case 22: _pen.Bold = false; _pen.Dim = false; break;
                 case 23: _pen.Italics = false; break;
                 case 24: _pen.Underscore = false; break;
                 case 25: _pen.Blink = false; break;
@@ -603,6 +617,7 @@ public sealed class ScreenTap
     {
         var parts = new List<string> { "0" };
         if (cell.Bold) parts.Add("1");
+        if (cell.Dim) parts.Add("2");
         if (cell.Italics) parts.Add("3");
         if (cell.Underscore) parts.Add("4");
         if (cell.Blink) parts.Add("5");

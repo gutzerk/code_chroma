@@ -47,6 +47,27 @@ export interface ResizableOptions {
   onExceedMax?: () => void;
   /** Screen-px max width for an "x" axis, replacing the viewport fraction (e.g. to track a layout-derived ceiling). */
   maxWidthPx?: () => number;
+  /** localStorage key that remembers an "x"-axis drag's width across reloads; restored clamped to today's bounds. */
+  persistKey?: string;
+}
+
+/** The stored width, or null when nothing (or nothing readable) is stored; never throws. */
+function readStoredWidth(key: string): number | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    const width = raw === null ? NaN : Number(raw);
+    return Number.isFinite(width) && width > 0 ? width : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredWidth(key: string, width: number): void {
+  try {
+    window.localStorage.setItem(key, String(Math.round(width)));
+  } catch {
+    // storage blocked or full: the width simply is not remembered
+  }
 }
 
 const EXCEED_SLACK = 24;
@@ -73,8 +94,18 @@ export function useResizableSize(
     maxViewportFraction = MAX_VIEWPORT_FRACTION,
     onExceedMax,
     maxWidthPx,
+    persistKey,
   } = options;
-  const [size, setSize] = useState<Size | null>(null);
+  const maxWidthNow = () => (axis === "x" && maxWidthPx ? maxWidthPx() : window.innerWidth * maxViewportFraction);
+  // A remembered width as a starting size: only the width is set, so the panel's CSS height still applies.
+  const storedSize = (): Size | null => {
+    const stored = persistKey && axis === "x" ? readStoredWidth(persistKey) : null;
+    if (stored === null) return null;
+    return { width: clamp(stored, minWidth, Math.max(minWidth, maxWidthNow())), height: Number.NaN };
+  };
+  const [size, setSize] = useState<Size | null>(storedSize);
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
   const [isResizing, setIsResizing] = useState(false);
   const resizeRef = useRef<ResizeState | null>(null);
 
@@ -93,7 +124,7 @@ export function useResizableSize(
       startClientX: event.clientX,
       startClientY: event.clientY,
       startWidth: size?.width ?? (rect ? rect.width / scale : minWidth),
-      startHeight: size?.height ?? (rect ? rect.height / scale : minHeight),
+      startHeight: size && Number.isFinite(size.height) ? size.height : (rect ? rect.height / scale : minHeight),
       scale,
     };
     setIsResizing(true);
@@ -136,6 +167,8 @@ export function useResizableSize(
     if (resizeRef.current?.pointerId !== event.pointerId) return;
     resizeRef.current = null;
     setIsResizing(false);
+    const width = sizeRef.current?.width;
+    if (persistKey && axis === "x" && width !== undefined) writeStoredWidth(persistKey, width);
   }
 
   return {
@@ -147,6 +180,6 @@ export function useResizableSize(
       onPointerUp: endResize,
       onPointerCancel: endResize,
     },
-    resetSize: () => setSize(null),
+    resetSize: () => setSize(storedSize()),
   };
 }

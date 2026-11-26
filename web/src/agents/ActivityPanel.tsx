@@ -32,6 +32,9 @@ const FULL_SNAP_MARGIN = 120;
 const ATTENTION_ORDER: AttentionStatus[] = ["blocked", "error", "done"];
 
 /** Floating panel. Terminals stay mounted when tabs or visibility change. */
+/** Where the activity panel's dragged width is remembered across reloads. */
+export const ACTIVITY_PANEL_WIDTH_KEY = "codechroma.activityPanel.width";
+
 export function ActivityPanel({
   onRunAgent,
   disabled = false,
@@ -68,6 +71,7 @@ export function ActivityPanel({
       return area ? agentsWideWidth(area.clientWidth, leftOpen) - FULL_SNAP_MARGIN : window.innerWidth * 0.7;
     },
     onExceedMax: () => layoutStore.setAgentsMode("full"),
+    persistKey: ACTIVITY_PANEL_WIDTH_KEY,
   });
   const panelSize = usePanelSize(panelRef);
   const collapsed = agentsMode === "collapsed";

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useRef } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useResizableSize, type ResizableOptions } from "./useResizableSize";
@@ -137,5 +137,50 @@ describe("useResizableSize", () => {
 
     expect(exceeded).toBe(0);
     expect(size.width).toBe(500);
+  });
+
+  describe("persistKey", () => {
+    const KEY = "test.panel.width";
+    afterEach(() => {
+      window.localStorage.removeItem(KEY);
+      vi.restoreAllMocks();
+    });
+
+    it("remembers a dragged width and starts from it on the next mount", () => {
+      const first = render(<Panel options={{ axis: "x", edge: "left", minWidth: 320, persistKey: KEY }} />);
+      startSize(400, 600);
+      drag({ x: 600, y: 300 }, { x: 500, y: 300 });
+      first.unmount();
+
+      render(<Panel options={{ axis: "x", edge: "left", minWidth: 320, persistKey: KEY }} />);
+
+      expect(screen.getByTestId("handle").dataset.width).toBe("500");
+    });
+
+    it("clamps a remembered width to the current maximum", () => {
+      window.localStorage.setItem(KEY, "5000");
+
+      render(<Panel options={{ axis: "x", edge: "left", minWidth: 320, persistKey: KEY, maxWidthPx: () => 700 }} />);
+
+      expect(screen.getByTestId("handle").dataset.width).toBe("700");
+    });
+
+    it("starts at the CSS default when storage cannot be read", () => {
+      vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
+        throw new Error("blocked");
+      });
+
+      render(<Panel options={{ axis: "x", edge: "left", persistKey: KEY }} />);
+
+      expect(screen.getByTestId("handle").dataset.width).toBe("");
+    });
+
+    it("ignores a stored value that is not a width", () => {
+      window.localStorage.setItem(KEY, "wide");
+
+      render(<Panel options={{ axis: "x", edge: "left", persistKey: KEY }} />);
+
+      expect(screen.getByTestId("handle").dataset.width).toBe("");
+    });
   });
 });

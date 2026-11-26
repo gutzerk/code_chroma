@@ -828,7 +828,7 @@ Claude agent windows launch with the CodeChroma MCP server (`ask_user`) register
 `layoutStore.agentsMode` (`canvas/layout/layoutStore.ts`) replaces the old open/collapsed `useState` in
 `RootCanvas`:
 
-- `normal`: floating `ActivityPanel` (absolute in the canvas row), resizable; collapse is available from both the edge handle and the header's Collapse button.
+- `normal`: floating `ActivityPanel` (absolute in the canvas row), resizable; collapse is available from both the edge handle and the header's Collapse button. The dragged width is remembered across reloads: `useResizableSize`'s `persistKey` (`ACTIVITY_PANEL_WIDTH_KEY`, `codechroma.activityPanel.width` in localStorage, every access in try/catch) is written when a drag ends and read as the starting width, clamped to the current maximum (`maxWidthPx`) and `minWidth`; leaving full screen or collapse restores it too. Tests: `useResizableSize.test.tsx` (`persistKey`), `ActivityPanel.test.tsx`.
 - `collapsed`: `activity/CollapsedStrip`; clicking an avatar returns to `normal` and selects that agent.
 - `full`: the same `ActivityPanel` stretched over the canvas (`.is-full`) from the diagrams panel edge
   (or the chrome inset when that panel is closed, via `agentsWideWidth`); the agents dropdown row is not rendered and agents show in a 320px left column

@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.20.0](https://github.com/gutzerk/code_chroma/compare/v1.19.0...v1.20.0) (2026-11-25)
+
+
+### Features
+
+* pick the new agent's model by holding "Run new agent" ([d4c0ce3](https://github.com/gutzerk/code_chroma/commit/d4c0ce3bea71a9e34e4cbe4bc7a2960b7701bcfd))
+* unread messages panel for Slack and Outlook (029) ([fae8282](https://github.com/gutzerk/code_chroma/commit/fae828299540db4486da600b6bc77185f06b0688))
+* unread messages panel for Slack and Outlook (029) ([cba2686](https://github.com/gutzerk/code_chroma/commit/cba2686a0d17a8d62a57915aaf3a5de250e16fcb))
+
+
+### Bug Fixes
+
+* address review of the agent model menu ([b0f7686](https://github.com/gutzerk/code_chroma/commit/b0f7686260470b676c43dce7db8dae887e1a987a))
+* address review of the unread messages panel ([8130099](https://github.com/gutzerk/code_chroma/commit/8130099be0c91c03bfc10e929765997062c5f677))
+* harden unread messages sources after review ([c896fd6](https://github.com/gutzerk/code_chroma/commit/c896fd6a57de93febd9b8488f54d25a0772cdef8))
+* use radius tokens in messages.css for stylelint ([597c67c](https://github.com/gutzerk/code_chroma/commit/597c67c6f4769dce3a14b944ad5062b29dfb6945))
+
 ## [1.19.0](https://github.com/gutzerk/code_chroma/compare/v1.18.1...v1.19.0) (2026-11-14)
 
 

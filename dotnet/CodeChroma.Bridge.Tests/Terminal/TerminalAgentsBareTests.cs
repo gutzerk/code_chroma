@@ -27,9 +27,18 @@ public sealed class TerminalAgentsBareTests : IDisposable
         var provider = _providers.Create(new JsonObject { ["label"] = "Claude", ["kind"] = "cli", ["adapter"] = "claude" });
         _callSites.SaveGroup("agents", new JsonObject { ["provider_id"] = (string)provider["id"]!, ["model"] = "opus" });
 
-        var argv = _agents.Resolve("agent")!.Argv;
+        var argv = WithoutSettings(_agents.Resolve("agent")!.Argv);
 
         Assert.Equal(["claude", "--model", "opus"], argv.Take(3));
+    }
+
+    /// <summary>The argv without the `--settings` pair every claude window carries ahead of its own arguments.</summary>
+    private static List<string> WithoutSettings(IReadOnlyList<string> argv)
+    {
+        var list = argv.ToList();
+        var at = list.IndexOf("--settings");
+        if (at >= 0) list.RemoveRange(at, 2);
+        return list;
     }
 
     public void Dispose()
@@ -40,7 +49,7 @@ public sealed class TerminalAgentsBareTests : IDisposable
     [Fact]
     public void A_bare_window_gets_the_prompt_first_and_no_plugin_or_ambient_context()
     {
-        var argv = _agents.Resolve("claude", null, "draw it", bare: true)!.Argv;
+        var argv = WithoutSettings(_agents.Resolve("claude", null, "draw it", bare: true)!.Argv);
 
         Assert.Equal("draw it", argv[1]);
         Assert.DoesNotContain("--plugin-dir", argv);
@@ -50,17 +59,19 @@ public sealed class TerminalAgentsBareTests : IDisposable
     }
 
     [Fact]
-    public void A_bare_window_carries_no_hook_settings()
+    public void A_bare_window_carries_no_hooks_but_runs_fullscreen()
     {
         var argv = _agents.Resolve("claude", null, "draw it", bare: true)!.Argv;
 
-        Assert.DoesNotContain("--settings", argv);
+        var settings = System.Text.Json.Nodes.JsonNode.Parse(argv[argv.ToList().IndexOf("--settings") + 1])!;
+        Assert.Equal("fullscreen", (string?)settings["tui"]);
+        Assert.True(settings["hooks"] is null || settings["hooks"]!.AsObject().Count == 0);
     }
 
     [Fact]
     public void A_bare_window_with_a_visible_prompt_hides_the_skill_in_the_system_prompt()
     {
-        var argv = _agents.Resolve("claude", null, "LONG SKILL TEXT", bare: true, visiblePrompt: "Help me draw")!.Argv;
+        var argv = WithoutSettings(_agents.Resolve("claude", null, "LONG SKILL TEXT", bare: true, visiblePrompt: "Help me draw")!.Argv);
 
         Assert.Equal("Help me draw", argv[1]);
         Assert.Equal("LONG SKILL TEXT", argv[argv.ToList().IndexOf("--system-prompt") + 1]);

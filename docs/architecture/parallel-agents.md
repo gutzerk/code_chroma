@@ -18,10 +18,23 @@ A Python-only change does not fix the production desktop runtime.
   `CODECHROMA_AGENT_SESSION_FILE`. It does not start a server and requires no Python interpreter.
   Windows hooks explicitly use PowerShell with its call operator and quoting, so tracking also
   works when Git Bash is unavailable; Unix hooks use shell quoting.
-- ⚠ Every claude window (agent, bare and `agent`-kind on the claude adapter) gets
-  `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` (`TerminalAgents.ClassicRendererEnv`; Python
-  `terminal/agents.py` `_renderer_env`). A user's `"tui": "fullscreen"` setting otherwise runs claude
-  on the alternate screen, which leaves xterm no scrollback and so no usable scrollbar. The xterm
+- 🔴 Every claude window (agent, bare `--system-prompt`, `agent`-kind on the claude adapter,
+  workflow steps and forks, which all go through `TerminalAgents.Resolve` → `OwnedLaunch`) runs
+  claude's **fullscreen renderer**: its one `--settings` document always carries `"tui":
+  "fullscreen"` next to whatever hooks and permissions it has (`AgentSessionOwnership.TryHookSettings(...,
+  fullscreen: true)`, `FullscreenTui`; Python `terminal/agents.py` `_settings_args`, `FULLSCREEN_TUI`),
+  so even a window with no hooks gets `--settings {"tui":"fullscreen"}`. Fullscreen claude runs on the
+  alternate screen with mouse tracking (`?1000h`/`?1002h`/`?1003h`/`?1006h`) and on SIGWINCH redraws the
+  whole conversation at the new width in one frame (measured: within ~30 ms of a 41→110 widen, no
+  bridge clear). The classic renderer it replaced (forced before with
+  `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1`) wrote wrapped rows as hard rows that no emulator can reflow.
+  Trade-offs: xterm has no scrollback on the alt screen, so the wheel scrolls claude's own transcript
+  (SGR wheel reports, ~1 row each; PageUp/PageDown about half a screen; Ctrl+Home/Ctrl+End top and
+  bottom), and mouse tracking means a plain drag goes to claude: Option-drag selects text on macOS
+  (`macOptionClickForcesSelection`, see [`web-panels.md`](web-panels.md)). The status rules in
+  `detect/claude.toml` read the same prompt box, spinner and permission dialog on the fullscreen
+  screen (fixtures `tests/fixtures/agent_screens/claude/fullscreen-*.txt`), `/clear` still clears and
+  `InjectWhenIdle` still submits (both checked live with claude 2.1.332). The xterm
   viewport also resets `scrollbar-width`/`scrollbar-color` to `auto` in `web/src/styles.css`, since
   the global `thin` value hands WebKit a hidden overlay bar. 🔴 Keep `.agent-window-terminal`
   content-box: FitAddon sizes columns from its computed width, so `border-box` counts the padding,
@@ -456,9 +469,8 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   floor. Tests: `SizeOwnerTests` (attach with a size), `TerminalSocketTests`, contract cases
   `an_agent_window_connecting_with_a_query_size_runs_the_pty_at_that_size` and
   `a_plain_shell_connecting_with_a_query_size_starts_at_that_size`, `useXtermSession.test.tsx`,
-  `TerminalClient.test.ts`. Claude's classic renderer
-  writes wrapped rows as hard rows and on SIGWINCH repaints only the visible frame, so rows printed
-  while the PTY was narrow would stay narrow; nothing restarts the agent to reprint them.
+  `TerminalClient.test.ts`. A resize never restarts the agent: claude's fullscreen renderer repaints
+  the whole conversation at the new width itself.
   🔴 Entirely separate from `skill_agent`'s registry: if the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
   kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via

@@ -12,6 +12,9 @@
   {"kind": "claude", "screen": "claude/blocked-bash-permission.txt", "title": "✳ Claude Code", "expected": "blocked", "rule": "bash_permission_prompt", "visible_blocker": true},
   {"kind": "claude", "screen": "claude/idle-prompt.txt", "title": "⠐ Fix the refund test", "expected": "working", "rule": "osc_title_working", "visible_blocker": false},
   {"kind": "claude", "lines": ["some output nobody has a rule for"], "expected": null, "rule": null, "visible_blocker": false},
+  {"kind": "claude", "screen": "claude/fullscreen-idle.txt", "expected": "idle", "rule": "live_prompt_box", "visible_blocker": false},
+  {"kind": "claude", "screen": "claude/fullscreen-working.txt", "expected": "working", "rule": "live_turn_working", "visible_blocker": false},
+  {"kind": "claude", "screen": "claude/fullscreen-blocked.txt", "expected": "blocked", "rule": "bash_permission_prompt", "visible_blocker": true},
 
   {"kind": "codex", "screen": "codex/working.txt", "expected": "working", "rule": "screen_working_fallback", "visible_blocker": false},
   {"kind": "codex", "screen": "codex/idle.txt", "title": "code_chroma", "expected": "idle", "rule": "osc_title_idle", "visible_blocker": false},

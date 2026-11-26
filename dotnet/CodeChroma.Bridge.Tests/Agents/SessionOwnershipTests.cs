@@ -49,13 +49,28 @@ public sealed class SessionOwnershipTests
     [InlineData("claude", false)]
     [InlineData("claude", true)]
     [InlineData("agent", false)]
-    public void Claude_windows_force_the_classic_renderer_so_xterm_keeps_scrollback(string kind, bool bare)
+    public void Claude_windows_run_the_fullscreen_renderer_in_their_one_settings_document(string kind, bool bare)
     {
         using var repo = new GitSandbox();
 
-        var launch = Terminal(repo.Root).Resolve(kind, initialPrompt: "task", bare: bare)!;
+        var launch = Terminal(repo.Root).Resolve(kind, initialPrompt: "task", bare: bare, sessionTrackingFile: "owned.json")!;
 
-        Assert.Equal("1", launch.Env[TerminalAgents.ClassicRendererEnv]);
+        Assert.Single(launch.Argv, "--settings");
+        var settings = JsonNode.Parse(launch.Argv[launch.Argv.ToList().IndexOf("--settings") + 1])!;
+        Assert.Equal(AgentSessionOwnership.FullscreenTui, (string?)settings["tui"]);
+        Assert.DoesNotContain("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN", launch.Env.Keys);
+    }
+
+    [Fact]
+    public void A_resumed_or_forked_claude_window_also_runs_fullscreen()
+    {
+        using var repo = new GitSandbox();
+        var terminal = Terminal(repo.Root);
+
+        var resumed = terminal.Resolve("claude", resumeSessionId: Guid.NewGuid().ToString())!;
+        var forked = terminal.Resolve("claude", resumeSessionId: Guid.NewGuid().ToString(), forkSession: true, newSessionId: Guid.NewGuid().ToString())!;
+
+        Assert.All([resumed, forked], launch => Assert.Equal("fullscreen", (string?)JsonNode.Parse(launch.Argv[launch.Argv.ToList().IndexOf("--settings") + 1])!["tui"]));
     }
 
     [Fact]

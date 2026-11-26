@@ -478,8 +478,9 @@ public sealed class RuntimeEnvironment
             using var process = Process.Start(info)!;
             process.StandardInput.Close();
             process.ErrorDataReceived += (_, _) => { };
-            var copy = Task.Run(() => process.StandardOutput.BaseStream.CopyTo(output));
-            _ = Task.Run(() => process.StandardError.ReadToEnd());
+            // Own threads, not the pool: a busy pool (a parallel test run) could start the copy after its 2s grace below.
+            var copy = Task.Factory.StartNew(() => process.StandardOutput.BaseStream.CopyTo(output), TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(() => process.StandardError.ReadToEnd(), TaskCreationOptions.LongRunning);
             if (!process.WaitForExit(TimeSpan.FromSeconds(timeoutSeconds)))
             {
                 error = "Shell environment capture timed out";

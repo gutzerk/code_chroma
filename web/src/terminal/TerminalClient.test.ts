@@ -1,5 +1,38 @@
-import { describe, expect, it } from "vitest";
-import { decodeFrame } from "./TerminalClient";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { decodeFrame, WebSocketTerminalClient } from "./TerminalClient";
+
+describe("WebSocketTerminalClient.connect", () => {
+  const urls: string[] = [];
+  class FakeSocket {
+    constructor(url: string) {
+      urls.push(url);
+    }
+    addEventListener(): void {}
+    send(): void {}
+    close(): void {}
+  }
+
+  afterEach(() => {
+    urls.length = 0;
+    vi.unstubAllGlobals();
+  });
+
+  it("puts a measured size on the query", () => {
+    vi.stubGlobal("WebSocket", FakeSocket);
+
+    new WebSocketTerminalClient("ws://bridge").connect("claude", "wt-1", { rows: 30, cols: 100 });
+
+    expect(urls).toEqual(["ws://bridge/ws/terminal?agent=claude&workspace=wt-1&rows=30&cols=100"]);
+  });
+
+  it("leaves the size off when none is known", () => {
+    vi.stubGlobal("WebSocket", FakeSocket);
+
+    new WebSocketTerminalClient("ws://bridge").connect("shell");
+
+    expect(urls).toEqual(["ws://bridge/ws/terminal?agent=shell"]);
+  });
+});
 
 describe("decodeFrame", () => {
   it("extracts the message from a tagged error frame", () => {

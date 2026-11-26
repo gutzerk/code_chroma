@@ -3,7 +3,7 @@ import { useDisclosureMenu } from "../../util/useDisclosureMenu";
 import { PROMPT_KEYS, useOnRequest } from "./promptKeys";
 import { ChevronDownIcon, ChevronUpIcon, UserIcon } from "../activity/icons";
 import { PromptPicker } from "./PromptPicker";
-import { promptNavStore, usePromptNav } from "./promptNavStore";
+import { promptNavStore, usePromptListLines, usePromptNav } from "./promptNavStore";
 import "./PromptNav.css";
 
 const STEPS = [
@@ -13,7 +13,9 @@ const STEPS = [
 
 /** The row between the agent header and its terminal: compact (with a prompt list popover) or full screen. */
 export function PromptNavBar({ agentId, full }: { agentId: string; full: boolean }) {
-  const { prompts, lines, current, announce, findRequest } = usePromptNav(agentId);
+  const nav = usePromptNav(agentId);
+  const { prompts, current, announce, findRequest } = nav;
+  const lines = usePromptListLines(nav);
   const [open, setOpen] = useState(false);
   const hide = useCallback(() => setOpen(false), []);
   const { containerRef, triggerRef } = useDisclosureMenu(open, hide);

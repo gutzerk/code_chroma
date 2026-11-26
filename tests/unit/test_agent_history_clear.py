@@ -124,7 +124,7 @@ def test_a_clear_asked_for_mid_escape_sequence_waits_for_the_next_ground_boundar
         session._tap.feed("\x1b[38;2;1")
         session.clear_history()
         held.append(str(session._clear_pending))
-        session._on_output("m after", session._spawn)
+        session._on_output("m after")
 
     sent, cleared = _sent_after(clear_mid_sequence, ClearWatch((), None))
 

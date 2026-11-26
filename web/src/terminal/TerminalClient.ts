@@ -10,11 +10,18 @@ export interface TerminalSession {
   close(): void;
 }
 
+/** A window's measured grid, sent with the connect so the bridge paints once at the right size. */
+export interface TerminalSize {
+  rows: number;
+  cols: number;
+}
+
 export interface TerminalClient {
   /** Opens one PTY-attached session for the given allow-listed agent key (e.g. "claude"). Passing a
    * workspace id attaches to that agent's long-lived PTY on the bridge instead of spawning a new
-   * one, so closing the window never kills the agent. */
-  connect(agent: string, workspace?: string): TerminalSession;
+   * one, so closing the window never kills the agent. A known size goes out as `?rows=&cols=`, so
+   * the first frame is already drawn at it (no second clear+redraw on the first resize). */
+  connect(agent: string, workspace?: string, size?: TerminalSize): TerminalSession;
 }
 
 export type TerminalFrame = { kind: "output"; data: string } | { kind: "error"; message: string };
@@ -44,9 +51,13 @@ function encodeBytes(data: string): string {
 export class WebSocketTerminalClient implements TerminalClient {
   constructor(private readonly baseUrl: string) {}
 
-  connect(agent: string, workspace?: string): TerminalSession {
+  connect(agent: string, workspace?: string, size?: TerminalSize): TerminalSession {
     const query = new URLSearchParams({ agent });
     if (workspace) query.set("workspace", workspace);
+    if (size) {
+      query.set("rows", String(size.rows));
+      query.set("cols", String(size.cols));
+    }
     const socket = new WebSocket(`${this.baseUrl}/ws/terminal?${query.toString()}`);
     let dataCallback: ((data: string) => void) | null = null;
     let closeCallback: (() => void) | null = null;

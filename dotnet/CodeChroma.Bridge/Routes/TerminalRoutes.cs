@@ -37,10 +37,11 @@ public static class TerminalRoutes
                 await Fail(socket, $"unknown agent: {agent}", UnknownAgentCloseCode);
                 return Results.Empty;
             }
+            var size = QuerySize(context.Request.Query);
             var session = workspace.Length > 0 ? sessions.Get(workspace) : null;
             if (session is not null)
             {
-                await BridgeManagedSession(socket, session, aborted);
+                await BridgeManagedSession(socket, session, size, aborted);
                 return Results.Empty;
             }
             if (NamesAnAgent(agents, workspace))
@@ -56,10 +57,20 @@ public static class TerminalRoutes
             Dictionary<string, string> env;
             try { env = await runtime.TerminalEnvAsync(null, aborted); }
             catch (OperationCanceledException) { return Results.Empty; }
-            await BridgeOwnPty(socket, argv, ResolveCwd(registry, repoRoot, workspace), env, aborted);
+            await BridgeOwnPty(socket, argv, ResolveCwd(registry, repoRoot, workspace), env, size, aborted);
             return Results.Empty;
         });
     }
+
+    /// <summary>The window's measured size from `?rows=&amp;cols=`, clamped like a resize frame; null unless both are integers.</summary>
+    public static (int Rows, int Cols)? QuerySize(IQueryCollection query)
+    {
+        if (!int.TryParse(query["rows"].ToString(), out var rows) || !int.TryParse(query["cols"].ToString(), out var cols)) return null;
+        return (ClampDimension(rows), ClampDimension(cols));
+    }
+
+    /// <summary>The one bound every rows/cols value from a client is held to.</summary>
+    private static int ClampDimension(int value) => Math.Clamp(value, 1, 1000);
 
     /// <summary>True when the id names an agent workspace, so "not running" beats opening a bare shell.</summary>
     private static bool NamesAnAgent(AgentManager agents, string workspace)
@@ -78,13 +89,14 @@ public static class TerminalRoutes
     }
 
     /// <summary>A PTY that lives and dies with this socket: the plain terminal panel's behaviour.</summary>
-    private static async Task BridgeOwnPty(WebSocket socket, string[] argv, string cwd, IReadOnlyDictionary<string, string> env, CancellationToken aborted)
+    private static async Task BridgeOwnPty(WebSocket socket, string[] argv, string cwd, IReadOnlyDictionary<string, string> env, (int Rows, int Cols)? size, CancellationToken aborted)
     {
         var output = Channel.CreateUnbounded<string>();
         PtyHost host;
         try
         {
-            host = PtyHost.Start(new PtyLaunch(argv, cwd, env), chunk => output.Writer.TryWrite(chunk), () => output.Writer.TryComplete());
+            var launch = size is { } known ? new PtyLaunch(argv, cwd, env, known.Rows, known.Cols) : new PtyLaunch(argv, cwd, env);
+            host = PtyHost.Start(launch, chunk => output.Writer.TryWrite(chunk), () => output.Writer.TryComplete());
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
@@ -104,10 +116,10 @@ public static class TerminalRoutes
         }
     }
 
-    /// <summary>Attaches to an agent's long-lived PTY: redraw its current screen, then follow it live.</summary>
-    private static async Task BridgeManagedSession(WebSocket socket, AgentSession session, CancellationToken aborted)
+    /// <summary>Attaches to an agent's long-lived PTY: redraw its current screen (at the window's size when the query gave one), then follow it live.</summary>
+    private static async Task BridgeManagedSession(WebSocket socket, AgentSession session, (int Rows, int Cols)? size, CancellationToken aborted)
     {
-        var consumer = session.Attach();
+        var consumer = session.Attach(size);
         var pump = PumpOutput(socket, consumer.Output, closeOnEnd: false);
         try
         {
@@ -172,8 +184,8 @@ public static class TerminalRoutes
     private static int? Dimension(JsonNode? node, int fallback)
     {
         if (node is null) return fallback;
-        if (node is JsonValue value && value.TryGetValue<int>(out var number)) return Math.Clamp(number, 1, 1000);
-        if (node is JsonValue text && text.TryGetValue<string>(out var s) && int.TryParse(s, out var parsed)) return Math.Clamp(parsed, 1, 1000);
+        if (node is JsonValue value && value.TryGetValue<int>(out var number)) return ClampDimension(number);
+        if (node is JsonValue text && text.TryGetValue<string>(out var s) && int.TryParse(s, out var parsed)) return ClampDimension(parsed);
         return null;
     }
 

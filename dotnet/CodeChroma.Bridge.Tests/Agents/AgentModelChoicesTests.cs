@@ -71,7 +71,9 @@ public sealed class AgentModelChoicesTests : IDisposable
 
         var argv = new TerminalAgents(_paths, _providers, _callSites).Resolve("agent", model: "haiku")!.Argv;
 
-        Assert.Equal(["claude", "--model", "haiku"], argv.Take(3));
+        Assert.Equal("claude", argv[0]);
+        Assert.Equal(["--model", "haiku"], argv.Skip(argv.ToList().IndexOf("--model")).Take(2));
+        Assert.Single(argv, "--model");
     }
 
     [Fact]
@@ -79,7 +81,7 @@ public sealed class AgentModelChoicesTests : IDisposable
     {
         var argv = new TerminalAgents(_paths, _providers, _callSites).Resolve("claude", model: "sonnet")!.Argv;
 
-        Assert.Equal(["--model", "sonnet"], argv.Skip(1).Take(2));
+        Assert.Equal(["--model", "sonnet"], argv.Skip(argv.ToList().IndexOf("--model")).Take(2));
     }
 
     [Fact]

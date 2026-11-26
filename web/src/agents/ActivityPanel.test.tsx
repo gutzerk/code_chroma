@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { ActivityPanel } from "./ActivityPanel";
+import { ACTIVITY_PANEL_WIDTH_KEY, ActivityPanel } from "./ActivityPanel";
 import { agentStore } from "./agentStore";
 import { AgentClientProvider } from "./AgentClientContext";
 import { MockAgentClient } from "./mockAgentClient";
@@ -30,7 +30,10 @@ beforeEach(() => {
   layoutStore.reset();
   workflowStore.reset();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.localStorage.removeItem(ACTIVITY_PANEL_WIDTH_KEY);
+});
 vi.mock("../workflows/WorkflowsTab", () => ({
   WorkflowsTab: () => <div data-testid="workflows-tab-stub" />,
 }));
@@ -158,6 +161,13 @@ describe("ActivityPanel", () => {
     expect(hoverMode).toBe("full");
     expect(layoutStore.getState().agentsMode).toBe("normal");
     expect(panel.style.width).not.toBe("");
+  });
+  it("opens at the width remembered from an earlier session", () => {
+    window.localStorage.setItem(ACTIVITY_PANEL_WIDTH_KEY, "480");
+
+    setup();
+
+    expect(screen.getByTestId("activity-panel").style.width).toBe("480px");
   });
   it("collapses from the edge handle", () => {
     setup();

@@ -323,4 +323,198 @@ public class ScreenTapTests
         Assert.Equal(["3", "4"], tap.Tail(2));
         Assert.Empty(tap.Tail(0));
     }
+    [Theory]
+    [InlineData(Esc + "[>4;2m")]
+    [InlineData(Esc + "[>4m")]
+    [InlineData(Esc + "[<4m")]
+    [InlineData(Esc + "[=4m")]
+    [InlineData(Esc + "[?4m")]
+    public void A_private_prefixed_csi_m_is_not_sgr(string sequence)
+    {
+        var tap = Tap();
+
+        tap.Feed(sequence + "plain");
+
+        Assert.Contains(Esc + "[0;39;49mplain", tap.Render());
+    }
+
+    [Theory]
+    [InlineData(Esc + "[>1u")]
+    [InlineData(Esc + "[<u")]
+    [InlineData(Esc + "[?u")]
+    [InlineData(Esc + "[=1;1u")]
+    public void Kitty_keyboard_sequences_do_not_restore_the_cursor(string sequence)
+    {
+        var tap = Tap();
+        tap.Feed(Esc + "[s" + "abc");
+
+        tap.Feed(sequence + "d");
+
+        Assert.Equal("abcd", tap.Tail(5)[0]);
+    }
+
+    [Fact]
+    public void Private_erase_still_erases()
+    {
+        var tap = Tap();
+        tap.Feed("abc\r\ndef" + Esc + "[1;1H");
+
+        tap.Feed(Esc + "[?2K" + Esc + "[2;2H" + Esc + "[?0J");
+
+        Assert.Equal(["", "d", "", "", ""], TopFirst(tap));
+    }
+
+    [Fact]
+    public void Dim_is_kept_and_cleared_with_bold_by_sgr_22()
+    {
+        var tap = Tap();
+
+        tap.Feed(Esc + "[1;2mfaint" + Esc + "[22mnormal");
+
+        var redraw = tap.Render();
+        Assert.Contains(Esc + "[0;1;2;39;49mfaint", redraw);
+        Assert.Contains(Esc + "[0;39;49mnormal", redraw);
+    }
+
+    [Fact]
+    public void A_dim_space_is_not_blank()
+    {
+        var tap = Tap();
+
+        tap.Feed(Esc + "[2m ");
+
+        Assert.Contains(Esc + "[0;2;39;49m ", tap.Render());
+    }
+    [Fact]
+    public void Leaving_the_alt_screen_restores_the_main_screen_and_cursor()
+    {
+        var tap = Tap(rows: 3);
+        tap.Feed("shell$ " + Esc + "[?1049h" + "full screen app");
+
+        tap.Feed(Esc + "[?1049l" + "x");
+
+        Assert.False(tap.AltScreen);
+        Assert.Equal(["shell$ x", "", ""], tap.Tail(3));
+    }
+
+    [Fact]
+    public void Entering_1049_twice_starts_from_a_cleared_alt_screen()
+    {
+        var tap = Tap(rows: 2);
+        tap.Feed(Esc + "[?1049h" + "old" + Esc + "[?1049l");
+
+        tap.Feed(Esc + "[?1049h");
+
+        Assert.Equal(["", ""], tap.Tail(2));
+    }
+
+    [Fact]
+    public void Mode_47_switches_without_clearing_or_moving_the_cursor()
+    {
+        var tap = Tap(rows: 2);
+        tap.Feed(Esc + "[?47h" + "alt" + Esc + "[?47l" + "main");
+
+        tap.Feed(Esc + "[?47h");
+
+        Assert.Equal(["alt", ""], tap.Tail(2));
+    }
+
+    [Fact]
+    public void A_render_on_the_alt_screen_draws_main_then_enters_alt()
+    {
+        var tap = Tap(rows: 2);
+        tap.Feed("prompt" + Esc + "[?1049h" + "app");
+
+        var redraw = tap.Render();
+
+        Assert.StartsWith(Esc + "[?25l" + Esc + "[?1049l" + Esc + "[H" + Esc + "[2J", redraw);
+        Assert.True(redraw.IndexOf("prompt", StringComparison.Ordinal) < redraw.IndexOf(Esc + "[?1049h", StringComparison.Ordinal));
+        Assert.True(redraw.IndexOf(Esc + "[?1049h", StringComparison.Ordinal) < redraw.IndexOf("app", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Rendering_an_alt_screen_into_a_fresh_tap_reproduces_both_screens()
+    {
+        var source = Tap(rows: 3);
+        source.Feed("one\r\ntwo\r\nthree\r\nfour" + Esc + "[?1049h" + Esc + "[2;3Happ");
+        var replica = Tap(rows: 3);
+
+        replica.Feed(source.Render());
+
+        Assert.True(replica.AltScreen);
+        Assert.Equal(source.Render(), replica.Render());
+        replica.Feed(Esc + "[?1049l");
+        Assert.Equal(["two", "three", "four"], replica.Tail(3));
+    }
+
+    [Fact]
+    public void Terminal_modes_are_replayed_after_the_cells()
+    {
+        var tap = Tap();
+        tap.Feed(Esc + "[?1049h" + Esc + "[?1000h" + Esc + "[?1006;2004h" + Esc + "[?1h" + Esc + "[?1004h" + "x");
+
+        var redraw = tap.Render();
+
+        var modes = redraw[redraw.LastIndexOf('x')..];
+        Assert.Contains(Esc + "[?1h" + Esc + "[?1000h" + Esc + "[?1004h" + Esc + "[?1006h" + Esc + "[?2004h", modes);
+        Assert.Equal([1, 1000, 1004, 1006, 2004], tap.PrivateModes);
+    }
+
+    [Fact]
+    public void A_mode_turned_off_is_not_replayed()
+    {
+        var tap = Tap();
+        tap.Feed(Esc + "[?1000h" + Esc + "[?1006h" + Esc + "[?1000l");
+
+        Assert.DoesNotContain(Esc + "[?1000h", tap.Render());
+    }
+
+    [Fact]
+    public void Autowrap_off_overwrites_the_last_column_and_is_replayed()
+    {
+        var tap = Tap(rows: 2, cols: 4);
+        tap.Feed(Esc + "[?7l");
+
+        tap.Feed("abcdef");
+
+        Assert.Equal(["abcf", ""], tap.Tail(2));
+        Assert.Contains(Esc + "[?7l", tap.Render());
+    }
+
+    [Fact]
+    public void The_scroll_region_is_replayed_before_the_final_cursor()
+    {
+        var tap = Tap(rows: 5);
+        tap.Feed(Esc + "[2;4r" + Esc + "[3;2H");
+
+        var redraw = tap.Render();
+
+        Assert.EndsWith(Esc + "[2;4r" + Esc + "[3;2H" + Esc + "[?25h", redraw);
+    }
+
+    [Fact]
+    public void A_full_reset_clears_the_modes_and_leaves_the_alt_screen()
+    {
+        var tap = Tap();
+        tap.Feed(Esc + "[?1049h" + Esc + "[?1000h" + Esc + "[?7l");
+
+        tap.Feed(Esc + "c");
+
+        Assert.False(tap.AltScreen);
+        Assert.Empty(tap.PrivateModes);
+        Assert.DoesNotContain(Esc + "[?7l", tap.Render());
+    }
+
+    [Fact]
+    public void Resizing_on_the_alt_screen_resizes_the_main_screen_too()
+    {
+        var tap = Tap(rows: 4, cols: 10);
+        tap.Feed("a\r\nb\r\nc\r\nd" + Esc + "[?1049h" + "app");
+
+        tap.Resize(2, 6);
+        tap.Feed(Esc + "[?1049l");
+
+        Assert.Equal(2, tap.HistoryCount);
+        Assert.Equal(["c", "d"], tap.Tail(2));
+    }
 }

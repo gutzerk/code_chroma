@@ -31,6 +31,19 @@ to revive if it comes back, it would be rebuilt from scratch.
     (`DesktopScript.cs`) raised a WebView "Insert" prompt instead of pasting.
   - An explicit `fontFamily` (xterm's default is `courier-new`, which has none of those glyphs) and
     `lineHeight: 1` — anything larger breaks box borders into dashes.
+  - **Terminal text size per monitor** (`terminalFontStore.ts`, `TerminalFontButtons.tsx`; terminals only, never the
+    rest of the UI). A fixed CSS-px size looks tiny on a large external monitor and big on a laptop panel, so the size
+    (9–24 px, default 12) is stored per display key in localStorage (`codechroma.terminalFont`, every access in
+    try/catch); a display seen for the first time starts at the size last chosen anywhere. The display key is the
+    desktop shell's identity when it sent one (`codechromaDesktop.displayKey()` / a `display` shell command, see
+    [`desktop-app.md`](desktop-app.md)), else `${screen.width}x${screen.height}@${devicePixelRatio}`, re-read on a
+    `matchMedia('(resolution: …dppx)')` change and on window `resize` (`watchDisplayChanges`). Every
+    `useXtermSession` terminal starts at the store's size and, on a change, sets `term.options.fontSize` and refits.
+    Cmd+`=`/`+`/`-`/`0` on macOS (Ctrl elsewhere, so Ctrl+- still reaches a shell on the Mac; Ctrl+Shift+- = Ctrl+_, readline's undo, is never a chord and always reaches the PTY) step or reset it from inside
+    the terminal: the key handler prevents the default and returns false, so the chord never reaches the PTY. The agent
+    window header has A−/A+ buttons (`Smaller terminal text` / `Larger terminal text`). Tests:
+    `terminalFontStore.test.ts`, `TerminalFontButtons.test.tsx`, `useXtermSession.test.tsx`,
+    `e2e/terminal-font.spec.ts`.
   - 🔴 **No `WebglAddon`** (the package was removed): xterm's default DOM renderer only. The WebGL
     renderer shares one glyph atlas between every terminal with the same font/theme/DPR
     (`CharAtlasCache`); once the atlas fills its page limit it merges pages, and `GlyphRenderer`
@@ -42,10 +55,13 @@ to revive if it comes back, it would be rebuilt from scratch.
     own cursor model.
   - The debounced, size-deduped `refit`, the 0x0 guard for a hidden host box, and `onBinary`.
   - Stick-to-bottom (`stickToBottom.ts`, `stickToBottom.test.ts`): a terminal at the bottom stays there. xterm 5's DOM
-    scrollbar can fire a stale scroll while a big write (the bridge's first-resize `Resync` after an agent window is
-    shown) is parsed; xterm then thinks the user scrolled and stops following output a few screens up. Only wheel, key
+    scrollbar can fire a stale scroll while a big write (the bridge's attach redraw with history, or the first-resize `Resync`
+    when the window connected without a size) is parsed; xterm then thinks the user scrolled and stops following output a few screens up. Only wheel, key
     and held-pointer input change the pinned state; other scrolls and writes snap a pinned terminal back. The prompt
-    navigator unpins on a jump (`unpinTerminal`) and pins on Latest (`pinTerminal`); showing a hidden window re-applies it.
+    navigator unpins on a jump (`unpinTerminal`) and pins on Latest (`pinTerminal`); showing a hidden window re-applies it. It is a no-op while a TUI is on the alternate buffer (claude runs fullscreen): that buffer has no scrollback, so there is nothing to follow; the wheel goes to the TUI as mouse reports.
+  - 🔴 `macOptionClickForcesSelection: true`: claude runs fullscreen with mouse tracking on, so a plain drag is sent
+    to claude as mouse reports and selects nothing; on macOS an Option-drag still selects text (and copy-on-select copies
+    it). Other platforms: Shift-drag, xterm's default override.
   - Copy-on-select: `term.onSelectionChange` writes the new (non-empty) selection to
     the native desktop clipboard when available, otherwise `navigator.clipboard` (writes are serialized, and only selections started by a pointer press are copied), the same way a native terminal (iTerm, GNOME Terminal) works — no
     Cmd/Ctrl+C needed. Applies to both the panel and every agent window since they share this hook.

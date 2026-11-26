@@ -144,7 +144,6 @@ public static class AgentRoutes
                 throw;
             }
             record.StartError = null;
-            session.Delegation = delegation;
             var updated = agents.MarkStarted(agentId, session.Pid, TerminalAgents.ResolvedCliFor(record.Kind, launch.Argv));
             // a view context rides hidden with the user's first prompt (UserPromptSubmit hook); a CLI without that hook gets it typed once idle
             if (pending is { Kind: not "task" } view && launch.PromptContext == PromptContext.Hidden) session.HoldPromptContext(ViewContext(view.Text));

@@ -1,0 +1,30 @@
+     takes just over one second to reach our eyes.
+  2. Its gravity is roughly one-sixth of Earth's, so a person weighing 180 pounds here would weigh
+     only about 30 pounds on the lunar surface.
+  3. The Moon is tidally locked to Earth, rotating exactly once per orbit, so the same hemisphere
+     always faces us and the far side stays hidden.
+  4. Most scientists believe the Moon formed roughly 4.5 billion years ago when a Mars-sized body
+     called Theia collided with the young Earth, flinging debris into orbit.
+  5. Moonquakes are real seismic events, caused by tidal stresses, meteorite impacts, and thermal
+     changes, and some shake for over ten minutes because the Moon's dry interior rings like a bell.
+  6. Temperatures swing dramatically on the Moon, reaching about 120 degrees Celsius in direct
+     daylight and plunging to around minus 130 at night, since there's no atmosphere to retain heat.
+  7. The Moon is slowly drifting away from Earth at about 3.8 centimeters each year, a rate roughly
+     equal to how fast human fingernails grow.
+  8. Twelve astronauts have walked on the Moon, all during NASA's Apollo program between 1969 and
+     1972, and no human has set foot there since.
+
+✻ Sautéed for 4s · done 1:53 PM
+
+❯ Run the shell command: ls -la /tmp | head -3  (use the Bash tool) then tell me the first line.
+
+  Running 1 shell command…
+
+· Wrangling…
+  ⎿  Tip: Use Plan Mode to prepare for a complex request before making changes. Press shift+tab
+     twice to enable.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏸ manual mode on · esc to interrupt

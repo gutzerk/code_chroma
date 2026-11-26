@@ -35,6 +35,13 @@ PROGRESS_NONE = "none"
 # `OSC 9;4;<state>;<pct>`, read off the raw chunk: pyte drops every OSC code it has no method for.
 _OSC_PROGRESS = re.compile(r"\x1b\]9;4;(\d)(?:;(\d+))?(?:\x07|\x1b\\)")
 
+# Private `m`/`u` CSIs (modifyOtherKeys `>4m`, kitty `>1u`/`<u`/`?u`) that pyte misreads: dropped.
+_PRIVATE_KEYBOARD = re.compile(r"\x1b\[(?:[<>=][0-9;]*[mu]|\?[0-9;]*u)")
+# A chunk's unfinished tail that may still become one of those; held for the next chunk.
+_OPEN_TAIL = re.compile(r"\x1b(?:\[(?:[<>=?][0-9;]*)?)?\Z")
+# Longest tail held back, so a runaway parameter list cannot grow the carry forever.
+_MAX_OPEN_TAIL = 64
+
 _PROGRESS_STATES = {
     "0": PROGRESS_NONE,
     "1": "running",
@@ -61,6 +68,11 @@ _SGR_BASE = {
     "white": 7,
 }
 _HEX_DIGITS = set("0123456789abcdefABCDEF")
+
+# Private modes a redraw replays (pyte stores them shifted left by 5): DECCKM, mouse, focus, paste.
+_REPLAYED_MODES = (1, 1000, 1002, 1003, 1004, 1005, 1006, 1015, 2004)
+_ALT_SCREEN_MODES = (1049, 1047, 47)
+_AUTOWRAP = 7
 
 
 def _colour_sgr(name: str, background: bool) -> str:
@@ -104,6 +116,8 @@ class ScreenTap:
         self._screen = pyte.Screen(cols, rows)
         # Non-strict: an agent TUI emits sequences pyte doesn't model, and none of them are fatal.
         self._stream = pyte.Stream(self._screen, strict=False)
+        # An unfinished escape held from the last chunk, so a split private CSI is still dropped.
+        self._carry = ""
         self._progress = PROGRESS_UNKNOWN
         # Bumped on every feed and resize, so a reader can tell the screen has not changed.
         self.generation = 0
@@ -118,14 +132,18 @@ class ScreenTap:
         matches = _OSC_PROGRESS.findall(chunk)
         if matches:
             self._progress = _PROGRESS_STATES.get(matches[-1][0], PROGRESS_NONE)
+        data = self._carry + chunk
+        tail = _OPEN_TAIL.search(data)
+        cut = tail.start() if tail and len(data) - tail.start() <= _MAX_OPEN_TAIL else len(data)
+        self._carry = data[cut:]
         with contextlib.suppress(Exception):
-            self._stream.feed(chunk)
+            self._stream.feed(_PRIVATE_KEYBOARD.sub("", data[:cut]))
 
     @property
     def in_ground(self) -> bool:
         """True between escape sequences, so an inserted sequence cannot cut one left open."""
         # pyte's parser yields True only from its ground state; it has no public accessor.
-        return bool(getattr(self._stream, "_taking_plain_text", True))
+        return not self._carry and bool(getattr(self._stream, "_taking_plain_text", True))
 
     def resize(self, rows: int, cols: int) -> None:
         """Kept in step with the PTY's own resize, so the screen matches what is displayed."""
@@ -140,7 +158,10 @@ class ScreenTap:
 
     def render(self) -> str:
         """The whole screen redrawn as escape sequences, for a reattach that can't start mid-CSI."""
-        out = ["\x1b[?25l\x1b[H\x1b[2J\x1b[3J\x1b[m"]
+        mode = self._screen.mode
+        # pyte keeps one buffer, so on the alt screen only that screen is drawn, after entering it.
+        alt = any((n << 5) in mode for n in _ALT_SCREEN_MODES)
+        out = ["\x1b[?25l" + ("\x1b[?1049h" if alt else "") + "\x1b[H\x1b[2J\x1b[3J\x1b[m"]
         for y in range(self._screen.lines):
             row = self._screen.buffer[y]
             cells = [row[x] for x in range(self._screen.columns)]
@@ -157,7 +178,14 @@ class ScreenTap:
                     attributes = key
                 out.append(char.data)
         cursor = self._screen.cursor
-        out.append(f"\x1b[m\x1b[{cursor.y + 1};{cursor.x + 1}H")
+        out.append("\x1b[m")
+        out.extend(f"\x1b[?{n}h" for n in _REPLAYED_MODES if (n << 5) in mode)
+        if (_AUTOWRAP << 5) not in mode:
+            out.append("\x1b[?7l")
+        margins = self._screen.margins
+        if margins is not None and (margins.top, margins.bottom) != (0, self._screen.lines - 1):
+            out.append(f"\x1b[{margins.top + 1};{margins.bottom + 1}r")
+        out.append(f"\x1b[{cursor.y + 1};{cursor.x + 1}H")
         if not cursor.hidden:
             out.append("\x1b[?25h")
         return "".join(out)

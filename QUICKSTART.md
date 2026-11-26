@@ -117,7 +117,10 @@ not surfaced), so diff framing isn't currently reachable from the UI.
 The terminal toolbar's **+** opens another shell tab. **×** closes the active shell, and **−** hides
 the panel while keeping its sessions running. Click a terminal tab to return to its shell and output.
 Use **Ctrl+Alt+Up/Down** (**Cmd+Alt+Up/Down** on macOS) to cycle agents and focus the selected
-agent's terminal. Switching agents also opens a collapsed agent panel.
+agent's terminal. Switching agents also opens a collapsed agent panel. Inside a terminal,
+**Cmd+= / Cmd+− / Cmd+0** (Ctrl on Windows/Linux) make the terminal text larger, smaller or the default, as do the
+**A− / A+** buttons in an agent window's header; the size is remembered per monitor. Claude agents run fullscreen
+with mouse support: the wheel scrolls the conversation, and **Option-drag** (macOS) selects text.
 
 ### Agent panel (beside the canvas: **Agents** / **Diagrams** tabs)
 

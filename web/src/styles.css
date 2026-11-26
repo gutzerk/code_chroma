@@ -5229,6 +5229,23 @@ button[data-copy-state="idle"][aria-label]:hover:not(:disabled) {
   color: var(--text-soft);
 }
 
+/* A-/A+: the terminal text size for this display, small enough to sit beside the usage strip. */
+.terminal-font-buttons {
+  display: inline-flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.terminal-font-button {
+  font-size: 0.8rem;
+  padding: 2px 4px;
+}
+
+.terminal-font-button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
 /* The docked panel's close: a red, centred square so it reads as the destructive action. */
 .agent-terminal-dock-header .agent-window-close {
   display: inline-grid;

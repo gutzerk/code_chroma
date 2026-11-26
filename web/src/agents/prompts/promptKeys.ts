@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
-
-const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+import { IS_MAC } from "../../util/platform";
 
 /** Platform labels for the navigator's hotkeys. */
 export const PROMPT_KEYS = IS_MAC

@@ -18,10 +18,25 @@ A Python-only change does not fix the production desktop runtime.
   `CODECHROMA_AGENT_SESSION_FILE`. It does not start a server and requires no Python interpreter.
   Windows hooks explicitly use PowerShell with its call operator and quoting, so tracking also
   works when Git Bash is unavailable; Unix hooks use shell quoting.
-- ⚠ Every claude window (agent, bare and `agent`-kind on the claude adapter) gets
-  `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` (`TerminalAgents.ClassicRendererEnv`; Python
-  `terminal/agents.py` `_renderer_env`). A user's `"tui": "fullscreen"` setting otherwise runs claude
-  on the alternate screen, which leaves xterm no scrollback and so no usable scrollbar. The xterm
+- 🔴 Every claude window (agent, bare `--system-prompt`, `agent`-kind on the claude adapter,
+  workflow steps and forks, which all go through `TerminalAgents.Resolve` → `OwnedLaunch`) runs
+  claude's **fullscreen renderer**: its one `--settings` document always carries `"tui":
+  "fullscreen"` next to whatever hooks and permissions it has (`AgentSessionOwnership.HookSettings(...)`,
+  `FullscreenTui`; Python `terminal/agents.py` `_settings_args`, `FULLSCREEN_TUI`),
+  so even a window with no hooks gets `--settings {"tui":"fullscreen","hooks":{}}`. Fullscreen claude runs on the
+  alternate screen with mouse tracking (`?1000h`/`?1002h`/`?1003h`/`?1006h`) and on SIGWINCH redraws the
+  whole conversation at the new width in one frame (measured: within ~30 ms of a 41→110 widen, no
+  bridge clear). The classic renderer it replaced (forced before with
+  `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1`) wrote wrapped rows as hard rows that no emulator can reflow. That
+  variable is now pinned to `"0"` in every claude window's env (`TerminalAgents.AlternateScreenEnv`; Python
+  `ALTERNATE_SCREEN_ENV`), so a `=1` inherited from the user's login shell cannot override the `tui` setting.
+  Trade-offs: xterm has no scrollback on the alt screen, so the wheel scrolls claude's own transcript
+  (SGR wheel reports, ~1 row each; PageUp/PageDown about half a screen; Ctrl+Home/Ctrl+End top and
+  bottom), and mouse tracking means a plain drag goes to claude: Option-drag selects text on macOS
+  (`macOptionClickForcesSelection`, see [`web-panels.md`](web-panels.md)). The status rules in
+  `detect/claude.toml` read the same prompt box, spinner and permission dialog on the fullscreen
+  screen (fixtures `tests/fixtures/agent_screens/claude/fullscreen-*.txt`), `/clear` still clears and
+  `InjectWhenIdle` still submits (both checked live with claude 2.1.332). The xterm
   viewport also resets `scrollbar-width`/`scrollbar-color` to `auto` in `web/src/styles.css`, since
   the global `thin` value hands WebKit a hidden overlay bar. 🔴 Keep `.agent-window-terminal`
   content-box: FitAddon sizes columns from its computed width, so `border-box` counts the padding,
@@ -36,32 +51,13 @@ A Python-only change does not fix the production desktop runtime.
   Legacy records keep their saved session ID; records without an ID start fresh. `Transcripts.cs`
   still reads known transcripts for token usage and supports workflow discovery, but is not used
   to choose an interactive agent's resume target.
-- ⚠ Widen resume (`Agents/WidenResume.cs`, Python `agents/widen_resume.py`): once an agent window
-  settles (`Settle`, 1.5 s after the last resize) at least `MinGainCols` (8) columns wider than the
-  narrowest width the current process printed at, and the agent is `idle`/`done` with no pending
-  permission, no queued `InjectWhenIdle`, no unsent draft and no keystroke for `TypingQuiet` (3 s),
-  the status poller restarts it in place: `AgentSession.Respawn` starts `claude --resume <its own
-  session id>` (with a new tracking file, via `TerminalAgents.Resolve`) on a new PTY at the current
-  size, writes `ResetScreen` (SGR reset, home, `ESC[2J` and `ESC[3J`) to the screen tap and every
-  attached window, then kills the old process; its late output and exit are ignored, so agent
-  identity, status, consumers and the prompt outline survive and no window reconnects. Busy agents
-  simply wait for a later idle poll, if still wider. An agent with an `ask_user` question on its
-  canvas is rechecked every 5 s. Skipped (the width is taken as printed, no error shown) when the
-  launch is untracked, bare (`--system-prompt`), not claude, has no session id or no transcript yet,
-  or the new PTY fails to start (the old one keeps running). A drawing window resumes with its
-  drawer plugin dir and lead instruction (`AgentSession.Delegation`), since the CLI does not store them.
-  - 🔴 `Respawn` re-checks the input under `_gate` and refuses (old process untouched) while an
-    injection is queued or typing, a draft exists or a key came within `TypingQuiet`.
-    `InjectWhenIdle` counts itself in under the same `_gate`, so its text and the Enter
-    `TypeAndSubmit` sends 300 ms later never straddle the PTY swap.
-  - The registry's `Respawn` takes the `AgentSession` itself and only restarts it while it is
-    still the one registered for the agent, so a stop/restart during the sweep is left alone.
-  - Draft tracking (both bridges) is the same `TypedLine` (`Agents/HistoryClear.cs`,
-    `history_clear.py`) that spots typed clears: printable text adds, backspace removes one,
-    Enter/^C/^U clears, any other key (e.g. Up-arrow history recall) or a line break inside a paste
-    makes the line unknown (= a draft) until the next Enter/^C/^U; a lone Escape, focus reports
-    (`ESC[I`/`ESC[O`) and SGR mouse reports (`ESC[<…`) are not typing. Tests: `Agents/WidenResumeTests.cs`,
-  `tests/unit/test_agent_widen_resume.py`.
+- 🔴 **A resize is a PTY resize plus SIGWINCH; agents are never restarted.** A window that grows or
+  shrinks only resizes the PTY and the screen tap (`AgentSession.Resize` / `resize_from`, size owner
+  rules below); the CLI repaints itself. There used to be a "widen resume" that restarted an idle
+  claude with `--resume` after a widening and cleared the window (`ESC[2J ESC[3J`) first, so text
+  vanished and the whole conversation reprinted about 1.5 s later; it was removed along with
+  `AgentSession.Respawn`, `ResetScreen` and the draft/typing bookkeeping it needed. Reflow at the new
+  width comes from claude's fullscreen renderer instead (see below).
 - Regression coverage: `Agents/SessionOwnershipTests.cs`, `Agents/OpenStepAgentTests.cs`, and
   `Terminal/TerminalAgentsBareTests.cs`. Run
   `dotnet test dotnet/CodeChroma.Bridge.Tests/CodeChroma.Bridge.Tests.csproj`.
@@ -74,7 +70,7 @@ report and for CLIs without hooks. Wire statuses are only `stopped`, `idle`, `wo
 `AgentStatus` (`Agents/AgentStatusState.cs`), Python the `STATUS_*` constants of `live_status.py`.
 
 - Every Claude launch with a bridge URL and agent id passes `--settings` with the status hooks, bare
-  diagram windows included (`AgentSessionOwnership.TryHookSettings(..., statusHooks)`; Python
+  diagram windows included (`AgentSessionOwnership.HookSettings(..., statusHooks)`; Python
   `session_ownership.hook_document(..., status_hooks=True)`). The launch also exports
   `CODECHROMA_BRIDGE_URL`, `CODECHROMA_QUESTION_TOKEN` and `CODECHROMA_WORKSPACE_ID` (= agent id) even
   without the MCP server. Events: `UserPromptSubmit`, `PreToolUse` (`*`, after the AskUserQuestion
@@ -170,7 +166,7 @@ into a `ClearWatch` (`Agents/HistoryClear.cs`, Python `bridge/agents/history_cle
   session id on its next read.
 - ⚠ Claude Code 2.1 prints no clear sequence on `/clear` (verified on a PTY): the old turns stay on
   screen and in the scrollback without this. Ctrl+L wipes the visible rows and redraws the prompt.
-- Typed detection (`TypedLine`, which also tracks the widen-resume draft) follows `AgentSession.Write`: a line submitted with CR (Enter)
+- Typed detection (`TypedLine`) follows `AgentSession.Write`: a line submitted with CR (Enter)
   whose first word is a clear command matches; backspace edits, Ctrl+U/Ctrl+C reset, a bracketed
   paste without a line break counts. Only CR submits: LF (Ctrl+J adds a composer line in Codex and
   Gemini) and any CR/LF inside a paste (tracked between `ESC[200~` and `ESC[201~`) make the line
@@ -442,14 +438,41 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   runs, none on the alt screen or from `CSI S`, cleared by `ESC[3J` / `ESC c`) and `Render()` replays
   them as plain lines first, each row whole (no breaks at the current width): xterm's autowrap
   soft-wraps a row wider than the window and re-wraps it on every later resize, so history replayed
-  into a narrow window widens with it — still parsed cells, never raw bytes. `Attach()` sends the
-  screen only (the history too once the process has exited); the first-resize `Resync` sends the
-  history once. 🔴 `useXtermSession` sends no size until `FitAddon.proposeDimensions()` can measure
-  its box (a hidden or not-yet-laid-out box would leave xterm's 80x24 default, shrinking the PTY so
-  a background agent prints at 80 columns); the first measurable refit sends the real size. A laid-out 0px
-  box counts as unmeasurable too: it measures FitAddon's 2x1 floor. Claude's classic renderer
-  writes wrapped rows as hard rows and on SIGWINCH repaints only the visible frame, so rows printed
-  while the PTY was narrow would stay narrow; the widen resume below reprints them.
+  into a narrow window widens with it — still parsed cells, never raw bytes. ⚠ A CSI with a private
+  prefix is a different command than its final byte suggests: `Dispatch` drops every `>`/`<`/`=`
+  CSI (claude's modifyOtherKeys `ESC[>4m` would otherwise underline everything, kitty keyboard
+  `ESC[>1u`/`ESC[<u` would restore the cursor) and lets `?` through only for modes (`h`/`l`) and
+  selective erase (`J`/`K`); Python strips the same `m`/`u` sequences before pyte sees them
+  (`_PRIVATE_KEYBOARD`). The C# tap also keeps SGR 2 (dim); pyte has no dim attribute. The C# tap keeps
+  separate main and alt buffers like xterm (`?1049h` saves the main cursor and clears alt, `?47h` /
+  `?1047h` switch without the cursor save; a resize resizes both; history only comes from main) and
+  tracks the private modes a fresh xterm would lack (DECCKM 1, autowrap 7, mouse 1000/1002/1003,
+  focus 1004, mouse encodings 1005/1006/1015, bracketed paste 2004) plus the scroll region.
+  `Render()` on the alt screen first leaves alt (`?1049l`, so a window that followed the stream
+  clears its main screen, not alt), draws the history and main screen, puts the cursor at the saved
+  main position and re-enters with `?1049h`, then draws alt; after the cells it replays the set modes,
+  `?7l` when autowrap is off and DECSTBM, then the final CUP. Without that replay a reattached
+  fullscreen agent would sit in a window with no mouse tracking (wheel scrolls nothing) and the
+  wrong buffer. Python replays the same modes from pyte's `screen.mode` (private modes stored as
+  `n << 5`) and the margins, and sends `?1049h` first when the alt screen is on; pyte keeps one
+  buffer, so Python cannot restore the main screen behind it. 🔴 **One paint per attach.**
+  `useXtermSession` measures its box with `FitAddon.proposeDimensions()` before connecting, fits,
+  records that size and passes it to `TerminalClient.connect(agent, workspace, size)`, which puts it
+  on the socket as `?rows=&cols=` (`TerminalRoutes.QuerySize` / `_query_size`, clamped 1..1000 like a
+  resize frame). `Attach(size)` (Python `attach(size)`) then, under `_gate`, records that size on the
+  consumer, makes it the size owner, resizes the PTY and tap, and sends a single
+  `Render(withHistory: true)`; its first resize frame is then not a first report, so no second
+  clear+redraw follows. Without a size (a hidden or not-yet-laid-out box, or an older client) the old
+  path stays: `Attach()` sends the screen only (the history too once the process has exited) and the
+  first-resize `Resync` sends the history once. The own-PTY shell path starts its PTY at the query
+  size. 🔴 A hidden or not-yet-laid-out box sends no size at all (it would leave xterm's 80x24
+  default, shrinking the PTY so a background agent prints at 80 columns); the first measurable refit
+  sends the real size. A laid-out 0px box counts as unmeasurable too: it measures FitAddon's 2x1
+  floor. Tests: `SizeOwnerTests` (attach with a size), `TerminalSocketTests`, contract cases
+  `an_agent_window_connecting_with_a_query_size_runs_the_pty_at_that_size` and
+  `a_plain_shell_connecting_with_a_query_size_starts_at_that_size`, `useXtermSession.test.tsx`,
+  `TerminalClient.test.ts`. A resize never restarts the agent: claude's fullscreen renderer repaints
+  the whole conversation at the new width itself.
   🔴 Entirely separate from `skill_agent`'s registry: if the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan
   kill leave no orphans. `agent_run_env(agent_id)` injects `CODECHROMA_WORKSPACE_ID=<agent id>` (and `CODECHROMA_BRIDGE_URL` when the bridge's URL is known, `questions.launch.identity_env`; C#: `BridgeAddress.ExportIdentity`) into
   the PTY env (both `routes/agents.py`'s `start` and `autostart.py` pass it via
@@ -807,7 +830,7 @@ Claude agent windows launch with the CodeChroma MCP server (`ask_user`) register
 `layoutStore.agentsMode` (`canvas/layout/layoutStore.ts`) replaces the old open/collapsed `useState` in
 `RootCanvas`:
 
-- `normal`: floating `ActivityPanel` (absolute in the canvas row), resizable; collapse is available from both the edge handle and the header's Collapse button.
+- `normal`: floating `ActivityPanel` (absolute in the canvas row), resizable; collapse is available from both the edge handle and the header's Collapse button. The dragged width is remembered across reloads: `useResizableSize`'s `persistKey` (`ACTIVITY_PANEL_WIDTH_KEY`, `codechroma.activityPanel.width` in localStorage, every access in try/catch) is written when a drag ends and read as the starting width, clamped to the current maximum (`maxWidthPx`) and `minWidth`; leaving full screen or collapse restores it too. Tests: `useResizableSize.test.tsx` (`persistKey`), `ActivityPanel.test.tsx`.
 - `collapsed`: `activity/CollapsedStrip`; clicking an avatar returns to `normal` and selects that agent.
 - `full`: the same `ActivityPanel` stretched over the canvas (`.is-full`) from the diagrams panel edge
   (or the chrome inset when that panel is closed, via `agentsWideWidth`); the agents dropdown row is not rendered and agents show in a 320px left column
@@ -825,7 +848,7 @@ Being in a non-`normal` mode (also on mount) closes an open code popup and inspe
 
 ## Model pick on launch (long press, C# bridge)
 
-A click on "Run new agent" (`web/src/agents/activity/RunAgentButton.tsx`) runs the configured model as before. Holding it for `LONG_PRESS_MS` (1 s), or ArrowDown / right-click on it, drops a menu under the button (a click on the button while it is open only closes it; a keyboard click is never swallowed by a long press): "Default" (the configured model, shown beside it) plus the models of the connection new agent windows run on. Picking one calls `onRunAgent(model)` → `attachAgent`/`launchAgent(..., model)` → `POST /agents {model}`. The list comes from `GET /agents/models` (`Agents/AgentModelChoices.cs`): the `parallel_agents` call site's connection as `CliResolver.ResolveWithProvider` resolves it for the launch itself (LLM settings → Agents group, else the assistant's claude), with `current` = its model and `current_id` = the listed id it names (`AgentModelChoices.CurrentId`: same id, same base id, or a claude alias like `opus` → `claude-opus-*`), which the menu marks; for claude on its own account (no provider env overrides) it reads Claude Code's cached catalog (`<config>/cache/model-catalog/*.json`, `ClaudeModelCatalog.Models`, `source: "cache"`), otherwise the same `ModelCatalog.Fetch` the LLM settings' model pickers use (`source: "catalog"`, `"static"`, or `"unsupported"` when the connection cannot list models). The catalog files are parsed once per set of file stamps, shared with the context-window lookup. The web keeps the last answer per client (`agents/agentModels.ts`), shows it at once, and asks again on a press only when it is over a minute old (the fetch starts once a press lasts `PREFETCH_MS`, 250 ms, so a plain click asks nothing; a failed fetch falls back to the last good list and touches only its own cache entry); outside click / Escape come from `util/useDisclosureMenu.ts`. The pick is persisted as `model` on the agent record (`AgentRecord.CleanModel`: `[A-Za-z0-9._:@/\[\]-]`, ≤128 chars, no leading `-`; anything else is a 400) and passed to every `TerminalAgents.Resolve` (start, auto-start, widen-resume): an `agent` window applies it with `CliResolver.WithModel` (so an `ANTHROPIC_MODEL` provider gets it there), a `claude` window gets `--model` on the real claude binary only (a stand-in assistant CLI gets none). Tests: `Agents/AgentModelChoicesTests.cs`, `RunAgentButton.test.tsx`, `attachAgent.test.ts`. Python gap: see `docs/planning/012-csharp-bridge.md`.
+A click on "Run new agent" (`web/src/agents/activity/RunAgentButton.tsx`) runs the configured model as before. Holding it for `LONG_PRESS_MS` (1 s), or ArrowDown / right-click on it, drops a menu under the button (a click on the button while it is open only closes it; a keyboard click is never swallowed by a long press): "Default" (the configured model, shown beside it) plus the models of the connection new agent windows run on. Picking one calls `onRunAgent(model)` → `attachAgent`/`launchAgent(..., model)` → `POST /agents {model}`. The list comes from `GET /agents/models` (`Agents/AgentModelChoices.cs`): the `parallel_agents` call site's connection as `CliResolver.ResolveWithProvider` resolves it for the launch itself (LLM settings → Agents group, else the assistant's claude), with `current` = its model and `current_id` = the listed id it names (`AgentModelChoices.CurrentId`: same id, same base id, or a claude alias like `opus` → `claude-opus-*`), which the menu marks; for claude on its own account (no provider env overrides) it reads Claude Code's cached catalog (`<config>/cache/model-catalog/*.json`, `ClaudeModelCatalog.Models`, `source: "cache"`), otherwise the same `ModelCatalog.Fetch` the LLM settings' model pickers use (`source: "catalog"`, `"static"`, or `"unsupported"` when the connection cannot list models). The catalog files are parsed once per set of file stamps, shared with the context-window lookup. The web keeps the last answer per client (`agents/agentModels.ts`), shows it at once, and asks again on a press only when it is over a minute old (the fetch starts once a press lasts `PREFETCH_MS`, 250 ms, so a plain click asks nothing; a failed fetch falls back to the last good list and touches only its own cache entry); outside click / Escape come from `util/useDisclosureMenu.ts`. The pick is persisted as `model` on the agent record (`AgentRecord.CleanModel`: `[A-Za-z0-9._:@/\[\]-]`, ≤128 chars, no leading `-`; anything else is a 400) and passed to every `TerminalAgents.Resolve` (start, auto-start): an `agent` window applies it with `CliResolver.WithModel` (so an `ANTHROPIC_MODEL` provider gets it there), a `claude` window gets `--model` on the real claude binary only (a stand-in assistant CLI gets none). Tests: `Agents/AgentModelChoicesTests.cs`, `RunAgentButton.test.tsx`, `attachAgent.test.ts`. Python gap: see `docs/planning/012-csharp-bridge.md`.
 
 ## Session usage (019 Stage 7)
 
@@ -866,8 +889,9 @@ The web side lives in `web/src/agents/prompts/`:
 | File | Role |
 |---|---|
 | `promptNav.ts` | Pure logic: `toPrompts` + `replySummary` ("1 edit, 1 run" / "answer"), `clampIndex`, `activeIndexAt` (last prompt at or above the viewport top + 3 rows), `filterPrompts`, `findPromptLines` (each prompt's echo row: a row starting with `>`/`❯`/`›`/`!` plus its indented rows up to a `⎿` row of hook/tool output, compared whole with the prompt, whitespace removed, first 60 chars; matched newest first so a repeated prompt keeps its own echo after old rows leave the 5000-line scrollback; null when not found) |
-| `promptNavStore.ts` | Per-agent state kept across agent switches: prompts, buffer lines, `current`, aria-live text, find requests. A new prompt becomes `current` when the latest one was selected (an older pick is kept); `onViewport` picks the latest prompt while the terminal is at the bottom, else `activeIndexAt`. `go` scrolls the attached viewport and ignores its own scroll events for `JUMP_LOCK_MS` (250 ms). `ActivityPanel` calls `retain` with the live agent ids so a deleted agent's state is dropped |
-| `xtermPromptViewport.ts` | Attached through `useXtermSession`'s `onTerminal`: re-scans the buffer 200 ms after output or resize (skipped while the terminal is hidden; `AgentTerminal` calls `rescanPrompts` when it is shown again), follows the viewport (rAF-throttled, passing whether it is at the bottom), scrolls a prompt one row below the top, and highlights the current echo with an xterm decoration |
+| `promptNavStore.ts` | Per-agent state kept across agent switches: prompts, buffer lines, `current`, aria-live text, find requests. `alternate` (set by the viewport from `term.buffer.onBufferChange`) switches `go` to the viewport's `seekPrompt` (the announce says "not found" through `seekMissed` when it gives up; a seek cancelled because the TUI left the alternate buffer announces nothing), stops viewport-follow, hides `PromptMarkers` (no scrollback positions) and keeps every prompt undimmed in the picker and outline. A new prompt becomes `current` when the latest one was selected (an older pick is kept); `onViewport` picks the latest prompt while the terminal is at the bottom, else `activeIndexAt`. `go` scrolls the attached viewport and ignores its own scroll events for `JUMP_LOCK_MS` (250 ms). `ActivityPanel` calls `retain` with the live agent ids so a deleted agent's state is dropped |
+| `xtermPromptViewport.ts` | Attached through `useXtermSession`'s `onTerminal`: re-scans the buffer 200 ms after output or resize (skipped while the terminal is hidden; `AgentTerminal` calls `rescanPrompts` when it is shown again), follows the viewport (rAF-throttled, passing whether it is at the bottom), scrolls a prompt one row below the top, and highlights the current echo with an xterm decoration (on the alternate buffer the scan reads the screen, so the highlight follows the echo's screen row after each repaint) |
+| `altScreenSeek.ts` | 🔴 Prompt navigation on a **fullscreen** agent (claude on the alternate buffer keeps its own transcript; xterm has no scrollback to scroll). `seekPromptOnAltScreen` emulates claude's own scrolling: it types PageUp/PageDown (`ESC[5~`/`ESC[6~`, about half a screen each in claude 2.1.332; SGR wheel reports move only ~1 row and the first after a direction change is dropped) into the PTY one step at a time, waits for the repaint (40 ms quiet, 500 ms cap) and re-runs `findPromptLines` on the visible screen until the prompt's echo shows below row 0 (fullscreen claude pins the prompt being read on the top row, so a match there means "above"). Direction comes from the prompts visible on screen; two unchanged screens in a row mean an end (then it tries the other way once); at most `MAX_SEEK_STEPS` (200) steps; a newer jump, Latest or a buffer switch cancels it. Latest sends Ctrl+End (`ESC[1;5F`) |
 | `usePromptList.ts` | Loads the selected agent's prompts; polls every 3 s while the agent is working (shared with usage through `useAgentPoll`) and the page is visible |
 | `usePromptHotkeys.ts` | One window listener: Alt+↑/↓ prev/next and Cmd/Ctrl+Shift+P find, only while focus is inside a `data-prompt-nav-agent` element and not in another text field (the terminal's own input and the prompt search are allowed) |
 | `PromptNavBar.tsx`, `PromptPicker.tsx`, `PromptOutline.tsx`, `PromptMarkers.tsx` | The compact 44px bar with a listbox popover, the full-screen 48px bar (Prev/Next/Latest), the full-screen left-column outline under `AgentList`, and the marker rail on the terminal's right edge |

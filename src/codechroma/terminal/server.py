@@ -60,8 +60,9 @@ async def terminal_socket(websocket: WebSocket) -> None:
     services = _services(websocket)
     session = getattr(services, "agent_sessions", None) if services is not None else None
     session = session.get(workspace) if session is not None and workspace else None
+    size = _query_size(websocket)
     if session is not None:
-        await _bridge_managed_session(websocket, session)
+        await _bridge_managed_session(websocket, session, size)
         return
     if _names_an_agent(websocket, workspace):
         await _fail(websocket, "the agent is not running", _NO_SESSION_CLOSE_CODE)
@@ -73,7 +74,17 @@ async def terminal_socket(websocket: WebSocket) -> None:
         )
         return
 
-    await _bridge_own_pty(websocket, argv, _resolve_cwd(websocket, workspace))
+    await _bridge_own_pty(websocket, argv, _resolve_cwd(websocket, workspace), size)
+
+
+def _query_size(websocket: WebSocket) -> tuple[int, int] | None:
+    """The window's measured `?rows=&cols=`, clamped to 1..1000; None unless both parse."""
+    try:
+        rows = int(websocket.query_params.get("rows") or "")
+        cols = int(websocket.query_params.get("cols") or "")
+    except ValueError:
+        return None
+    return (min(max(rows, 1), 1000), min(max(cols, 1), 1000))
 
 
 def _names_an_agent(websocket: WebSocket, workspace: str) -> bool:
@@ -85,7 +96,9 @@ def _names_an_agent(websocket: WebSocket, workspace: str) -> bool:
     return cwd_for(workspace) is not None if cwd_for is not None else False
 
 
-async def _bridge_own_pty(websocket: WebSocket, argv: list[str], cwd: str) -> None:
+async def _bridge_own_pty(
+    websocket: WebSocket, argv: list[str], cwd: str, size: tuple[int, int] | None = None
+) -> None:
     """A PTY that lives and dies with this socket — the plain terminal panel's behaviour."""
     queue: asyncio.Queue[str | None] = asyncio.Queue()
     session = PtySession(
@@ -94,6 +107,8 @@ async def _bridge_own_pty(websocket: WebSocket, argv: list[str], cwd: str) -> No
         on_exit=lambda: queue.put_nowait(None),
         cwd=cwd,
         client_attached=True,
+        rows=size[0] if size else None,
+        cols=size[1] if size else None,
     )
     pump_task = asyncio.create_task(_pump_output(websocket, queue))
     try:
@@ -103,9 +118,11 @@ async def _bridge_own_pty(websocket: WebSocket, argv: list[str], cwd: str) -> No
         pump_task.cancel()
 
 
-async def _bridge_managed_session(websocket: WebSocket, session: AgentSessionPort) -> None:
-    """Attaches to an agent's long-lived PTY: redraw its current screen, then follow it live."""
-    queue = session.attach()
+async def _bridge_managed_session(
+    websocket: WebSocket, session: AgentSessionPort, size: tuple[int, int] | None = None
+) -> None:
+    """Attaches to an agent's PTY: redraw its screen (at the window's size), then follow it."""
+    queue = session.attach(size)
     pump_task = asyncio.create_task(_pump_output(websocket, queue, close_on_end=False))
     try:
         await _consume_input(

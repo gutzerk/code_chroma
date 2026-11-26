@@ -113,3 +113,78 @@ def test_the_tap_reports_whether_a_chunk_left_an_escape_sequence_open(chunk, gro
     tap.feed(chunk)
 
     assert tap.in_ground is ground
+
+
+@pytest.mark.parametrize("sequence", ["\x1b[>4;2m", "\x1b[>4m", "\x1b[<4m", "\x1b[=4m"])
+def test_a_private_prefixed_csi_m_is_not_sgr(sequence):
+    tap = ScreenTap(rows=3, cols=20)
+
+    tap.feed(sequence + "plain")
+
+    assert "\x1b[0;39;49mplain" in tap.render()
+
+
+@pytest.mark.parametrize("split", [1, 2, 3, 5])
+def test_a_private_csi_split_across_chunks_is_still_not_sgr(split):
+    tap = ScreenTap(rows=3, cols=20)
+    sequence = "\x1b[>4;2m"
+    tap.feed(sequence[:split])
+
+    tap.feed(sequence[split:] + "plain")
+
+    assert "\x1b[0;39;49mplain" in tap.render()
+
+
+def test_a_held_back_escape_counts_as_an_open_sequence():
+    tap = ScreenTap(rows=3, cols=20)
+
+    tap.feed("text\x1b[>4")
+
+    assert tap.in_ground is False
+
+
+@pytest.mark.parametrize("sequence", ["\x1b[>1u", "\x1b[<u", "\x1b[?u", "\x1b[=1;1u"])
+def test_kitty_keyboard_sequences_do_not_restore_the_cursor(sequence):
+    tap = ScreenTap(rows=3, cols=20)
+    tap.feed("\x1b[sabc")
+
+    tap.feed(sequence + "d")
+
+    assert tap.tail(3)[0] == "abcd"
+
+
+def test_the_render_enters_the_alt_screen_first_when_the_process_is_on_it():
+    tap = ScreenTap(rows=3, cols=20)
+    tap.feed("\x1b[?1049happ")
+
+    redraw = tap.render()
+
+    assert redraw.startswith("\x1b[?25l\x1b[?1049h\x1b[H\x1b[2J")
+
+
+def test_the_render_replays_terminal_modes_after_the_cells():
+    tap = ScreenTap(rows=3, cols=20)
+    tap.feed("\x1b[?1000h\x1b[?1006;2004h\x1b[?1hx")
+
+    redraw = tap.render()
+
+    assert "\x1b[?1h\x1b[?1000h\x1b[?1006h\x1b[?2004h" in redraw[redraw.rindex("x") :]
+
+
+def test_the_render_replays_autowrap_off_and_the_scroll_region():
+    tap = ScreenTap(rows=5, cols=20)
+    tap.feed("\x1b[?7l\x1b[2;4r\x1b[3;2H")
+
+    redraw = tap.render()
+
+    assert redraw.endswith("\x1b[?7l\x1b[2;4r\x1b[3;2H\x1b[?25h")
+
+
+def test_a_plain_screen_replays_no_modes():
+    tap = ScreenTap(rows=3, cols=20)
+    tap.feed("plain")
+
+    redraw = tap.render()
+
+    assert "\x1b[?1049h" not in redraw
+    assert "r\x1b[" not in redraw.split("plain")[-1]

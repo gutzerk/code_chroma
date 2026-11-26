@@ -9,22 +9,24 @@ public static class AgentSessionOwnership
     public const string FileEnv = "CODECHROMA_AGENT_SESSION_FILE";
     public const string InitialIdEnv = "CODECHROMA_AGENT_SESSION_ID";
 
+    /// <summary>The `tui` setting every claude window runs with: alt screen plus mouse tracking, redrawn at each new width.</summary>
+    public const string FullscreenTui = "fullscreen";
+
     public static string FileFor(string root, string trackingId)
     {
         if (!Guid.TryParse(trackingId, out var id)) throw new ArgumentException("invalid session tracking id", nameof(trackingId));
         return Path.Combine(root, ".codechroma", "agent-sessions", id.ToString() + ".json");
     }
 
-    public static string HookSettings(bool sessionTracking = true, bool askUserQuestion = false, bool statusHooks = false) =>
-        TryHookSettings(sessionTracking, askUserQuestion, statusHooks) ?? new JsonObject { ["hooks"] = new JsonObject() }.ToJsonString();
-
-    /// <summary>The `--settings` document: the hooks plus, with `askUserQuestion` (the MCP server is registered), its tools pre-approved; null when it would hold nothing.</summary>
-    public static string? TryHookSettings(bool sessionTracking = true, bool askUserQuestion = false, bool statusHooks = false)
+    /// <summary>The `--settings` document every claude window gets: claude's fullscreen renderer, the hooks, and with `askUserQuestion` (the MCP server is registered) its tools pre-approved.</summary>
+    public static string HookSettings(bool sessionTracking = true, bool askUserQuestion = false, bool statusHooks = false)
     {
-        var hooks = Hooks(sessionTracking, askUserQuestion, statusHooks);
-        if (hooks is null && !askUserQuestion) return null;
-        var settings = new JsonObject();
-        if (hooks is not null) settings["hooks"] = hooks;
+        // the fullscreen renderer redraws the whole conversation at the new width on SIGWINCH; the classic one leaves hard-wrapped rows
+        var settings = new JsonObject
+        {
+            ["tui"] = FullscreenTui,
+            ["hooks"] = Hooks(sessionTracking, askUserQuestion, statusHooks) ?? new JsonObject(),
+        };
         if (askUserQuestion)
             settings["permissions"] = new JsonObject { ["allow"] = new JsonArray(Questions.McpEndpoint.ClaudePermission) };
         return settings.ToJsonString();

@@ -139,8 +139,8 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
     private McpEndpoint? HookEndpointFor(string? agentId, string? bridgeUrl) =>
         questions is null || string.IsNullOrEmpty(agentId) || string.IsNullOrEmpty(bridgeUrl) ? null : questions.EndpointFor(agentId, bridgeUrl);
 
-    /// <summary>Forces claude's classic renderer over a user's `"tui": "fullscreen"` setting.</summary>
-    public const string ClassicRendererEnv = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN";
+    /// <summary>Claude's switch back to its classic renderer, which hard-wraps history at the width it printed at.</summary>
+    public const string AlternateScreenEnv = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN";
 
     private static Dictionary<string, string> WithEnv(Dictionary<string, string> env, McpLaunch? mcp)
     {
@@ -158,13 +158,12 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
         var fresh = string.IsNullOrEmpty(resumeSessionId) || fork;
         if (fresh && !string.IsNullOrEmpty(newSessionId)) options.AddRange(["--session-id", newSessionId]);
         var ownedEnv = new Dictionary<string, string>(env);
-        var settings = trackingFile is not null || hasMcp || hooks is not null ? AgentSessionOwnership.TryHookSettings(trackingFile is not null, hasMcp, hooks is not null) : null;
-        if (settings is not null) options.AddRange(["--settings", settings]);
+        options.AddRange(["--settings", AgentSessionOwnership.HookSettings(trackingFile is not null, hasMcp, hooks is not null)]);
         var statusHooks = hooks is not null && AgentSessionOwnership.CanRunHooks;
         // The status hooks authenticate with the agent's workspace token, which a bare window gets without the MCP server.
         foreach (var (key, value) in hooks?.Env() ?? new Dictionary<string, string>()) ownedEnv.TryAdd(key, value);
-        // A fullscreen (alternate-screen) TUI leaves xterm no scrollback, so the window's scrollbar has nothing to scroll.
-        ownedEnv[ClassicRendererEnv] = "1";
+        // Pinned off, so an inherited CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 cannot override the fullscreen `tui` setting.
+        ownedEnv[AlternateScreenEnv] = "0";
         if (trackingFile is not null)
         {
             ownedEnv[AgentSessionOwnership.FileEnv] = trackingFile;
@@ -209,7 +208,7 @@ public sealed class TerminalAgents(UserPaths paths, ProviderStore providers, Cal
             return [binary, .. model, .. ResumePrompt(null, visiblePrompt), .. bareArgs];
         }
         if (bareArgs.Length > 0) return [binary, .. model, .. ResumePrompt(null, initialPrompt), .. bareArgs];
-        // Only a real claude launch takes a delegation (the CLI may have changed since a widen-resume stored one); the start block rides on the first launch only.
+        // Only a real claude launch takes a delegation; the start block rides on the first launch only.
         var drawer = delegation is not null && isClaude && CliAdapters.All.TryGetValue(adapterKey, out var cli)
             ? cli.SubagentArgs(BareSkill.DrawerPlugin, BareSkill.DrawerAgent, BareSkill.DrawerDescription, delegation.DrawerPrompt, CliAdapters.DefaultBareTools, delegation.AllowedTools)
             : [];

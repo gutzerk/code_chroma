@@ -17,7 +17,9 @@ export interface DesktopWorkspaceApi {
   saveFile?(name: string, mime: string, base64: string): Promise<{ saved: boolean }>;
   /** Posts this project's `agent-summary` to the shell, which draws the project tab's dot, badge and pill. */
   reportAgents?(summary: AgentSummaryMessage): void;
-  /** Registers a listener for the shell's agent commands (`select-agent`, `permission`); may return an unsubscribe. */
+  /** The monitor the shell window is on (bounds + scaling), last sent as a `display` command; null before the first. */
+  displayKey?(): string | null;
+  /** Registers a listener for the shell's commands (`select-agent`, `permission`, `display`); may return an unsubscribe. */
   onAgentCommand?(listener: (command: AgentCommand) => void): void | (() => void);
 }
 
@@ -42,13 +44,17 @@ export interface AgentSummaryMessage {
 /** Shell -> page, delivered through `window.__ccAgentCommand(<json>)`. */
 export type AgentCommand =
   | { type: "select-agent"; id: string }
-  | { type: "permission"; id: string; request_id: string; decision: PermissionDecision };
+  | { type: "permission"; id: string; request_id: string; decision: PermissionDecision }
+  | { type: "display"; key: string };
 
 declare global {
   interface Window {
     codechromaDesktop?: DesktopWorkspaceApi;
   }
 }
+
+/** Fired on `window` by the shell's injected script once `codechromaDesktop` exists (it lands after the page's own scripts ran). */
+export const DESKTOP_READY_EVENT = "codechroma-desktop-ready";
 
 /** Its presence is the desktop-app detection: no user-agent sniffing needed. */
 export function getDesktopWorkspaceApi(): DesktopWorkspaceApi | undefined {

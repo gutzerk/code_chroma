@@ -18,7 +18,7 @@ def _attach_frame(stream: str) -> str:
 
     async def run() -> str:
         session = AgentSession("runner", ECHO, cwd=".")
-        session._on_output(stream, 0)
+        session._on_output(stream)
         queue = session.attach()
         session.close()
         return queue.get_nowait()
@@ -30,7 +30,8 @@ def test_attaching_sends_a_redraw_of_the_screen_not_the_escape_sequences_that_dr
     frame = _attach_frame("\x1b[?1049h\x1b[2Jinside the alt screen")
 
     assert "inside the alt screen" in frame
-    assert "\x1b[?1049h" not in frame
+    assert frame.startswith("\x1b[?25l\x1b[?1049h\x1b[H\x1b[2J")
+    assert frame.count("\x1b[?1049h") == 1
 
 
 def test_a_repainted_screen_reattaches_without_the_text_the_repaint_erased():
@@ -243,3 +244,34 @@ def test_the_pty_follows_only_the_window_that_owns_the_size(steps, cols):
     result = _pty_cols_after(steps)
 
     assert result == cols
+
+
+def test_attaching_with_a_size_takes_the_pty_over_and_paints_once():
+    async def run() -> tuple[int, int, int, int]:
+        session = AgentSession("runner", ECHO, cwd=".")
+        other = session.attach()
+        session.resize_from(other, 30, 100)
+        queue = session.attach((40, 140))
+        session.resize_from(queue, 40, 140)
+        frames = queue.qsize()
+        size = (session._rows, session._cols)
+        session.close()
+        return (frames, *size, session._tap._screen.columns)
+
+    frames, rows, cols, tap_cols = asyncio.run(run())
+
+    assert (frames, rows, cols, tap_cols) == (1, 40, 140, 140)
+
+
+def test_attaching_an_exited_agent_with_a_size_keeps_its_last_screen_size():
+    async def run() -> tuple[int, int, int]:
+        session = AgentSession("runner", ECHO, cwd=".")
+        died_at = session._cols
+        session.close()
+        session.exit_code = 0
+        session.attach((40, 60))
+        return (died_at, session._cols, session._tap._screen.columns)
+
+    died_at, cols, tap_cols = asyncio.run(run())
+
+    assert (cols, tap_cols) == (died_at, died_at)

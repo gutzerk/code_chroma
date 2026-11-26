@@ -8,8 +8,6 @@ from dataclasses import dataclass
 HISTORY_CLEARED_EVENT = "agent-history-cleared"
 # Erases xterm's scrollback (and a tap's history) but not the visible screen.
 CLEAR_SCROLLBACK = "\x1b[3J"
-# Erases screen and scrollback before a resumed process reprints the conversation.
-RESET_SCREEN = "\x1b[0m\x1b[H\x1b[2J" + CLEAR_SCROLLBACK
 # How long the CLI gets to finish its own clear before the repaint key.
 REPAINT_DELAY_SECONDS = 0.3
 
@@ -38,7 +36,7 @@ def clear_watch_for(adapter: object | None, hooked: bool) -> ClearWatch | None:
 
 
 class TypedLine:
-    """Follows keystrokes per line: the draft a restart would lose, and a CR-submitted clear."""
+    """Follows keystrokes per line to spot a CR-submitted clear command."""
 
     def __init__(self, commands: tuple[str, ...]) -> None:
         self._commands = frozenset(commands)
@@ -47,11 +45,6 @@ class TypedLine:
         self._in_escape = False
         self._in_paste = False
         self._unknown = False
-
-    @property
-    def has_draft(self) -> bool:
-        """Typed text, or a line no longer known (history recall, a pasted line break)."""
-        return self._unknown or bool(self._line)
 
     def feed(self, data: str, injected: bool = False) -> bool:
         """Feeds one chunk; True when a user-submitted line was a clear; injected text never is."""

@@ -5,8 +5,10 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import { useTerminalClient } from "./TerminalClientContext";
-import type { TerminalSession } from "./TerminalClient";
+import type { TerminalSession, TerminalSize } from "./TerminalClient";
+import { IS_MAC } from "../util/platform";
 import { attachStickToBottom, type StickToBottomHandle } from "./stickToBottom";
+import { terminalFontStore, watchDisplayChanges } from "./terminalFontStore";
 
 const REFIT_DEBOUNCE_MS = 60;
 const SELECTION_COPY_DEBOUNCE_MS = 150;
@@ -61,6 +63,21 @@ export function isPasteChord(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | 
   return (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "v";
 }
 
+/** An unmeasurable box (hidden: NaN; laid out at 0px: FitAddon's 2x1 floor) would shrink the PTY, so it is never sent. */
+function measurable(fitAddon: FitAddon): boolean {
+  const measured = fitAddon.proposeDimensions();
+  return !!measured && measured.cols > MIN_COLS && measured.rows > MIN_ROWS;
+}
+
+/** Cmd (macOS) or Ctrl (elsewhere) with `=`/`+`, `-` or `0`: the text-size chords; Ctrl+_ (readline undo, 0x1F) still reaches the PTY. */
+export function fontChord(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "altKey" | "key">, mac = IS_MAC): 1 | -1 | 0 | null {
+  if (event.altKey || !(mac ? event.metaKey : event.ctrlKey)) return null;
+  if (event.key === "=" || event.key === "+") return 1;
+  if (event.key === "-") return -1;
+  if (event.key === "0") return 0;
+  return null;
+}
+
 export interface XtermSessionOptions {
   /** Allow-listed agent key on the bridge, e.g. "shell" or "claude". */
   agent: string;
@@ -111,9 +128,7 @@ export function useXtermSession(
     const fitAddon = fitAddonRef.current;
     const session = sessionRef.current;
     if (!term || !fitAddon || !session) return;
-    // An unmeasurable box (hidden: NaN; laid out at 0px: FitAddon's 2x1 floor) would shrink the PTY, so skip it.
-    const measured = fitAddon.proposeDimensions();
-    if (!measured || !(measured.cols > MIN_COLS) || !(measured.rows > MIN_ROWS)) return;
+    if (!measurable(fitAddon)) return;
     fitAddon.fit();
     const last = lastSizeRef.current;
     if (last && last.rows === term.rows && last.cols === term.cols) return;
@@ -140,15 +155,18 @@ export function useXtermSession(
     const container = containerRef.current;
     if (!container || !enabled) return undefined;
 
+    watchDisplayChanges();
     const term = new Terminal({
       fontFamily: FONT_FAMILY,
-      fontSize: 12,
+      fontSize: terminalFontStore.get(),
       lineHeight: 1,
       scrollback: 5000,
       theme: THEME,
       // Unicode 11 widths need the proposed API; without them the braille spinner, box drawing and
       // emoji an agent TUI paints with are measured at the wrong cell width and the frame smears.
       allowProposedApi: true,
+      // While a TUI has mouse tracking on (claude fullscreen), Option-drag still selects text on macOS.
+      macOptionClickForcesSelection: true,
     });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
@@ -158,19 +176,43 @@ export function useXtermSession(
     term.open(container);
     // Leave Ctrl/Cmd+V to the browser: xterm cancelling the keydown suppresses the native paste event,
     // and the desktop shell's clipboard fallback then raises a WebView "Insert" prompt instead of pasting.
-    term.attachCustomKeyEventHandler(
-      (event) => !(event.type === "keydown" && isPasteChord(event)),
-    );
+    // Cmd/Ctrl+=/-/0 size the terminal text and never reach the PTY.
+    term.attachCustomKeyEventHandler((event) => {
+      const chord = fontChord(event);
+      if (chord !== null) {
+        if (event.type === "keydown") {
+          event.preventDefault();
+          if (chord === 0) terminalFontStore.restoreDefault();
+          else terminalFontStore.step(chord);
+        }
+        return false;
+      }
+      return !(event.type === "keydown" && isPasteChord(event));
+    });
+    // Every terminal follows the size for this display: a chord, the A-/A+ buttons or a move to another monitor.
+    const offFont = terminalFontStore.subscribe(() => {
+      const size = terminalFontStore.get();
+      if (term.options.fontSize === size) return;
+      term.options.fontSize = size;
+      scheduleRefit();
+    });
 
     // No WebglAddon on purpose: its glyph atlas is shared by every terminal and, once pages merge, drops glyphs.
     // The default DOM renderer has no atlas, so that whole class of blank cells cannot happen.
 
-    fitAddon.fit();
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
+    // Measured before connecting, so the bridge resizes the PTY and paints once at this size; a hidden box connects without one.
+    let initialSize: TerminalSize | undefined;
+    if (measurable(fitAddon)) {
+      fitAddon.fit();
+      initialSize = { rows: term.rows, cols: term.cols };
+    }
+    lastSizeRef.current = initialSize ?? null;
+
     let disposed = false;
-    const session = terminalClient.connect(agent, workspace);
+    const session = terminalClient.connect(agent, workspace, initialSize);
     sessionRef.current = session;
     session.onData((data) => {
       if (!disposed) term.write(data);
@@ -206,8 +248,6 @@ export function useXtermSession(
         userSelectionPending = false;
       }, SELECTION_COPY_DEBOUNCE_MS);
     });
-    lastSizeRef.current = null;
-    refit();
 
     const sticky = attachStickToBottom(term, container, () => hiddenRef.current);
     stickyRef.current = sticky;
@@ -219,6 +259,7 @@ export function useXtermSession(
 
     return () => {
       disposed = true;
+      offFont();
       sticky.detach();
       stickyRef.current = null;
       detachConsumer?.();

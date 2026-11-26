@@ -6,9 +6,11 @@ these tests cover the new `agent` kind's resolution and the env it returns for t
 
 from __future__ import annotations
 
+import json
+
 from codechroma.llm.call_site_settings import save_group_assignment
 from codechroma.llm.providers_store import create_provider
-from codechroma.terminal.agents import CLASSIC_RENDERER_ENV
+from codechroma.terminal.agents import ALTERNATE_SCREEN_ENV, FULLSCREEN_TUI
 
 
 def _assign_agents_group(**provider_kwargs):
@@ -17,6 +19,11 @@ def _assign_agents_group(**provider_kwargs):
     })
     save_group_assignment("agents", {"provider_id": provider.id, "model": "claude-opus"})
     return provider
+
+
+def _fullscreen_args():
+    """The `--settings` a claude window with no hooks carries: the fullscreen renderer."""
+    return ["--settings", json.dumps({"tui": FULLSCREEN_TUI})]
 
 
 def _plugin_args():
@@ -46,7 +53,7 @@ def test_agent_kind_routes_to_an_assigned_cli_provider_binary():
     argv, env = agent_cli("agent")
 
     assert argv[0] == "claude"
-    assert argv[1:3] == _plugin_args()
+    assert argv[1:5] == [*_fullscreen_args(), *_plugin_args()]
     assert env["ANTHROPIC_BASE_URL"] == "https://proxy.example.com"
     assert env["ANTHROPIC_AUTH_TOKEN"] == "sk-proxy"
 
@@ -84,8 +91,10 @@ def test_agent_kind_loads_plugin_when_claude_adapter_uses_a_wrapper(monkeypatch)
     argv, env = agent_cli("agent")
 
     plugin = str(resource_path("skills").parent)
-    assert argv == ["claude-wrapper", "--model", "claude-opus", "--plugin-dir", plugin]
-    assert env == {CLASSIC_RENDERER_ENV: "1"}
+    assert argv == [
+        "claude-wrapper", "--model", "claude-opus", *_fullscreen_args(), "--plugin-dir", plugin,
+    ]
+    assert env == {ALTERNATE_SCREEN_ENV: "0"}
 
 
 def test_agent_kind_carries_a_first_message_and_resume():
@@ -93,11 +102,11 @@ def test_agent_kind_carries_a_first_message_and_resume():
 
     argv, _env = agent_cli("agent", initial_prompt="make a diagram")
 
-    assert argv == ["claude", *_plugin_args(), "make a diagram"]
+    assert argv == ["claude", *_fullscreen_args(), *_plugin_args(), "make a diagram"]
 
     resumed, _env = agent_cli("agent", resume_session_id="abc123")
 
-    assert resumed == ["claude", *_plugin_args(), "--resume", "abc123"]
+    assert resumed == ["claude", *_fullscreen_args(), *_plugin_args(), "--resume", "abc123"]
 
 
 def test_claude_fresh_session_uses_the_assigned_id_and_a_resume_id_wins_over_it():
@@ -132,8 +141,8 @@ def test_claude_kind_still_ignores_the_provider_store():
 
     argv, env = agent_cli("claude")
 
-    assert argv == ["claude", *_plugin_args()]
-    assert env == {CLASSIC_RENDERER_ENV: "1"}
+    assert argv == ["claude", *_fullscreen_args(), *_plugin_args()]
+    assert env == {ALTERNATE_SCREEN_ENV: "0"}
 
 
 def test_non_claude_assistant_cli_does_not_receive_claude_plugin_flags():
@@ -209,4 +218,6 @@ def test_claude_kind_appends_the_saved_instruction_to_the_system_prompt():
 
     argv, _env = agent_cli("claude")
 
-    assert argv == ["claude", "--append-system-prompt", "be terse", *_plugin_args()]
+    assert argv == [
+        "claude", *_fullscreen_args(), "--append-system-prompt", "be terse", *_plugin_args(),
+    ]

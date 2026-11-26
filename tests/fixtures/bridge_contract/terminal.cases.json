@@ -4,6 +4,29 @@
   "repo": {"base": "sample_repo"},
   "cases": [
     {
+      "id": "an_agent_window_connecting_with_a_query_size_runs_the_pty_at_that_size",
+      "requires": ["pty"],
+      "steps": [
+        {"http": {"method": "POST", "path": "/branches/ensure"}, "capture": {"ws": "$.active"}, "expect": {"status": 200}},
+        {"http": {"method": "POST", "path": "/agents", "json": {"title": "Measured", "kind": "shell", "workspace": "{{ws}}"}}, "expect": {"status": 200}},
+        {"http": {"method": "POST", "path": "/agents/measured/start", "json": {}}, "expect": {"status": 200}},
+        {"ws": "connect", "name": "term", "path": "/ws/terminal?agent=shell&workspace=measured&rows=30&cols=100", "expect": "accepted"},
+        {"ws": "receive", "name": "term", "tag": "o", "raw": true, "timeout_ms": 15000},
+        {"ws": "send", "name": "term", "json": {"type": "input", "data": "stty size\r"}},
+        {"ws": "receive", "name": "term", "tag": "o", "raw": true, "timeout_ms": 15000, "skip_until_match": true, "expect": {"checks": [{"path": "$", "contains": "30 100"}]}},
+        {"http": {"method": "POST", "path": "/agents/measured/stop"}, "expect": {"status": 200}}
+      ]
+    },
+    {
+      "id": "a_plain_shell_connecting_with_a_query_size_starts_at_that_size",
+      "requires": ["pty"],
+      "steps": [
+        {"ws": "connect", "name": "term", "path": "/ws/terminal?agent=shell&rows=30&cols=100", "expect": "accepted"},
+        {"ws": "send", "name": "term", "json": {"type": "input", "data": "stty size\r"}},
+        {"ws": "receive", "name": "term", "tag": "o", "raw": true, "timeout_ms": 15000, "skip_until_match": true, "expect": {"checks": [{"path": "$", "contains": "30 100"}]}}
+      ]
+    },
+    {
       "id": "an_agent_workspace_that_is_not_running_gets_a_tagged_error_and_4409",
       "requires": ["terminal-frames"],
       "steps": [

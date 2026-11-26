@@ -28,7 +28,10 @@ from codechroma.config import settings
 from codechroma.llm.cli_adapters import CLI_ADAPTERS, delivers_hidden_prompt_context
 from codechroma.questions.launch import CLAUDE_PERMISSION, McpEndpoint
 
-CLASSIC_RENDERER_ENV = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"
+# Every claude window runs fullscreen: alt screen plus mouse, redrawn at each new width (C# same).
+FULLSCREEN_TUI = "fullscreen"
+# Pinned to "0": an inherited "1" would switch claude back to its hard-wrapping classic renderer.
+ALTERNATE_SCREEN_ENV = "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"
 
 ALLOWED_AGENTS: dict[str, list[str]] = {
     "shell": (
@@ -167,11 +170,12 @@ def _model_args(resolution) -> list[str]:
 def _settings_args(
     is_claude: bool, file: Path | None, has_mcp: bool, status_hooks: bool = False
 ) -> list[str]:
-    """`--settings`: session/status hooks, plus the MCP tools pre-approved when registered."""
-    if not is_claude or (file is None and not has_mcp and not status_hooks):
+    """`--settings` for every claude: fullscreen renderer, hooks, MCP tools pre-approved."""
+    if not is_claude:
         return []
     hooked = file is not None or status_hooks
     document = hook_document(file is not None, status_hooks) if hooked else {}
+    document["tui"] = FULLSCREEN_TUI
     if has_mcp:
         document["permissions"] = {"allow": [CLAUDE_PERMISSION]}
     return ["--settings", json.dumps(document)]
@@ -189,8 +193,8 @@ def _status_hook_env(is_claude: bool, mcp: McpEndpoint | None) -> dict[str, str]
 
 
 def _renderer_env(is_claude: bool) -> dict[str, str]:
-    """Force claude's classic renderer: a fullscreen TUI leaves xterm no scrollback to scroll."""
-    return {CLASSIC_RENDERER_ENV: "1"} if is_claude else {}
+    """Keeps claude on the fullscreen renderer whatever the inherited environment says."""
+    return {ALTERNATE_SCREEN_ENV: "0"} if is_claude else {}
 
 
 def _tracking_env(is_claude: bool, file: Path | None, session_id: str | None) -> dict[str, str]:

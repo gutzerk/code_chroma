@@ -138,9 +138,11 @@ def test_alternative_clis_receive_no_session_hook(tmp_path, kind):
 
 
 @pytest.mark.parametrize("kind", ["claude", "agent"])
-def test_claude_windows_force_the_classic_renderer(kind):
-    from codechroma.terminal.agents import CLASSIC_RENDERER_ENV
+def test_claude_windows_run_the_fullscreen_renderer_in_their_one_settings_document(tmp_path, kind):
+    from codechroma.terminal.agents import FULLSCREEN_TUI
 
-    _, env = agent_cli(kind, initial_prompt="task")
+    argv, env = agent_cli(kind, initial_prompt="task", session_tracking_file=tmp_path / "o.json")
 
-    assert env[CLASSIC_RENDERER_ENV] == "1"
+    assert argv.count("--settings") == 1
+    assert json.loads(argv[argv.index("--settings") + 1])["tui"] == FULLSCREEN_TUI
+    assert env["CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN"] == "0"

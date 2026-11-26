@@ -130,6 +130,10 @@ Each canvas page reports its agents to the shell; the tab strip shows the most u
   (`NavigationStarting` -> `ShellController.PageReset`; fragment-only jumps keep it). The new page re-reports on load.
   A navigation off the bridge origin is cancelled and, when `ExternalLinks.CanOpen` allows its scheme (`http`, `https`,
   `slack` for the unread-messages deep links), handed to the OS.
+  🔴 On macOS WebView.Avalonia raises `WebViewNewWindowRequested` for **every** navigation action (the canvas's own
+  load included, with a default `OpenExternally` when the target frame is null), so that handler keeps the tab's own
+  bridge origin and `about:` in the WebView (`OpenInWebView`) and only hands other URLs to the OS
+  (`ExternalLinks.OpensExternally`). Without it every project opened also popped a system-browser tab on the bridge URL.
   `AgentBoard.Report` returns an `AgentChange`: `None` (same summary) does nothing, `Tabs` (a badge or the blocked set
   changed) redraws the strip via `TabsChanged` (`TabInfo.Agents`, `TabsSnapshot.Waiting`), and `Activity` (tool, target,
   turn start) only calls `IShellUi.AgentsChanged`, which swaps the chip's summary and refreshes the open popover.

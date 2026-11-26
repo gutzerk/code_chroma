@@ -149,8 +149,15 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         });
         view.Web.WebViewNewWindowRequested += (_, e) =>
         {
+            if (e.Url is not { } target) { e.UrlLoadingStrategy = WebViewCore.Enums.UrlRequestStrategy.CancelLoad; return; }
+            if (target.Scheme == "about" || IsBridgeOrigin(view, target))
+            {
+                // macOS WebView.Avalonia raises this for every navigation, including the canvas's own load.
+                e.UrlLoadingStrategy = WebViewCore.Enums.UrlRequestStrategy.OpenInWebView;
+                return;
+            }
             e.UrlLoadingStrategy = WebViewCore.Enums.UrlRequestStrategy.CancelLoad;
-            if (e.Url is { } target && ExternalLinks.CanOpen(target)) Process.Start(new ProcessStartInfo(target.AbsoluteUri) { UseShellExecute = true });
+            if (ExternalLinks.OpensExternally(target, BridgeOriginOf(view))) Process.Start(new ProcessStartInfo(target.AbsoluteUri) { UseShellExecute = true });
         };
         Content.Children.Add(view);
         return view;
@@ -161,13 +168,10 @@ public sealed partial class MainWindow : Window, IShellUi, ILauncherHost
         current is not null && target.Fragment.Length > 0
         && Uri.Compare(current, target, UriComponents.HttpRequestUrl, UriFormat.Unescaped, StringComparison.Ordinal) == 0;
 
-    private bool IsBridgeOrigin(TabView view, Uri? current)
-    {
-        var tab = tabs.Tabs.FirstOrDefault(t => ReferenceEquals(t.View, view));
-        if (current is null || tab is null || tabs.BridgeFor(tab) is not { } bridge) return false;
-        return Uri.TryCreate(bridge.Origin, UriKind.Absolute, out var origin)
-            && current.Scheme == origin.Scheme && current.Host == origin.Host && current.Port == origin.Port;
-    }
+    private bool IsBridgeOrigin(TabView view, Uri? current) => ExternalLinks.IsOnOrigin(current, BridgeOriginOf(view));
+
+    private string? BridgeOriginOf(TabView view) =>
+        tabs.Tabs.FirstOrDefault(t => ReferenceEquals(t.View, view)) is { } tab ? tabs.BridgeFor(tab)?.Origin : null;
 
     private void OnCanvasMessage(TabView view, string? json)
     {

@@ -1,12 +1,12 @@
-import { useState } from "react";
 import { RailButton } from "../canvas/RailButton";
 import { RailIcon } from "../icons/RailIcon";
 import { SettingsDialog } from "./SettingsDialog";
+import { settingsStore, useSettingsState } from "./settingsStore";
 
 /** The rail's assistant-settings control: opens the dialog that picks the CLI, model, credentials
- * and instructions. Self-contained so RootCanvas only renders it, not its open state. */
+ * and instructions. Open state lives in settingsStore so other chrome can open a category directly. */
 export function SettingsRailButton() {
-  const [open, setOpen] = useState(false);
+  const { open } = useSettingsState();
 
   return (
     <>
@@ -15,11 +15,11 @@ export function SettingsRailButton() {
         className="assistant-settings-toggle-button"
         testId="assistant-settings-toggle-button"
         pressed={open}
-        onClick={() => setOpen((current) => !current)}
+        onClick={settingsStore.toggle}
       >
         <RailIcon name="settings" />
       </RailButton>
-      {open && <SettingsDialog onDismiss={() => setOpen(false)} />}
+      {open && <SettingsDialog onDismiss={settingsStore.close} />}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ModalDialog } from "../agents/ModalDialog";
 import {
   connectOutlook,
@@ -20,8 +20,8 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/** Settings › Integrations (also opened by the messages rail button while nothing is connected): connect or disconnect the one Slack workspace and one Outlook mailbox the unread panel reads. */
-export function IntegrationsPanel({ onDismiss, onBack }: { onDismiss: () => void; onBack?: () => void }) {
+/** Settings › Integrations (the messages rail button deep-links here while nothing is connected): connect or disconnect the one Slack workspace and one Outlook mailbox the unread panel reads. */
+export function IntegrationsPanel({ onDismiss }: { onDismiss: () => void }) {
   const [status, setStatus] = useState<Integrations | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [manifest, setManifest] = useState<string | null>(null);
@@ -111,20 +111,23 @@ export function IntegrationsPanel({ onDismiss, onBack }: { onDismiss: () => void
     navigator.clipboard
       ?.writeText(manifest)
       .then(() => setCopied(true))
-      .catch(() => setCopied(false));
+      .catch(() => undefined);
   };
 
   return (
-    <ModalDialog label="Integrations" testId="integrations-dialog" className="integrations-dialog" onDismiss={onDismiss}>
-      <header className="llm-dialog-header integrations-header">
-        {onBack && (
-          <button type="button" className="canvas-style-back" aria-label="Back" onClick={onBack}>
-            ‹
-          </button>
-        )}
+    <ModalDialog
+      label="Integrations"
+      testId="integrations-dialog"
+      className="canvas-style-dialog integrations-dialog"
+      onDismiss={onDismiss}
+    >
+      <header className="llm-dialog-header">
+        <button type="button" className="canvas-style-back" aria-label="Back" onClick={onDismiss}>
+          ‹
+        </button>
         <h2>Integrations</h2>
       </header>
-      <p className="integrations-lede">
+      <p className="canvas-style-lede">
         Read-only: unread Slack and Outlook messages are listed here and open in their own app. Only sign-in tokens are
         saved, never messages.
       </p>
@@ -136,110 +139,81 @@ export function IntegrationsPanel({ onDismiss, onBack }: { onDismiss: () => void
       {loadError && <p className="integrations-error" role="alert">{loadError}</p>}
 
       <div className="integrations-grid">
-        <section className="integrations-card" aria-labelledby="integrations-slack">
-          <div className="integrations-card-head">
-            <h3 id="integrations-slack">Slack</h3>
-            <StatusPill connected={!!status?.slack.connected} error={status?.slack.error ?? null} />
-          </div>
-          {status?.slack.connected ? (
-            <div className="integrations-connected" data-testid="integrations-slack-connected">
-              <span>
-                Connected{status.slack.workspace ? ` to ${status.slack.workspace}` : ""}
-                {status.slack.user ? ` as ${status.slack.user}` : ""}
-              </span>
-              {status.slack.error && <span className="integrations-error">{status.slack.error}</span>}
-              <button
-                type="button"
-                className="llm-button-ghost llm-button-danger"
-                disabled={busy !== null}
-                onClick={() => run("slack", () => disconnectSource("slack"))}
-              >
-                Disconnect
-              </button>
-            </div>
-          ) : (
-            <>
-              <ol className="integrations-steps">
-                <li>
-                  At api.slack.com/apps create an app <em>From a manifest</em> and paste the manifest.
-                  {manifest && (
-                    <button type="button" className="integrations-link" onClick={copyManifest}>
-                      {copied ? "Copied" : "Copy manifest"}
-                    </button>
-                  )}
-                </li>
-                <li>Install it and copy the User OAuth Token (xoxp-).</li>
-                <li>Basic Information › App-Level Tokens: create one with connections:write (xapp-).</li>
-              </ol>
-              <label className="integrations-field">
-                User token
-                <input type="password" autoComplete="off" placeholder="xoxp-…" value={userToken} onChange={(e) => setUserToken(e.target.value)} />
-              </label>
-              <label className="integrations-field">
-                App-level token
-                <input type="password" autoComplete="off" placeholder="xapp-…" value={appToken} onChange={(e) => setAppToken(e.target.value)} />
-              </label>
-              <button
-                type="button"
-                className="llm-button-primary integrations-connect"
-                disabled={busy !== null || !userToken.trim() || !appToken.trim()}
-                onClick={() => void onConnectSlack()}
-              >
-                {busy === "slack" ? "Connecting…" : "Connect Slack"}
-              </button>
-            </>
-          )}
-          {actionError.slack && <p className="integrations-error" role="alert">{actionError.slack}</p>}
-        </section>
+        <SourceCard
+          source="slack"
+          label="Slack"
+          connected={!!status?.slack.connected}
+          summary={`Connected${status?.slack.workspace ? ` to ${status.slack.workspace}` : ""}${status?.slack.user ? ` as ${status.slack.user}` : ""}`}
+          error={status?.slack.error ?? null}
+          actionError={actionError.slack}
+          busy={busy !== null}
+          onDisconnect={() => run("slack", () => disconnectSource("slack"))}
+        >
+          <ol className="integrations-steps">
+            <li>
+              At api.slack.com/apps create an app <em>From a manifest</em> and paste the manifest.
+              {manifest && (
+                <button type="button" className="integrations-link" onClick={copyManifest}>
+                  {copied ? "Copied" : "Copy manifest"}
+                </button>
+              )}
+            </li>
+            <li>Install it and copy the User OAuth Token (xoxp-).</li>
+            <li>Basic Information › App-Level Tokens: create one with connections:write (xapp-).</li>
+          </ol>
+          <label className="integrations-field">
+            User token
+            <input type="password" autoComplete="off" placeholder="xoxp-…" value={userToken} onChange={(e) => setUserToken(e.target.value)} />
+          </label>
+          <label className="integrations-field">
+            App-level token
+            <input type="password" autoComplete="off" placeholder="xapp-…" value={appToken} onChange={(e) => setAppToken(e.target.value)} />
+          </label>
+          <button
+            type="button"
+            className="llm-button-primary integrations-connect"
+            disabled={busy !== null || !userToken.trim() || !appToken.trim()}
+            onClick={() => void onConnectSlack()}
+          >
+            {busy === "slack" ? "Connecting…" : "Connect Slack"}
+          </button>
+        </SourceCard>
 
-        <section className="integrations-card" aria-labelledby="integrations-outlook">
-          <div className="integrations-card-head">
-            <h3 id="integrations-outlook">Outlook</h3>
-            <StatusPill connected={!!status?.outlook.connected} error={status?.outlook.error ?? null} />
-          </div>
-          {status?.outlook.connected ? (
-            <div className="integrations-connected" data-testid="integrations-outlook-connected">
-              <span>Connected{status.outlook.account ? ` as ${status.outlook.account}` : ""}</span>
-              {status.outlook.error && <span className="integrations-error">{status.outlook.error}</span>}
-              <button
-                type="button"
-                className="llm-button-ghost llm-button-danger"
-                disabled={busy !== null}
-                onClick={() => run("outlook", () => disconnectSource("outlook"))}
-              >
-                Disconnect
-              </button>
-            </div>
-          ) : (
-            <>
-              <p className="integrations-hint">
-                Signs in with Microsoft in your browser (Mail.Read). If your organization requires admin consent, use a
-                client id your admin registered with the redirect URI http://127.0.0.1.
-              </p>
-              <label className="integrations-field">
-                {needsOwnClient ? "Application (client) id" : "Own client id (optional)"}
-                <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000" />
-              </label>
-              <label className="integrations-field">
-                Tenant (optional)
-                <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="common" />
-              </label>
-              <button
-                type="button"
-                className="llm-button-primary integrations-connect"
-                disabled={busy !== null || (needsOwnClient && !clientId.trim())}
-                onClick={() => void onConnectOutlook()}
-              >
-                {waitingForOutlook ? "Waiting for sign-in…" : "Connect Outlook"}
-              </button>
-            </>
-          )}
-          {actionError.outlook && <p className="integrations-error" role="alert">{actionError.outlook}</p>}
-        </section>
+        <SourceCard
+          source="outlook"
+          label="Outlook"
+          connected={!!status?.outlook.connected}
+          summary={`Connected${status?.outlook.account ? ` as ${status.outlook.account}` : ""}`}
+          error={status?.outlook.error ?? null}
+          actionError={actionError.outlook}
+          busy={busy !== null}
+          onDisconnect={() => run("outlook", () => disconnectSource("outlook"))}
+        >
+          <p className="integrations-hint">
+            Signs in with Microsoft in your browser (Mail.Read). If your organization requires admin consent, use a client
+            id your admin registered with the redirect URI http://127.0.0.1.
+          </p>
+          <label className="integrations-field">
+            {needsOwnClient ? "Application (client) id" : "Own client id (optional)"}
+            <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000" />
+          </label>
+          <label className="integrations-field">
+            Tenant (optional)
+            <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="common" />
+          </label>
+          <button
+            type="button"
+            className="llm-button-primary integrations-connect"
+            disabled={busy !== null || (needsOwnClient && !clientId.trim())}
+            onClick={() => void onConnectOutlook()}
+          >
+            {waitingForOutlook ? "Waiting for sign-in…" : "Connect Outlook"}
+          </button>
+        </SourceCard>
       </div>
 
       {status?.token_storage.warning && (
-        <p className="integrations-warning" data-testid="integrations-storage-warning" role="note">
+        <p className="canvas-style-warning integrations-warning" data-testid="integrations-storage-warning" role="note">
           {status.token_storage.warning}
         </p>
       )}
@@ -253,9 +227,53 @@ export function IntegrationsPanel({ onDismiss, onBack }: { onDismiss: () => void
   );
 }
 
-/** The per-source chip in a card header: connected, failing, or not connected yet. */
-function StatusPill({ connected, error }: { connected: boolean; error: string | null }) {
-  const kind = connected ? (error ? "error" : "connected") : "off";
-  const text = kind === "connected" ? "Connected" : kind === "error" ? "Error" : "Not connected";
-  return <span className={`integrations-pill integrations-pill-${kind}`}>{text}</span>;
+const CHIP: Record<"connected" | "error" | "off", { status: string; text: string }> = {
+  connected: { status: "done", text: "Connected" },
+  error: { status: "error", text: "Error" },
+  off: { status: "off", text: "Not connected" },
+};
+
+/** One source's card: header with its status chip, then either the connected summary or the setup form. */
+function SourceCard({
+  source,
+  label,
+  connected,
+  summary,
+  error,
+  actionError,
+  busy,
+  onDisconnect,
+  children,
+}: {
+  source: MessageSourceName;
+  label: string;
+  connected: boolean;
+  summary: string;
+  error: string | null;
+  actionError?: string;
+  busy: boolean;
+  onDisconnect: () => void;
+  children: ReactNode;
+}) {
+  const chip = CHIP[connected ? (error ? "error" : "connected") : "off"];
+  return (
+    <section className="integrations-card" aria-labelledby={`integrations-${source}`}>
+      <div className="integrations-card-head">
+        <h3 id={`integrations-${source}`}>{label}</h3>
+        <span className="status-chip" data-status={chip.status}>{chip.text}</span>
+      </div>
+      {connected ? (
+        <div className="integrations-connected" data-testid={`integrations-${source}-connected`}>
+          <span>{summary}</span>
+          {error && <span className="integrations-error">{error}</span>}
+          <button type="button" className="llm-button-ghost llm-button-danger" disabled={busy} onClick={onDisconnect}>
+            Disconnect
+          </button>
+        </div>
+      ) : (
+        children
+      )}
+      {actionError && <p className="integrations-error" role="alert">{actionError}</p>}
+    </section>
+  );
 }

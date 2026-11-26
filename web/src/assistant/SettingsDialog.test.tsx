@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { SettingsDialog } from "./SettingsDialog";
+import { settingsStore } from "./settingsStore";
 import * as llmClient from "../llm-settings/llmSettingsClient";
 
 vi.mock("../llm-settings/llmSettingsClient", () => ({
@@ -46,6 +47,7 @@ function renderDialog() {
 
 afterEach(() => {
   vi.clearAllMocks();
+  settingsStore.reset();
 });
 
 describe("SettingsDialog", () => {
@@ -101,6 +103,14 @@ describe("SettingsDialog", () => {
     expect(screen.getByText("Open CodeChroma in the desktop app to check and install updates.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByTestId("settings-open-updates")).toBeTruthy();
+  });
+
+  it("opens straight on a category another control asked for", async () => {
+    settingsStore.open("updates");
+
+    renderDialog();
+
+    expect(await screen.findByTestId("updates-panel")).toBeTruthy();
   });
 
   it("dismisses", async () => {

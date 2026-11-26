@@ -8,16 +8,11 @@ import type { UnreadFeed } from "./messagesClient";
 import { BridgeHttpError } from "../util/httpJson";
 import { MessagesRailButton, UnreadPanel } from "./UnreadPanel";
 import { messagesStore } from "./messagesStore";
+import { settingsStore } from "../assistant/settingsStore";
 
 vi.mock("./messagesClient", () => ({
   getUnread: vi.fn(),
   refreshMessages: vi.fn(async () => ({ started: true })),
-  getIntegrations: vi.fn(async () => ({
-    slack: { connected: false, state: "disconnected", error: null, workspace: null, user: null },
-    outlook: { connected: false, state: "disconnected", error: null, account: null, client_id: null, tenant: null, default_client_available: true },
-    token_storage: { backend: "libsecret", warning: null },
-  })),
-  getSlackManifest: vi.fn(async () => ({})),
 }));
 
 const DISCONNECTED: UnreadFeed = {
@@ -65,6 +60,7 @@ function renderWith(engine: EngineClient, children: ReactNode) {
 
 beforeEach(() => {
   messagesStore.reset();
+  settingsStore.reset();
   vi.mocked(client.getUnread).mockResolvedValue(FEED);
 });
 
@@ -142,15 +138,18 @@ describe("UnreadPanel", () => {
     expect(await screen.findByText(/Settings › Integrations/)).toBeTruthy();
   });
 
-  it("opens Integrations instead of the panel when nothing is connected", async () => {
+  it("opens Settings › Integrations instead of the panel when nothing is connected", async () => {
     vi.mocked(client.getUnread).mockResolvedValue(DISCONNECTED);
     renderWith(stubEngineClient, <><MessagesRailButton /><UnreadPanel /></>);
     await waitFor(() => expect(messagesStore.getFeed()).not.toBeNull());
 
     fireEvent.click(screen.getByTestId("messages-toggle-button"));
 
-    expect(await screen.findByTestId("integrations-none-connected")).toBeTruthy();
-    expect([screen.queryByTestId("unread-panel"), screen.getByTestId("messages-toggle-button").getAttribute("aria-pressed")]).toEqual([null, "false"]);
+    expect([
+      settingsStore.getState(),
+      screen.queryByTestId("unread-panel"),
+      screen.getByTestId("messages-toggle-button").getAttribute("aria-pressed"),
+    ]).toEqual([{ open: true, category: "integrations" }, null, "false"]);
   });
 
   it("toggles the panel when a source is connected", async () => {
@@ -159,6 +158,6 @@ describe("UnreadPanel", () => {
 
     fireEvent.click(screen.getByTestId("messages-toggle-button"));
 
-    expect([screen.queryByTestId("unread-panel") !== null, screen.queryByTestId("integrations-dialog")]).toEqual([true, null]);
+    expect([screen.queryByTestId("unread-panel") !== null, settingsStore.getState().open]).toEqual([true, false]);
   });
 });

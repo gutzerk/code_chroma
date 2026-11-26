@@ -60,8 +60,10 @@ Not repo-scoped — no `Services` dependency.
 
 ## Web
 
-- `web/src/assistant/SettingsRailButton.tsx` — the gear button on the canvas chrome,
-  self-contained open state (mirrors `PrRailButton`). Opens `SettingsDialog.tsx`, a category-list
+- `web/src/assistant/SettingsRailButton.tsx` — the gear button on the canvas chrome; its open
+  state and the open category live in `settingsStore.ts` (global `Store`, `open(category?)`,
+  `showHome`, `close`), so other chrome can deep-link into a category (the messages rail button
+  opens "Integrations" this way). Opens `SettingsDialog.tsx`, a category-list
   home ("LLM", "Canvas style", "Integrations" (Slack/Outlook for the unread panel, see
   [`unread-messages.md`](unread-messages.md)) and "Updates"; "Report an issue" is its own top-bar button — see
   [`report-issue.md`](report-issue.md)) rather than this form directly.

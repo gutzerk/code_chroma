@@ -110,4 +110,21 @@ describe("IntegrationsPanel", () => {
 
     expect((await screen.findByTestId("integrations-storage-warning")).textContent).toBe("No libsecret keyring");
   });
+
+  it("says nothing is connected while neither source is", async () => {
+    render(<IntegrationsPanel onDismiss={() => undefined} />);
+
+    expect((await screen.findByTestId("integrations-none-connected")).textContent).toContain("No messenger is connected yet");
+  });
+
+  it("drops the not-connected notice once a source is connected", async () => {
+    vi.mocked(client.getIntegrations).mockResolvedValue(
+      status({ slack: { connected: true, state: "connected", error: null, workspace: "Acme", user: "me" } }),
+    );
+
+    render(<IntegrationsPanel onDismiss={() => undefined} />);
+
+    await screen.findByTestId("integrations-slack-connected");
+    expect(screen.queryByTestId("integrations-none-connected")).toBeNull();
+  });
 });

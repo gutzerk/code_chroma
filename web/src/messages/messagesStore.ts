@@ -17,11 +17,35 @@ class MessagesStore extends PanelStore {
   private loading = false;
   private again = false;
   private unsupported = false;
+  private integrationsOpen = false;
 
   getFeed = (): UnreadFeed | null => this.feed;
   hide = (): void => this.closePanel();
   getError = (): string | null => this.error;
   isUnsupported = (): boolean => this.unsupported;
+  isIntegrationsOpen = (): boolean => this.integrationsOpen;
+
+  /** The rail click: with no source connected it opens Integrations (panel stays shut), otherwise toggles the panel. */
+  activate = (): void => {
+    if (this.feed && noSourceConnected(this.feed)) {
+      this.closePanel();
+      this.integrationsOpen = true;
+      this.emit();
+      return;
+    }
+    this.toggle();
+  };
+
+  openIntegrations = (): void => {
+    this.closePanel();
+    this.integrationsOpen = true;
+    this.emit();
+  };
+
+  closeIntegrations = (): void => {
+    this.integrationsOpen = false;
+    this.emit();
+  };
 
   /** Re-fetches the feed; a call during a fetch queues exactly one more. */
   load = async (): Promise<void> => {
@@ -54,6 +78,7 @@ class MessagesStore extends PanelStore {
     this.loading = false;
     this.again = false;
     this.unsupported = false;
+    this.integrationsOpen = false;
     this.closePanel();
   };
 }
@@ -71,6 +96,10 @@ export function useMessagesError(): string | null {
 /** True once the bridge answered that it has no messages routes, so the rail hides the button. */
 export function useMessagesUnsupported(): boolean {
   return useSyncExternalStore(messagesStore.subscribe, messagesStore.isUnsupported);
+}
+
+export function useIsIntegrationsOpen(): boolean {
+  return useSyncExternalStore(messagesStore.subscribe, messagesStore.isIntegrationsOpen);
 }
 
 export function useIsMessagesPanelOpen(): boolean {
@@ -98,4 +127,9 @@ export function useMessagesSync(client: EngineClient): void {
 /** How many items the badge shows. */
 export function unreadCount(feed: UnreadFeed | null): number {
   return feed?.items.length ?? 0;
+}
+
+/** True when every source is disconnected (an erroring source still counts as set up). */
+export function noSourceConnected(feed: UnreadFeed): boolean {
+  return Object.values(feed.sources).every((status) => status.state === "disconnected");
 }

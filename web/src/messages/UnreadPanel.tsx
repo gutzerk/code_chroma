@@ -4,44 +4,51 @@ import { useEngineClient } from "../engine-client/EngineClientContext";
 import type { MessageSourceName, UnreadFeed, UnreadItem } from "./messagesClient";
 import {
   messagesStore,
+  noSourceConnected,
   unreadCount,
+  useIsIntegrationsOpen,
   useIsMessagesPanelOpen,
   useMessagesError,
   useMessagesFeed,
   useMessagesSync,
   useMessagesUnsupported,
 } from "./messagesStore";
+import { IntegrationsPanel } from "./IntegrationsPanel";
 import "./messages.css";
 
 const SOURCE_LABEL: Record<MessageSourceName, string> = { slack: "Slack", outlook: "Outlook" };
 
-/** The rail control: toggles the unread panel and badges the unread count; it also owns the feed sync. */
+/** The rail control: toggles the unread panel (or opens Integrations while nothing is connected), badges the count, owns the sync. */
 export function MessagesRailButton() {
   const client = useEngineClient();
   useMessagesSync(client);
   const open = useIsMessagesPanelOpen();
+  const integrationsOpen = useIsIntegrationsOpen();
   const count = unreadCount(useMessagesFeed());
   const unsupported = useMessagesUnsupported();
   const label = count > 0 ? `Unread messages (${count})` : "Unread messages";
   if (unsupported) return null;
 
   return (
-    <RailButton
-      label={open ? "Close unread messages" : label}
-      tooltip={label}
-      className="messages-toggle-button"
-      testId="messages-toggle-button"
-      pressed={open}
-      ariaControls="unread-panel"
-      onClick={messagesStore.toggle}
-    >
-      <RailIcon name="messages" />
-      {count > 0 && (
-        <span className="messages-badge" data-testid="messages-badge" aria-hidden="true">
-          {count > 99 ? "99+" : count}
-        </span>
-      )}
-    </RailButton>
+    <>
+      <RailButton
+        label={open ? "Close unread messages" : label}
+        tooltip={label}
+        className="messages-toggle-button"
+        testId="messages-toggle-button"
+        pressed={open}
+        ariaControls="unread-panel"
+        onClick={messagesStore.activate}
+      >
+        <RailIcon name="messages" />
+        {count > 0 && (
+          <span className="messages-badge" data-testid="messages-badge" aria-hidden="true">
+            {count > 99 ? "99+" : count}
+          </span>
+        )}
+      </RailButton>
+      {integrationsOpen && <IntegrationsPanel onDismiss={messagesStore.closeIntegrations} />}
+    </>
   );
 }
 
@@ -87,7 +94,7 @@ export function UnreadPanel() {
   const unsupported = useMessagesUnsupported();
   if (!open || unsupported) return null;
 
-  const allDisconnected = feed && Object.values(feed.sources).every((s) => s.state === "disconnected");
+  const allDisconnected = feed !== null && noSourceConnected(feed);
 
   return (
     <aside id="unread-panel" className="unread-panel" data-testid="unread-panel" aria-label="Unread messages">
@@ -101,7 +108,12 @@ export function UnreadPanel() {
       {error && !feed && <p className="unread-empty" data-testid="unread-error">Messages are unavailable: {error}</p>}
       {feed && <SourceNotes feed={feed} />}
       {feed && allDisconnected && (
-        <p className="unread-empty">Connect Slack or Outlook in Settings › Integrations to see unread messages here.</p>
+        <div className="unread-empty">
+          <p>Connect Slack or Outlook in Settings › Integrations to see unread messages here.</p>
+          <button type="button" className="llm-button-primary" onClick={messagesStore.openIntegrations}>
+            Connect…
+          </button>
+        </div>
       )}
       {feed && !allDisconnected && feed.items.length === 0 && <p className="unread-empty">Nothing unread.</p>}
       {feed && feed.items.length > 0 && (

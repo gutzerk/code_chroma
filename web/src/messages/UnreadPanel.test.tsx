@@ -12,7 +12,21 @@ import { messagesStore } from "./messagesStore";
 vi.mock("./messagesClient", () => ({
   getUnread: vi.fn(),
   refreshMessages: vi.fn(async () => ({ started: true })),
+  getIntegrations: vi.fn(async () => ({
+    slack: { connected: false, state: "disconnected", error: null, workspace: null, user: null },
+    outlook: { connected: false, state: "disconnected", error: null, account: null, client_id: null, tenant: null, default_client_available: true },
+    token_storage: { backend: "libsecret", warning: null },
+  })),
+  getSlackManifest: vi.fn(async () => ({})),
 }));
+
+const DISCONNECTED: UnreadFeed = {
+  sources: {
+    slack: { state: "disconnected", error: null, synced_at: null },
+    outlook: { state: "disconnected", error: null, synced_at: null },
+  },
+  items: [],
+};
 
 const FEED: UnreadFeed = {
   sources: {
@@ -126,5 +140,25 @@ describe("UnreadPanel", () => {
     act(() => messagesStore.open());
 
     expect(await screen.findByText(/Settings › Integrations/)).toBeTruthy();
+  });
+
+  it("opens Integrations instead of the panel when nothing is connected", async () => {
+    vi.mocked(client.getUnread).mockResolvedValue(DISCONNECTED);
+    renderWith(stubEngineClient, <><MessagesRailButton /><UnreadPanel /></>);
+    await waitFor(() => expect(messagesStore.getFeed()).not.toBeNull());
+
+    fireEvent.click(screen.getByTestId("messages-toggle-button"));
+
+    expect(await screen.findByTestId("integrations-none-connected")).toBeTruthy();
+    expect([screen.queryByTestId("unread-panel"), screen.getByTestId("messages-toggle-button").getAttribute("aria-pressed")]).toEqual([null, "false"]);
+  });
+
+  it("toggles the panel when a source is connected", async () => {
+    renderWith(stubEngineClient, <><MessagesRailButton /><UnreadPanel /></>);
+    await waitFor(() => expect(messagesStore.getFeed()).not.toBeNull());
+
+    fireEvent.click(screen.getByTestId("messages-toggle-button"));
+
+    expect([screen.queryByTestId("unread-panel") !== null, screen.queryByTestId("integrations-dialog")]).toEqual([true, null]);
   });
 });

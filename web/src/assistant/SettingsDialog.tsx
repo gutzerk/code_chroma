@@ -48,7 +48,7 @@ export function SettingsDialog({ onDismiss }: { onDismiss: () => void }) {
   if (openCategory === "updates") return <UpdatesPanel onDismiss={() => setOpenCategory(null)} />;
   if (openCategory === "canvas-style") return <CanvasStylePanel onDismiss={() => setOpenCategory(null)} />;
   if (openCategory === "llm") return <LlmSettingsPanel onDismiss={() => setOpenCategory(null)} />;
-  if (openCategory === "integrations") return <IntegrationsPanel onDismiss={() => setOpenCategory(null)} />;
+  if (openCategory === "integrations") return <IntegrationsPanel onDismiss={() => setOpenCategory(null)} onBack={() => setOpenCategory(null)} />;
 
   return (
     <ModalDialog

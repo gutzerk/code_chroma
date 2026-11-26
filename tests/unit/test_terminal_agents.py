@@ -22,7 +22,7 @@ def _assign_agents_group(**provider_kwargs):
 
 
 def _fullscreen_args():
-    """The `--settings` every claude window carries when it has no hooks: the fullscreen renderer."""
+    """The `--settings` a claude window with no hooks carries: the fullscreen renderer."""
     return ["--settings", json.dumps({"tui": FULLSCREEN_TUI})]
 
 
@@ -91,7 +91,9 @@ def test_agent_kind_loads_plugin_when_claude_adapter_uses_a_wrapper(monkeypatch)
     argv, env = agent_cli("agent")
 
     plugin = str(resource_path("skills").parent)
-    assert argv == ["claude-wrapper", "--model", "claude-opus", *_fullscreen_args(), "--plugin-dir", plugin]
+    assert argv == [
+        "claude-wrapper", "--model", "claude-opus", *_fullscreen_args(), "--plugin-dir", plugin,
+    ]
     assert env == {}
 
 
@@ -216,4 +218,6 @@ def test_claude_kind_appends_the_saved_instruction_to_the_system_prompt():
 
     argv, _env = agent_cli("claude")
 
-    assert argv == ["claude", *_fullscreen_args(), "--append-system-prompt", "be terse", *_plugin_args()]
+    assert argv == [
+        "claude", *_fullscreen_args(), "--append-system-prompt", "be terse", *_plugin_args(),
+    ]

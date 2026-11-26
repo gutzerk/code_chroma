@@ -244,3 +244,20 @@ def test_the_pty_follows_only_the_window_that_owns_the_size(steps, cols):
     result = _pty_cols_after(steps)
 
     assert result == cols
+
+
+def test_attaching_with_a_size_takes_the_pty_over_and_paints_once():
+    async def run() -> tuple[int, int, int, int]:
+        session = AgentSession("runner", ECHO, cwd=".")
+        other = session.attach()
+        session.resize_from(other, 30, 100)
+        queue = session.attach((40, 140))
+        session.resize_from(queue, 40, 140)
+        frames = queue.qsize()
+        size = (session._rows, session._cols)
+        session.close()
+        return (frames, *size, session._tap._screen.columns)
+
+    frames, rows, cols, tap_cols = asyncio.run(run())
+
+    assert (frames, rows, cols, tap_cols) == (1, 40, 140, 140)

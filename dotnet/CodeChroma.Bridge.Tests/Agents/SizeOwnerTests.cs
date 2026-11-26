@@ -77,4 +77,61 @@ public sealed class SizeOwnerTests : IDisposable
 
         Assert.Equal(100, _session.Screen.Cols);
     }
+
+    [Fact]
+    public void Attaching_with_a_size_takes_the_pty_over_at_that_size()
+    {
+        var first = _session.Attach();
+        _session.Resize(first, 30, 100);
+
+        _session.Attach((40, 140));
+
+        Assert.Equal((40, 140), (_session.Screen.Rows, _session.Screen.Cols));
+    }
+
+    [Fact]
+    public void Attaching_with_a_size_paints_once_and_its_first_resize_does_not_redraw_again()
+    {
+        var window = _session.Attach((30, 90));
+        var seeded = Drain(window);
+
+        _session.Resize(window, 30, 90);
+
+        Assert.Single(seeded);
+        Assert.StartsWith("\u001b[?25l", seeded[0]);
+        Assert.Empty(Drain(window));
+    }
+
+    [Fact]
+    public void Attaching_without_a_size_redraws_again_on_the_first_resize()
+    {
+        var window = _session.Attach();
+        Drain(window);
+
+        _session.Resize(window, 30, 90);
+
+        Assert.Contains(Drain(window), frame => frame.StartsWith("\u001b[?25l", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Attached_windows_counts_each_attach_until_its_detach()
+    {
+        var before = _session.AttachedWindows;
+
+        var first = _session.Attach();
+        var second = _session.Attach((30, 90));
+        var both = _session.AttachedWindows;
+        _session.Detach(first);
+        var one = _session.AttachedWindows;
+        _session.Detach(second);
+
+        Assert.Equal((0, 2, 1, 0), (before, both, one, _session.AttachedWindows));
+    }
+
+    private static List<string> Drain(AgentConsumer window)
+    {
+        var frames = new List<string>();
+        while (window.Output.TryRead(out var frame)) frames.Add(frame);
+        return frames;
+    }
 }

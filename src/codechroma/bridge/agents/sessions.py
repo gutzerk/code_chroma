@@ -109,7 +109,7 @@ class AgentStartError(codechromaError):
 class AgentSessionPort(Protocol):
     """A long-lived PTY session a terminal window can attach to and follow live."""
 
-    def attach(self) -> asyncio.Queue: ...
+    def attach(self, size: tuple[int, int] | None = None) -> asyncio.Queue: ...
 
     def resync(self, queue: asyncio.Queue) -> None: ...
 
@@ -292,9 +292,13 @@ class AgentSession(AgentSessionPort):
         """How many windows are attached right now; 0 means nobody can see this agent."""
         return len(self._consumers)
 
-    def attach(self) -> asyncio.Queue:
-        """A queue seeded with a screen redraw, so a reattach can never start mid-sequence."""
+    def attach(self, size: tuple[int, int] | None = None) -> asyncio.Queue:
+        """A queue seeded with one redraw; with a size the window takes the PTY over at it first."""
         queue: asyncio.Queue = asyncio.Queue()
+        if size is not None:
+            self._sizes[queue] = size
+            self._size_owner = queue
+            self.resize(*size)
         queue.put_nowait(self._tap.render())
         self._consumers.add(queue)
         self._pty.client_attached = True

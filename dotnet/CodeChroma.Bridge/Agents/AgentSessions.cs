@@ -18,7 +18,7 @@ public sealed class AgentConsumer
 /// <summary>A long-lived PTY session a terminal window can attach to and follow live.</summary>
 public interface IAgentSessionPort
 {
-    AgentConsumer Attach();
+    AgentConsumer Attach((int Rows, int Cols)? size = null);
     void Resync(AgentConsumer consumer);
     void Detach(AgentConsumer consumer);
     void Write(string data);
@@ -214,13 +214,19 @@ public sealed class AgentSession : IAgentSessionPort, IDisposable
         }
     }
 
-    /// <summary>A consumer seeded with a screen redraw, so a reattach can never start mid-sequence; the history waits for Resync unless the process has exited.</summary>
-    public AgentConsumer Attach()
+    /// <summary>A consumer seeded with one redraw, so a reattach can never start mid-sequence: with the window's size it takes the PTY over and gets the full history at that size; without one it gets the screen only and the history waits for Resync.</summary>
+    public AgentConsumer Attach((int Rows, int Cols)? size = null)
     {
         var consumer = new AgentConsumer();
         lock (_gate)
         {
-            consumer.Channel.Writer.TryWrite(_tap.Render(withHistory: _exitCode is not null));
+            if (size is { } known && _exitCode is null)
+            {
+                consumer.Size = known;
+                _sizeOwner = consumer;
+                ResizeLocked(known.Rows, known.Cols);
+            }
+            consumer.Channel.Writer.TryWrite(_tap.Render(withHistory: _exitCode is not null || consumer.Size is not null));
             if (_exitCode is not null) consumer.Channel.Writer.TryComplete();
             else _consumers.Add(consumer);
         }

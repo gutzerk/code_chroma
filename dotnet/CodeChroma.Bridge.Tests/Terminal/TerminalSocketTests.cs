@@ -128,6 +128,53 @@ public class TerminalSocketTests
     }
 
     [Fact]
+    public async Task A_plain_shell_started_with_a_query_size_runs_at_that_size()
+    {
+        using var host = new BridgeHost();
+        var client = await Connect(host, "/ws/terminal?agent=shell&rows=30&cols=100");
+
+        await client.Send(new { type = "input", data = "stty size" + Newline });
+
+        Assert.True(await client.WaitFor("30 100"), client.Text);
+    }
+
+    [Fact]
+    public async Task An_agent_window_attached_with_a_query_size_resizes_the_pty_and_paints_once()
+    {
+        using var host = new BridgeHost();
+        await host.Client.PostAsync("/agents", new StringContent($$"""{"title":"Sized","kind":"shell","workspace":"{{await EnsureTab(host)}}"}""", Encoding.UTF8, "application/json"));
+        await host.Client.PostAsync("/agents/sized/start", new StringContent("{}", Encoding.UTF8, "application/json"));
+
+        var window = await Connect(host, "/ws/terminal?agent=shell&workspace=sized&rows=30&cols=100");
+        await window.Send(new { type = "input", data = "stty size" + Newline });
+
+        Assert.True(await window.WaitFor("30 100"), window.Text);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(window.Text, "\u001b\\[2J"));
+        await host.Client.PostAsync("/agents/sized/stop", null);
+    }
+
+    [Theory]
+    [InlineData("rows=30&cols=100", 30, 100)]
+    [InlineData("rows=0&cols=5000", 1, 1000)]
+    public void A_query_size_is_read_and_clamped(string query, int rows, int cols)
+    {
+        var parsed = CodeChroma.Bridge.Routes.TerminalRoutes.QuerySize(new Microsoft.AspNetCore.Http.QueryCollection(Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(query)));
+
+        Assert.Equal((rows, cols), parsed);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("rows=30")]
+    [InlineData("rows=x&cols=100")]
+    public void A_missing_or_malformed_query_size_is_none(string query)
+    {
+        var parsed = CodeChroma.Bridge.Routes.TerminalRoutes.QuerySize(new Microsoft.AspNetCore.Http.QueryCollection(Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(query)));
+
+        Assert.Null(parsed);
+    }
+
+    [Fact]
     public async Task Resuming_an_agent_with_no_recorded_session_is_a_409()
     {
         using var host = new BridgeHost();

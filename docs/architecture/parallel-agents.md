@@ -459,12 +459,23 @@ branch through an agent attached to it (`_guard_shared_worktree`, keyed off `Age
   fullscreen agent would sit in a window with no mouse tracking (wheel scrolls nothing) and the
   wrong buffer. Python replays the same modes from pyte's `screen.mode` (private modes stored as
   `n << 5`) and the margins, and sends `?1049h` first when the alt screen is on; pyte keeps one
-  buffer, so Python cannot restore the main screen behind it. `Attach()` sends the
-  screen only (the history too once the process has exited); the first-resize `Resync` sends the
-  history once. 🔴 `useXtermSession` sends no size until `FitAddon.proposeDimensions()` can measure
-  its box (a hidden or not-yet-laid-out box would leave xterm's 80x24 default, shrinking the PTY so
-  a background agent prints at 80 columns); the first measurable refit sends the real size. A laid-out 0px
-  box counts as unmeasurable too: it measures FitAddon's 2x1 floor. Claude's classic renderer
+  buffer, so Python cannot restore the main screen behind it. 🔴 **One paint per attach.**
+  `useXtermSession` measures its box with `FitAddon.proposeDimensions()` before connecting, fits,
+  records that size and passes it to `TerminalClient.connect(agent, workspace, size)`, which puts it
+  on the socket as `?rows=&cols=` (`TerminalRoutes.QuerySize` / `_query_size`, clamped 1..1000 like a
+  resize frame). `Attach(size)` (Python `attach(size)`) then, under `_gate`, records that size on the
+  consumer, makes it the size owner, resizes the PTY and tap, and sends a single
+  `Render(withHistory: true)`; its first resize frame is then not a first report, so no second
+  clear+redraw follows. Without a size (a hidden or not-yet-laid-out box, or an older client) the old
+  path stays: `Attach()` sends the screen only (the history too once the process has exited) and the
+  first-resize `Resync` sends the history once. The own-PTY shell path starts its PTY at the query
+  size. 🔴 A hidden or not-yet-laid-out box sends no size at all (it would leave xterm's 80x24
+  default, shrinking the PTY so a background agent prints at 80 columns); the first measurable refit
+  sends the real size. A laid-out 0px box counts as unmeasurable too: it measures FitAddon's 2x1
+  floor. Tests: `SizeOwnerTests` (attach with a size), `TerminalSocketTests`, contract cases
+  `an_agent_window_connecting_with_a_query_size_runs_the_pty_at_that_size` and
+  `a_plain_shell_connecting_with_a_query_size_starts_at_that_size`, `useXtermSession.test.tsx`,
+  `TerminalClient.test.ts`. Claude's classic renderer
   writes wrapped rows as hard rows and on SIGWINCH repaints only the visible frame, so rows printed
   while the PTY was narrow would stay narrow; the widen resume below reprints them.
   🔴 Entirely separate from `skill_agent`'s registry: if the two touched, regenerating a C1 diagram would kill the user's sessions. `atexit` + the lifespan

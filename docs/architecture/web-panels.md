@@ -42,8 +42,8 @@ to revive if it comes back, it would be rebuilt from scratch.
     own cursor model.
   - The debounced, size-deduped `refit`, the 0x0 guard for a hidden host box, and `onBinary`.
   - Stick-to-bottom (`stickToBottom.ts`, `stickToBottom.test.ts`): a terminal at the bottom stays there. xterm 5's DOM
-    scrollbar can fire a stale scroll while a big write (the bridge's first-resize `Resync` after an agent window is
-    shown) is parsed; xterm then thinks the user scrolled and stops following output a few screens up. Only wheel, key
+    scrollbar can fire a stale scroll while a big write (the bridge's attach redraw with history, or the first-resize `Resync`
+    when the window connected without a size) is parsed; xterm then thinks the user scrolled and stops following output a few screens up. Only wheel, key
     and held-pointer input change the pinned state; other scrolls and writes snap a pinned terminal back. The prompt
     navigator unpins on a jump (`unpinTerminal`) and pins on Latest (`pinTerminal`); showing a hidden window re-applies it.
   - Copy-on-select: `term.onSelectionChange` writes the new (non-empty) selection to

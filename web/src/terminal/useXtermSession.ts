@@ -5,7 +5,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import { useTerminalClient } from "./TerminalClientContext";
-import type { TerminalSession } from "./TerminalClient";
+import type { TerminalSession, TerminalSize } from "./TerminalClient";
 import { attachStickToBottom, type StickToBottomHandle } from "./stickToBottom";
 
 const REFIT_DEBOUNCE_MS = 60;
@@ -61,6 +61,12 @@ export function isPasteChord(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | 
   return (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "v";
 }
 
+/** An unmeasurable box (hidden: NaN; laid out at 0px: FitAddon's 2x1 floor) would shrink the PTY, so it is never sent. */
+function measurable(fitAddon: FitAddon): boolean {
+  const measured = fitAddon.proposeDimensions();
+  return !!measured && measured.cols > MIN_COLS && measured.rows > MIN_ROWS;
+}
+
 export interface XtermSessionOptions {
   /** Allow-listed agent key on the bridge, e.g. "shell" or "claude". */
   agent: string;
@@ -111,9 +117,7 @@ export function useXtermSession(
     const fitAddon = fitAddonRef.current;
     const session = sessionRef.current;
     if (!term || !fitAddon || !session) return;
-    // An unmeasurable box (hidden: NaN; laid out at 0px: FitAddon's 2x1 floor) would shrink the PTY, so skip it.
-    const measured = fitAddon.proposeDimensions();
-    if (!measured || !(measured.cols > MIN_COLS) || !(measured.rows > MIN_ROWS)) return;
+    if (!measurable(fitAddon)) return;
     fitAddon.fit();
     const last = lastSizeRef.current;
     if (last && last.rows === term.rows && last.cols === term.cols) return;
@@ -165,12 +169,19 @@ export function useXtermSession(
     // No WebglAddon on purpose: its glyph atlas is shared by every terminal and, once pages merge, drops glyphs.
     // The default DOM renderer has no atlas, so that whole class of blank cells cannot happen.
 
-    fitAddon.fit();
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
+    // Measured before connecting, so the bridge resizes the PTY and paints once at this size; a hidden box connects without one.
+    let initialSize: TerminalSize | undefined;
+    if (measurable(fitAddon)) {
+      fitAddon.fit();
+      initialSize = { rows: term.rows, cols: term.cols };
+    }
+    lastSizeRef.current = initialSize ?? null;
+
     let disposed = false;
-    const session = terminalClient.connect(agent, workspace);
+    const session = terminalClient.connect(agent, workspace, initialSize);
     sessionRef.current = session;
     session.onData((data) => {
       if (!disposed) term.write(data);
@@ -206,7 +217,6 @@ export function useXtermSession(
         userSelectionPending = false;
       }, SELECTION_COPY_DEBOUNCE_MS);
     });
-    lastSizeRef.current = null;
     refit();
 
     const sticky = attachStickToBottom(term, container, () => hiddenRef.current);

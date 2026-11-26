@@ -129,14 +129,28 @@ describe("useXtermSession", () => {
     expect(terminals[0].refreshed).toContainEqual([0, 23]);
   });
 
-  it("connects with the agent and workspace and sends the initial size", () => {
+  it("connects with the agent, workspace and measured size instead of a resize frame", () => {
     const { session } = fakeSession();
     const connect = vi.fn().mockReturnValue(session);
 
     mount(connect, { agent: "claude", workspace: "ws1" });
 
-    expect(connect).toHaveBeenCalledWith("claude", "ws1");
-    expect(session.resize).toHaveBeenCalledWith(24, 80);
+    expect(connect).toHaveBeenCalledWith("claude", "ws1", { rows: 24, cols: 80 });
+    expect(session.resize).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["is hidden", undefined],
+    ["is laid out at 0px", { rows: 1, cols: 2 }],
+  ])("connects without a size while the host %s", (_name, proposed) => {
+    fit.proposed = proposed;
+    const { session } = fakeSession();
+    const connect = vi.fn().mockReturnValue(session);
+
+    mount(connect, { agent: "claude", workspace: "ws1" });
+
+    expect(connect).toHaveBeenCalledWith("claude", "ws1", undefined);
+    expect(session.resize).not.toHaveBeenCalled();
   });
 
   it("stays torn down while disabled", () => {

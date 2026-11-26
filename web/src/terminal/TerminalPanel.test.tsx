@@ -190,7 +190,7 @@ describe("TerminalPanel", () => {
     renderPanel(connect);
 
     expect(screen.getByTestId("terminal-panel")).toBeInTheDocument();
-    expect(connect).toHaveBeenCalledWith("shell", undefined);
+    expect(connect).toHaveBeenCalledWith("shell", undefined, { rows: 24, cols: 80 });
   });
 
   it("writes incoming session output to the terminal", () => {

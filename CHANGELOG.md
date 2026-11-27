@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.21.0](https://github.com/gutzerk/code_chroma/compare/v1.20.0...v1.21.0) (2026-11-26)
+
+
+### Features
+
+* **agents:** paint an attaching window once at its measured size ([f2d58af](https://github.com/gutzerk/code_chroma/commit/f2d58af4c728854240b1327c65ef1a916e4e9c28))
+* **agents:** run claude windows in the fullscreen renderer ([c47d399](https://github.com/gutzerk/code_chroma/commit/c47d399811f4e8faf580ffb877ea7e1190153562))
+* **terminal:** keep main and alt screens and replay terminal modes on redraw ([eeb6f53](https://github.com/gutzerk/code_chroma/commit/eeb6f53061921e3459f866370a57e7b91420fd57))
+* **web:** navigate prompts on a fullscreen agent by scrolling its transcript ([99bc9d1](https://github.com/gutzerk/code_chroma/commit/99bc9d141e09736d4900ed411b5682bfafd7b78f))
+* **web:** remember the activity panel width across reloads ([58038fd](https://github.com/gutzerk/code_chroma/commit/58038fdd34c7d8b427c610d22abeb0c8264da522))
+* **web:** terminal text size per monitor ([3ccd914](https://github.com/gutzerk/code_chroma/commit/3ccd914c85d5178572fbe40c879e2d503cfe878d))
+
+
+### Bug Fixes
+
+* agent terminal stops reprinting, reflows on resize, per-monitor text size ([#391](https://github.com/gutzerk/code_chroma/issues/391)) ([f42bff3](https://github.com/gutzerk/code_chroma/commit/f42bff39806331bf9f6a815332858ecd75ff1389))
+* **agents:** never restart an agent when its window widens ([b590244](https://github.com/gutzerk/code_chroma/commit/b590244ca4ce5e3c2376d6e865e8da303cddab92))
+* **bridge:** read the shell probe's output on dedicated threads ([98967dc](https://github.com/gutzerk/code_chroma/commit/98967dcdc81be3dbe9dcf970a2287ae2003288c9))
+* stop macOS from opening the project in the system browser ([#389](https://github.com/gutzerk/code_chroma/issues/389)) ([f8991ee](https://github.com/gutzerk/code_chroma/commit/f8991eed018175a26e21ca752fc6a1e34e1c0bda))
+* **terminal:** address review of the fullscreen agent terminal ([4caf320](https://github.com/gutzerk/code_chroma/commit/4caf3208a452190d2619a4a6f3480a18f91888cc))
+* **terminal:** ignore private-prefixed CSI in ScreenTap and keep dim ([03241cc](https://github.com/gutzerk/code_chroma/commit/03241cc114a77261f81ee85a1f181fd7fced0404))
+
 ## [1.20.0](https://github.com/gutzerk/code_chroma/compare/v1.19.0...v1.20.0) (2026-11-25)
 
 
